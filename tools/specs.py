@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import re
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 FINISH = "finish"
 ACTION_TOOLS = ("read_file", "write_file", "exec_python")
@@ -25,7 +26,7 @@ class ExecPythonArgs(BaseModel):
     code: str | None = Field(None, description="Inline Python to run instead of a file.")
     timeout: float | None = Field(
         None, gt=0, le=MAX_CALL_TIMEOUT_S,
-        description="Seconds before the process tree is killed. Defaults to the configured timeout.",
+        description="Seconds before the process tree is killed. Defaults to (and is capped at) the configured timeout.",
     )
     mode: Literal["auto", "script", "pytest"] = Field(
         "auto", description="auto runs test_*.py / *_test.py under pytest and anything else as a script.",
@@ -38,6 +39,15 @@ class FinishArgs(BaseModel):
     entry_point: str | None = Field(
         None, description="The script or test file that demonstrates the deliverable, relative to the workspace.",
     )
+
+    @field_validator("plan", mode="before")
+    @classmethod
+    def _plan_from_string(cls, v: object) -> object:
+        # Models sometimes send an array parameter as one string; split it into steps
+        if isinstance(v, str):
+            steps = [re.sub(r"^\s*(?:\d+[.)]|[-*])\s*", "", line).strip() for line in v.splitlines()]
+            return [step for step in steps if step]
+        return v
 
 
 _DESCRIPTIONS = {

@@ -45,7 +45,8 @@ def run_action(ctx: ToolContext, name: str, args: dict) -> ActionOutcome:
         record_dir=ctx.record_dir,
         path=a.path,
         code=a.code,
-        timeout=a.timeout if a.timeout is not None else ctx.exec_timeout_s,
+        # The configured timeout is a ceiling; the model may only ask for less
+        timeout=min(a.timeout, ctx.exec_timeout_s) if a.timeout is not None else ctx.exec_timeout_s,
         mode=a.mode,
     )
     return ActionOutcome(e.to_observation(), execution=e)

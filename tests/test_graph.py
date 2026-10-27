@@ -109,3 +109,11 @@ def test_unexecuted_broken_file_is_failed(settings):  # spec §6.4 regression 2 
     ])
     r = CoderResult.model_validate(run_graph(deps(settings, m))[0]["result"])
     assert r.status == "failed" and "palindrome.py: not executed" in r.verification_notes
+
+
+def test_limit_event_separates_rejected_from_unexecuted(settings):
+    s = settings.model_copy(update={"max_iterations": 1})
+    bad_finish = tool_call("finish", explanation="e")  # missing plan
+    state, events = run_graph(deps(s, ScriptedChatModel(responses=[ai("", bad_finish)])))
+    limit = next(e for e in events if e["kind"] == "limit")
+    assert limit["data"]["unexecuted"] == [] and limit["data"]["rejected"][0].startswith("finish rejected:")

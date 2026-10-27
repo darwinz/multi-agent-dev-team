@@ -88,7 +88,10 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
             update["stop_reason"] = "finished"
         elif decision.kind == "limit":
             update["stop_reason"] = "iteration_limit"
-            emit("limit", n, unexecuted=[c["name"] for c in message.tool_calls])
+            rejected_ids = {call_id for call_id, _ in decision.rejections}
+            emit("limit", n,
+                 unexecuted=[c["name"] for c in message.tool_calls if c["id"] not in rejected_ids],
+                 rejected=[obs.splitlines()[0] for _, obs in decision.rejections])
         return update
 
     def route(state: CoderState) -> str:

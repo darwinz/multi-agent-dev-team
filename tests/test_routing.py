@@ -38,3 +38,11 @@ def test_invalid_finish_args_is_case_4():
 
 def test_extract_plan():
     assert extract_plan("Plan:\n1. write\n2) test\nok") == ["write", "test"]
+
+
+def test_finish_plan_given_as_string_is_split():
+    # Claude sometimes sends an array parameter as a string (seen live on the --max-iterations probe)
+    d = classify(ai("", tool_call("finish", explanation="e", plan="1. write module\n2) run tests")), 3, 10)
+    assert d.kind == "finish" and d.finish_args["plan"] == ["write module", "run tests"]
+    d = classify(ai("", tool_call("finish", explanation="e", plan="Write csv_parser.py")), 3, 10)
+    assert d.kind == "finish" and d.finish_args["plan"] == ["Write csv_parser.py"]

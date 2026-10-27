@@ -39,3 +39,14 @@ def test_default_timeout_comes_from_context(tmp_path, monkeypatch):
 def test_bad_calls_are_tool_errors(tmp_path, name, args, msg):
     with pytest.raises(ToolError, match=msg):
         run_action(ctx(tmp_path), name, args)
+
+
+def test_per_call_timeout_cannot_exceed_configured(tmp_path, monkeypatch):
+    # the operator's --timeout is a ceiling: the model passed timeout=5 against --timeout 2 in a live probe
+    seen = {}
+    monkeypatch.setattr("tools.dispatch.exec_python", lambda ws, **kw: seen.update(kw) or FAKE_OUTCOME)
+    c = ToolContext(Workspace(tmp_path / "ws"), 2.0, tmp_path / "rec")
+    run_action(c, "exec_python", {"code": "print(1)", "timeout": 5})
+    assert seen["timeout"] == 2.0
+    run_action(c, "exec_python", {"code": "print(1)", "timeout": 1})
+    assert seen["timeout"] == 1.0

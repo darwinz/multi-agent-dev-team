@@ -52,7 +52,8 @@ def render_event(console: Console, event: StepEvent) -> None:
     elif k in ("nudge", "limit", "error"):
         msg = {
             "nudge": d.get("text", ""),
-            "limit": f"iteration limit reached; not executed: {', '.join(d.get('unexecuted', [])) or 'nothing'}",
+            "limit": "iteration limit reached; not executed: " + (", ".join(d.get("unexecuted", [])) or "nothing")
+            + "".join(f"; {r}" for r in d.get("rejected", [])),
             "error": d.get("message", ""),
         }[k]
         console.print(prefix + Text(f"{k}: {msg}", style="bold yellow" if k != "error" else "bold red"))

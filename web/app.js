@@ -131,7 +131,8 @@ async function handle(ev) {
     case "nudge":
     case "limit":
     case "error":
-      addStep(ev.kind, ev.kind[0].toUpperCase() + ev.kind.slice(1), d.text || d.message || (d.unexecuted || []).join(", "));
+      addStep(ev.kind, ev.kind[0].toUpperCase() + ev.kind.slice(1), d.text || d.message ||
+        ["not executed: " + ((d.unexecuted || []).join(", ") || "nothing"), ...(d.rejected || [])].join("\n"));
       break;
     case "result":
       renderResult(d.result);
