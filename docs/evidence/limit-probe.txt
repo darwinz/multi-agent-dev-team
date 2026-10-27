@@ -1,0 +1,30 @@
+$ uv run coder --max-iterations 1 "Write fizzbuzz.py that prints FizzBuzz for 1..15, with pytest tests, and run them"
+─────────────────────── Task (anthropic:claude-sonnet-5-5, run 6bb6d2efc1d7) ───────────────────────
+Write fizzbuzz.py that prints FizzBuzz for 1..15, with pytest tests, and run them
+[1/1] memory: 0 relevant past run(s), 0 recent turn(s)
+[1/1] thought: 1. Write `fizzbuzz.py` with a `fizzbuzz(n)` function and a `main()` that prints 
+1..15.
+2. Write `test_fizzbuzz.py` with pytest tests.
+3. Run the tests.
+[1/1] plan:
+    1. Write `fizzbuzz.py` with a `fizzbuzz(n)` function and a `main()` that prints 1..15.
+    2. Write `test_fizzbuzz.py` with pytest tests.
+    3. Run the tests.
+[1/1] limit: iteration limit reached; not executed: write_file, write_file, exec_python
+╭────────────────────────────────────────── CoderResult ───────────────────────────────────────────╮
+│ status: iteration_limit   iterations: 1   run: 6bb6d2efc1d7                                      │
+│ verified: ✗  nothing was executed successfully                                                   │
+│ plan:                                                                                            │
+│   1. Write `fizzbuzz.py` with a `fizzbuzz(n)` function and a `main()` that prints 1..15.         │
+│   2. Write `test_fizzbuzz.py` with pytest tests.                                                 │
+│   3. Run the tests.                                                                              │
+│ explanation: Stopped after 1 of 1 iterations without calling finish. Last action: none. Last     │
+│ observation: none.                                                                               │
+│ files: none                                                                                      │
+│ last execution: code was never executed                                                          │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+[exit code 1]
+
+$ uv run coder --max-iterations 11 "anything"
+coder: invalid setting max_iterations: Value error, max_iterations must be between 1 and 10, got 11
+[exit code 2]
