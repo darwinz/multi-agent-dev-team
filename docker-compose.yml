@@ -1,7 +1,12 @@
 # Web UI:   ANTHROPIC_API_KEY=... docker compose up web   (or: op run --env-file=.env.op -- docker compose up web)
 # CLI:      docker compose run --rm coder "your task"
+# On Linux, build with your own ids so the mounted dirs stay yours: UID=$(id -u) GID=$(id -g) docker compose build
 x-coder: &coder
-  build: .
+  build:
+    context: .
+    args:
+      UID: ${UID:-1000}
+      GID: ${GID:-1000}
   image: multi-agent-dev-team:latest
   environment:
     ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY}

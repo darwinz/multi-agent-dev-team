@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import shutil
 import uuid
 from collections.abc import Iterator
 from datetime import UTC, datetime
@@ -16,6 +17,7 @@ from agents.model import make_model
 from agents.result import CoderResult, ExecutionResult
 from memory.semantic import SemanticMemory
 from memory.window import SlidingWindow
+from orchestration.finalize import code_block
 from orchestration.graph import GraphDeps, build_graph, initial_state
 from tools.dispatch import ToolContext
 from tools.specs import TOOL_SPECS
@@ -117,14 +119,15 @@ class CoderAgent:
             except Exception as e:  # model/provider/graph failure: report it as an error result
                 yield StepEvent(kind="error", iteration=state.get("iterations", 0), max_iterations=s.max_iterations,
                                 data={"message": f"{type(e).__name__}: {e}"})
+                files = self._written_files()
                 result = CoderResult(
-                    code="",
+                    code=code_block(files) if files else "",
                     explanation=f"Run failed: {type(e).__name__}: {e}",
                     plan=state.get("plan") or ["Run failed before a plan was recorded."],
                     result=ExecutionResult(executed=False, target=None, exit_code=None),
                     status="error",
                     iterations=state.get("iterations", 0),
-                    files={},
+                    files=files,
                     memories_used=[],
                     run_id=run_id,
                     verified=False,
@@ -147,6 +150,14 @@ class CoderAgent:
                 yield StepEvent(kind="error", iteration=result.iterations, max_iterations=s.max_iterations,
                                 data={"message": f"memory write-back failed: {type(e).__name__}: {e}"})
 
+    def _written_files(self) -> dict[str, str]:
+        files = {}
+        for path in sorted(self.last_written):
+            p = self.workspace.root / path
+            if p.is_file():
+                files[path] = p.read_bytes().decode("utf-8", errors="replace")
+        return files
+
     def run(self, task: str) -> CoderResult:
         result = None
         for event in self.stream(task):
@@ -160,6 +171,7 @@ class CoderAgent:
         with RunLock(self.settings.state_dir):
             self.semantic.clear()
             self.workspace.clear()
+            shutil.rmtree(self.settings.state_dir / "exec", ignore_errors=True)
             self.generation_seen = self._generation.bump()
             self.window.clear()
 

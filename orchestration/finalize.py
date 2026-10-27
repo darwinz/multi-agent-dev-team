@@ -9,7 +9,7 @@ from orchestration.verify import verify_delivery
 from tools.workspace import Workspace
 
 
-def _code_block(files: dict[str, str]) -> str:
+def code_block(files: dict[str, str]) -> str:
     if len(files) == 1:
         return next(iter(files.values()))
     return "\n\n".join(f"# ===== {path} =====\n{content}" for path, content in files.items())
@@ -60,7 +60,7 @@ def build_result(state: CoderState, *, run_id: str, workspace: Workspace, max_it
                 notes.append("last execution failed")
 
     return CoderResult(
-        code=_code_block(files),
+        code=code_block(files),
         explanation=explanation,
         plan=plan,
         result=result,

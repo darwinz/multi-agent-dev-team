@@ -145,3 +145,10 @@ def test_children_killed_after_successful_run(tmp_path):  # review I3
     time.sleep(0.3)
     with pytest.raises(ProcessLookupError):
         os.kill(int((ws.root / "child.pid").read_text()), 0)
+
+
+def test_exec_record_removed_after_reading(tmp_path):  # review M8
+    ws = Workspace(tmp_path / "ws")
+    write_file(ws, "hello.py", "print('hi')")
+    assert run(ws, tmp_path, path="hello.py").loaded
+    assert list((tmp_path / "rec").glob("*.json")) == []

@@ -9,7 +9,6 @@ from pydantic import BaseModel, Field, field_validator
 
 FINISH = "finish"
 ACTION_TOOLS = ("read_file", "write_file", "exec_python")
-MAX_CALL_TIMEOUT_S = 60.0
 
 
 class ReadFileArgs(BaseModel):
@@ -25,7 +24,7 @@ class ExecPythonArgs(BaseModel):
     path: str | None = Field(None, description="Python file to run, relative to the workspace directory.")
     code: str | None = Field(None, description="Inline Python to run instead of a file.")
     timeout: float | None = Field(
-        None, gt=0, le=MAX_CALL_TIMEOUT_S,
+        None, gt=0,
         description="Seconds before the process tree is killed. Defaults to (and is capped at) the configured timeout.",
     )
     mode: Literal["auto", "script", "pytest"] = Field(

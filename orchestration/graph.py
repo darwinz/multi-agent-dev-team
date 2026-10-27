@@ -26,6 +26,10 @@ NUDGE = (
     "Observation: no tool was called. Call a tool to make progress, or call finish (alone) "
     "when the deliverable has been executed successfully."
 )
+FINISH_NUDGE = (
+    "Observation: finish was rejected (see above). Fix its arguments and call it alone, or call a tool "
+    "to make progress."
+)
 SKIPPED = "skipped: an earlier call in this batch failed"
 _QUERY_CHARS = 500
 
@@ -100,7 +104,7 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
     def tools(state: CoderState) -> dict:
         n = state["iterations"]
         d = Decision(**state["decision"])
-        messages: list = [ToolMessage(obs, tool_call_id=call_id) for call_id, obs in d.rejections]
+        messages: list = [ToolMessage(obs, tool_call_id=call_id, status="error") for call_id, obs in d.rejections]
         events: list[ToolEvent] = []
         writes: dict[str, WriteInfo] = {}
         executions: list[ExecInfo] = []
@@ -108,7 +112,7 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
         failed = False
         for call in d.run_calls:
             if failed:
-                messages.append(ToolMessage(SKIPPED, tool_call_id=call["id"]))
+                messages.append(ToolMessage(SKIPPED, tool_call_id=call["id"], status="error"))
                 continue
             seq += 1
             emit("action", n, tool=call["name"], args=call["args"])
@@ -118,6 +122,8 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
                 obs, ok = out.observation, True
                 if out.write:
                     writes[out.write.path] = WriteInfo(seq=seq, sha256=out.write.sha256)
+                for w in out.side_writes:  # written by the code that just ran: needs a later run to verify
+                    writes[w.path] = WriteInfo(seq=seq, sha256=w.sha256)
                 if out.execution:
                     e = out.execution
                     execution = ExecInfo(
@@ -131,8 +137,9 @@ def build_graph(deps: GraphDeps) -> CompiledStateGraph:
             messages.append(ToolMessage(obs, tool_call_id=call["id"], status="success" if ok else "error"))
             emit("observation", n, tool=call["name"], ok=ok, text=obs, execution=execution)
         if d.kind == "nudge":
-            messages.append(HumanMessage(NUDGE))
-            emit("nudge", n, text=NUDGE)
+            nudge = FINISH_NUDGE if d.rejections else NUDGE
+            messages.append(HumanMessage(nudge))
+            emit("nudge", n, text=nudge)
         return {"messages": messages, "events": events, "writes": writes, "executions": executions, "seq": seq}
 
     def finalize(state: CoderState) -> dict:

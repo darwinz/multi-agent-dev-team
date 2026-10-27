@@ -75,3 +75,16 @@ def test_memory_write_back_failure_keeps_result(settings):  # review M1 (re-grad
     events = list(a.stream("Write a palindrome checker with tests"))
     assert events[-1].kind == "error" and "memory" in events[-1].data["message"]
     assert [e for e in events if e.kind == "result"][0].data["result"]["status"] == "success"
+
+
+def test_error_result_keeps_files_already_written(settings):  # review M2
+    a = agent(settings, ai("", tool_call("write_file", path="a.py", content="x = 1\n")), RuntimeError("network down"))
+    r = a.run("anything")
+    assert r.status == "error" and r.files == {"a.py": "x = 1\n"} and r.code == "x = 1\n"
+
+
+def test_reset_clears_exec_records(settings):  # review M8
+    a = agent(settings, *happy())
+    a.run("Write a palindrome checker with tests")
+    a.reset_memory()
+    assert not (settings.state_dir / "exec").exists()
