@@ -85,3 +85,21 @@ class ScriptedChatModel(BaseChatModel):
 
 PAL = "def is_pal(s):\n    return s == s[::-1]\n"
 TEST = "from palindrome import is_pal\n\ndef test_it():\n    assert is_pal('aba')\n"
+
+
+def happy() -> list[AIMessage]:
+    """A fresh two-response script: write module + test and run it, then finish."""
+    return [
+        ai("1. write module\n2. write test\n3. run test",
+           tool_call("write_file", path="palindrome.py", content=PAL),
+           tool_call("write_file", path="test_palindrome.py", content=TEST),
+           tool_call("exec_python", path="test_palindrome.py")),
+        ai("done", tool_call("finish", explanation="Checks palindromes", plan=["write", "test"],
+                             entry_point="test_palindrome.py")),
+    ]
+
+
+def agent(settings: Any, *responses: Any) -> Any:
+    from agents.coder_agent import CoderAgent
+
+    return CoderAgent(settings, model=ScriptedChatModel(responses=list(responses)), embedding_function=FakeEmbedding())

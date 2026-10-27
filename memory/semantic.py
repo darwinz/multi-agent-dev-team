@@ -50,6 +50,10 @@ class SemanticMemory:
     def count(self) -> int:
         return self._collection.count()
 
+    def reopen(self) -> None:
+        """Re-fetch the collection by name, e.g. after another process cleared (recreated) it."""
+        self._collection = self._open()
+
     def clear(self) -> None:
         self._client.delete_collection(self._name)
         self._collection = self._open()
