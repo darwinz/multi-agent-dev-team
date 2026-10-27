@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import shutil
 from pathlib import Path, PurePosixPath
 
@@ -72,16 +73,36 @@ class RunLock:
         state_dir.mkdir(parents=True, exist_ok=True)
         # Not thread-local: the web UI acquires and releases on different threadpool threads
         self._lock = FileLock(state_dir / "workspace.lock", thread_local=False)
+        self._marker = state_dir / "running"
 
     def __enter__(self) -> RunLock:
         try:
             self._lock.acquire(blocking=False)
         except Timeout:
             raise WorkspaceBusyError("workspace busy: another Coder run is in progress") from None
+        self._marker.write_text(str(os.getpid()))
         return self
 
     def __exit__(self, *exc: object) -> None:
+        self._marker.unlink(missing_ok=True)
         self._lock.release()
+
+    @staticmethod
+    def is_running(state_dir: Path) -> bool:
+        """Whether some process holds the lock, read from its marker without touching the lock."""
+        if os.name == "nt":  # os.kill(pid, 0) would terminate the process on Windows
+            return RunLock(state_dir).is_locked_elsewhere()
+        try:
+            pid = int((state_dir / "running").read_text())
+        except (OSError, ValueError):
+            return False
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False  # a crashed holder left its marker behind
+        except PermissionError:
+            return True
+        return True
 
     def is_locked_elsewhere(self) -> bool:
         try:

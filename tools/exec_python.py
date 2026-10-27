@@ -152,6 +152,7 @@ def exec_python(
         loaded = json.loads(record.read_text())["loaded"]
     except (OSError, ValueError, KeyError):
         loaded = {}
+    record.unlink(missing_ok=True)
     return ExecOutcome(
         target=ws.relpath(target),
         mode=mode,

@@ -59,3 +59,16 @@ def test_per_call_timeout_cannot_exceed_configured(tmp_path, monkeypatch):
 def test_os_and_encoding_errors_become_tool_errors(tmp_path, args):  # review I4
     with pytest.raises(ToolError, match="write_file failed"):
         run_action(ctx(tmp_path), "write_file", args)
+
+
+def test_large_timeout_request_is_clamped_not_rejected(tmp_path, monkeypatch):  # review M5
+    seen = {}
+    monkeypatch.setattr("tools.dispatch.exec_python", lambda ws, **kw: seen.update(kw) or FAKE_OUTCOME)
+    run_action(ctx(tmp_path), "exec_python", {"code": "print(1)", "timeout": 90})
+    assert seen["timeout"] == 5.0
+
+
+def test_files_written_by_executed_code_are_reported(tmp_path):  # review M7
+    out = run_action(ctx(tmp_path), "exec_python", {"code": "open('gen.py', 'w').write('X = 1\\n')"})
+    assert [w.path for w in out.side_writes] == ["gen.py"]
+    assert "files changed by this run: gen.py" in out.observation

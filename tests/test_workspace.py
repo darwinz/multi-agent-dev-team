@@ -83,3 +83,17 @@ def test_run_lock_released_from_another_thread(tmp_path):
     t.join()
     lock.__exit__(None, None, None)
     assert not RunLock(tmp_path).is_locked_elsewhere()
+
+
+def test_running_marker_reflects_holder_without_locking(tmp_path):  # review M3
+    holder = subprocess.Popen(
+        [sys.executable, "-c", HOLD_LOCK_SNIPPET, str(tmp_path)],
+        stdout=subprocess.PIPE, text=True, cwd=REPO_ROOT,
+    )
+    assert holder.stdout.readline().strip() == "locked"
+    try:
+        assert RunLock.is_running(tmp_path)
+    finally:
+        holder.kill()
+        holder.wait()
+    assert not RunLock.is_running(tmp_path)  # a dead holder's marker doesn't count

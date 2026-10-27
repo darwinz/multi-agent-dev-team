@@ -39,3 +39,16 @@ def test_missing_key_exits_2(monkeypatch, tmp_path, capsys):
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     monkeypatch.setenv("CODER_PROJECT_DIR", str(tmp_path))
     assert main(["task"]) == 2 and "ANTHROPIC_API_KEY" in capsys.readouterr().err
+
+
+def test_ctrl_c_exits_130_without_traceback(settings, capsys):  # review M10
+    a = agent(settings)
+
+    def interrupted(task):
+        raise KeyboardInterrupt
+        yield
+
+    a.stream = interrupted
+    assert main(["task"], agent=a) == 130
+    err = capsys.readouterr()
+    assert "Traceback" not in err.out + err.err and "interrupted" in err.err

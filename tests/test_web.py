@@ -59,3 +59,43 @@ def test_foreign_host_header_rejected(settings):  # review I5: DNS rebinding
     c = client(settings)
     assert c.post("/api/run", json={"task": "x"}, headers={"host": "evil.example"}).status_code == 400
     assert c.get("/api/status", headers={"host": "localhost:8000"}).status_code == 200
+
+
+def test_status_never_takes_the_run_lock(settings, monkeypatch):  # review M3
+    c = client(settings)
+
+    def forbidden(self):
+        raise AssertionError("status probe acquired the run lock")
+
+    monkeypatch.setattr(RunLock, "__enter__", forbidden)
+    assert c.get("/api/status").json() == {"running": False}
+
+
+def test_disconnect_mid_stream_closes_the_run(settings):  # review M4
+    import anyio
+    import threading
+    import time
+
+    from agents.events import StepEvent
+    from app.web import _sse_body
+
+    closed = threading.Event()
+
+    def events():
+        try:
+            for i in range(100):
+                time.sleep(0.05)
+                yield StepEvent(kind="thought", iteration=i, max_iterations=10, data={})
+        finally:
+            closed.set()
+
+    async def consume_then_disconnect():
+        gen = events()
+        body = _sse_body(next(gen), gen)
+        with anyio.move_on_after(0.3):
+            async for _ in body:
+                pass
+        await body.aclose()
+
+    anyio.run(consume_then_disconnect)
+    assert closed.wait(2), "agent stream not closed after the client went away"

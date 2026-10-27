@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import os
-from collections.abc import AsyncIterator, Iterator
+import queue
+import threading
+from collections.abc import Generator, AsyncIterator
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
+from starlette.concurrency import run_in_threadpool
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from agents.coder_agent import CoderAgent
@@ -29,6 +31,34 @@ def _frame(event: StepEvent) -> str:
     return f"data: {event.model_dump_json()}\n\n"
 
 
+_DONE = object()
+
+
+def _pump(events: Generator[StepEvent, None, None], out: queue.Queue, stop: threading.Event) -> None:
+    """Drive the agent's stream on one thread; stop and close it once the client has gone."""
+    try:
+        for event in events:
+            out.put(event)
+            if stop.is_set():
+                break
+    finally:
+        events.close()  # runs the stream's cleanup on this thread: releases the workspace lock
+        out.put(_DONE)
+
+
+async def _sse_body(first: StepEvent, events: Generator[StepEvent, None, None]) -> AsyncIterator[str]:
+    out: queue.Queue = queue.Queue()
+    stop = threading.Event()
+    threading.Thread(target=_pump, args=(events, out, stop), daemon=True).start()
+    try:
+        yield _frame(first)
+        while (event := await run_in_threadpool(out.get)) is not _DONE:
+            yield _frame(event)
+    finally:
+        # Client disconnected (or the run ended): the pump stops at the next event boundary
+        stop.set()
+
+
 def create_app(agent: CoderAgent) -> FastAPI:
     app = FastAPI(title="Coder agent")
     # /api/run executes code: refuse foreign Host headers so a DNS-rebinding page can't drive it
@@ -42,7 +72,8 @@ def create_app(agent: CoderAgent) -> FastAPI:
 
     @app.get("/api/status")
     def status() -> dict:
-        return {"running": RunLock(agent.settings.state_dir).is_locked_elsewhere()}
+        # Read the holder's marker; probing the lock itself could make a starting CLI run see "busy"
+        return {"running": RunLock.is_running(agent.settings.state_dir)}
 
     @app.get("/api/files")
     def files() -> dict:
@@ -63,26 +94,14 @@ def create_app(agent: CoderAgent) -> FastAPI:
 
     @app.post("/api/run")
     async def run(req: RunRequest) -> StreamingResponse:
-        events: Iterator[StepEvent] = agent.stream(req.task)
+        events = agent.stream(req.task)
         try:
             # Pull the first event now so a busy workspace becomes a 409 instead of a broken stream
             first = await run_in_threadpool(next, events)
         except WorkspaceBusyError:
             raise HTTPException(409, "workspace busy") from None
 
-        async def body() -> AsyncIterator[str]:
-            try:
-                yield _frame(first)
-                async for event in iterate_in_threadpool(events):
-                    yield _frame(event)
-            finally:
-                # Browser went away mid-run: close the generator so its lock is released
-                try:
-                    await run_in_threadpool(events.close)
-                except ValueError:  # still executing in another thread; it finishes on its own
-                    pass
-
-        return StreamingResponse(body(), media_type="text/event-stream",
+        return StreamingResponse(_sse_body(first, events), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     return app

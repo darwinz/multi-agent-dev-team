@@ -84,6 +84,9 @@ def main(argv: list[str] | None = None, *, agent: CoderAgent | None = None) -> i
     except WorkspaceBusyError as e:
         err.print(f"coder: {e}", markup=False)
         return 2
+    except KeyboardInterrupt:
+        err.print("coder: interrupted (the workspace lock has been released)", markup=False)
+        return 130
 
     if args.json and results:
         if len(results) == 1:

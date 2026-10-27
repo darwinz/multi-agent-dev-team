@@ -38,6 +38,8 @@ ANTHROPIC_API_KEY=... docker compose up web               # http://127.0.0.1:800
 ANTHROPIC_API_KEY=... docker compose run --rm coder "task"
 ```
 
+The container runs as an unprivileged user (uid 1000). On Linux, build with `UID=$(id -u) GID=$(id -g) docker compose build` so files in the mounted `workspace/` stay owned by you.
+
 ## CLI
 
 ```bash

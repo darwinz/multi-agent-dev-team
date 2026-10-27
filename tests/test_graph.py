@@ -117,3 +117,28 @@ def test_limit_event_separates_rejected_from_unexecuted(settings):
     state, events = run_graph(deps(s, ScriptedChatModel(responses=[ai("", bad_finish)])))
     limit = next(e for e in events if e["kind"] == "limit")
     assert limit["data"]["unexecuted"] == [] and limit["data"]["rejected"][0].startswith("finish rejected:")
+
+
+def test_rejected_finish_gets_error_status_and_accurate_nudge(settings):  # review M6
+    m = ScriptedChatModel(responses=[
+        ai("", tool_call("finish", explanation="e")),  # missing plan
+        ai("", tool_call("write_file", path="a.py", content="x"), tool_call("read_file", path="../no"),
+           tool_call("write_file", path="b.py", content="y")),
+        ai("", tool_call("finish", explanation="e", plan=["p"])),
+    ])
+    state, _ = run_graph(deps(settings, m))
+    tool_msgs = [msg for msg in state["messages"] if isinstance(msg, ToolMessage)]
+    assert tool_msgs[0].content.startswith("finish rejected:") and tool_msgs[0].status == "error"
+    nudge = next(msg for msg in state["messages"] if msg.type == "human" and msg.content.startswith("Observation"))
+    assert "no tool was called" not in nudge.content and "finish was rejected" in nudge.content
+    skipped = [msg for msg in tool_msgs if msg.content.startswith("skipped")]
+    assert skipped and all(msg.status == "error" for msg in skipped)
+
+
+def test_py_file_generated_by_exec_is_delivered_and_verified(settings):  # review M7
+    m = ScriptedChatModel(responses=[
+        ai("", tool_call("exec_python", code="open('gen.py', 'w').write('print(1)\\n')")),
+        ai("", tool_call("finish", explanation="e", plan=["p"])),
+    ])
+    r = CoderResult.model_validate(run_graph(deps(settings, m))[0]["result"])
+    assert r.files == {"gen.py": "print(1)\n"} and "gen.py: not executed" in r.verification_notes
