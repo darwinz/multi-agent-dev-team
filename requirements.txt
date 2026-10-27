@@ -260,6 +260,7 @@ pypika==0.51.1
 pyproject-hooks==1.3.3
     # via build
 pytest==9.1.1
+    # via multi-agent-dev-team
 python-dateutil==3.0.0
     # via kubernetes
 python-dotenv==1.2.4
