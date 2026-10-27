@@ -58,3 +58,4 @@ class CoderState(TypedDict):
     decision: dict | None
     finish: dict | None
     stop_reason: Literal["finished", "iteration_limit"] | None
+    result: dict | None

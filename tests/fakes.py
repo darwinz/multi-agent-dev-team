@@ -39,3 +39,49 @@ class FakeEmbedding(EmbeddingFunction[Documents]):
     @staticmethod
     def build_from_config(config: dict[str, Any]) -> FakeEmbedding:
         return FakeEmbedding()
+
+
+# --- scripted chat model -----------------------------------------------------------
+
+import copy  # noqa: E402
+import uuid  # noqa: E402
+
+from langchain_core.language_models import BaseChatModel  # noqa: E402
+from langchain_core.messages import AIMessage, BaseMessage  # noqa: E402
+from langchain_core.outputs import ChatGeneration, ChatResult  # noqa: E402
+
+
+def tool_call(name: str, **args: Any) -> dict:
+    return {"name": name, "args": args, "id": f"call_{uuid.uuid4().hex[:12]}", "type": "tool_call"}
+
+
+def ai(text: str = "", *calls: dict) -> AIMessage:
+    # A unique id per message: add_messages replaces messages that share an id
+    return AIMessage(content=text, tool_calls=list(calls), id=f"ai_{uuid.uuid4().hex[:12]}")
+
+
+class ScriptedChatModel(BaseChatModel):
+    """Returns pre-scripted responses in order and records every message list it was sent."""
+
+    responses: list[Any]
+    calls: list[list[BaseMessage]] = []
+
+    @property
+    def _llm_type(self) -> str:
+        return "scripted"
+
+    def bind_tools(self, tools: Any, **kwargs: Any) -> ScriptedChatModel:
+        return self
+
+    def _generate(self, messages: list[BaseMessage], stop: Any = None, run_manager: Any = None, **kwargs: Any) -> ChatResult:
+        self.calls.append(list(messages))
+        if not self.responses:
+            raise AssertionError("model called more times than scripted")
+        nxt = self.responses.pop(0)
+        if isinstance(nxt, Exception):
+            raise nxt
+        return ChatResult(generations=[ChatGeneration(message=copy.deepcopy(nxt))])
+
+
+PAL = "def is_pal(s):\n    return s == s[::-1]\n"
+TEST = "from palindrome import is_pal\n\ndef test_it():\n    assert is_pal('aba')\n"
