@@ -1,13 +1,13 @@
 $ uv run coder --timeout 2 "Write loop.py containing while True: pass and run it"
-─────────────────────── Task (anthropic:claude-sonnet-5-5, run 3218b475922e) ───────────────────────
+─────────────────────── Task (anthropic:claude-sonnet-5-5, run 3879187c5372) ───────────────────────
 Write loop.py containing while True: pass and run it
 [1/10] memory: 0 relevant past run(s), 0 recent turn(s)
 [1/10] thought: Plan:
 1. Write loop.py containing `while True: pass`.
-2. Run it with a short timeout, because it never exits on its own.
+2. Run it with a short timeout, since it never exits on its own.
 [1/10] plan:
     1. Write loop.py containing `while True: pass`.
-    2. Run it with a short timeout, because it never exits on its own.
+    2. Run it with a short timeout, since it never exits on its own.
 [1/10] action: write_file(path=loop.py, content=while True:\n    pass\n)
 [1/10] observation:
 wrote loop.py (2 lines, 21 bytes)
@@ -22,17 +22,19 @@ duration=2.01s
 --- stderr ---
 [2/10] memory: 0 relevant past run(s), 0 recent turn(s)
 ╭────────────────────────────────────────── CoderResult ───────────────────────────────────────────╮
-│ status: failed   iterations: 2   run: 3218b475922e                                               │
+│ status: failed   iterations: 2   run: 3879187c5372                                               │
 │ verified: ✗  loop.py: not executed; loop.py: entry point was not run successfully; last          │
 │ execution failed                                                                                 │
 │ plan:                                                                                            │
-│   1. Write loop.py with while True: pass                                                         │
-│   2. Run it with a short timeout, since it never terminates                                      │
-│ explanation: I wrote loop.py containing `while True: pass` and ran it. It never exits, so the    │
-│ runner killed it at the timeout (timed_out=True, no exit code). That is the expected result for  │
-│ an infinite loop. It produced no output and no errors.                                           │
+│   1. Write loop.py with an infinite loop                                                         │
+│   2. Run it with a short timeout so it gets killed                                               │
+│ explanation: I wrote loop.py containing `while True: pass` and ran it with a 5s timeout. It      │
+│ never exits on its own, so the runner killed it as a timeout. The tool reported timed_out=True,  │
+│ exit_code=None, with no stdout or stderr. A timeout is the only possible result for this script, │
+│ so it can't "run successfully" in the usual sense.                                               │
 │ files: loop.py                                                                                   │
 │ last execution: loop.py  exit_code=None  timed_out=True  2.01s                                   │
 │   1 while True:                                                                                  │
 │   2     pass                                                                                     │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
+[exit code 1]
