@@ -43,7 +43,7 @@ uv run coder-web            # http://127.0.0.1:8000  (CODER_WEB_HOST / CODER_WEB
 - **Centre:** a read-only code viewer that follows the most recently written file, with a terminal strip showing the last `exec_python` output.
 - **Right:** the live agent timeline (memory, thought, plan, action, observation) and the final result card.
 
-The UI is a viewer. It uses the same `CoderAgent` code path as the CLI.
+The UI is a viewer. It uses the same `CoderAgent` code path as the CLI. Requests whose `Host` header is not `127.0.0.1` or `localhost` get HTTP 400. This protects the code-running `/api/run` endpoint from DNS-rebinding pages. If you serve the UI under another name, set `CODER_WEB_ALLOWED_HOSTS` (comma-separated).
 
 ## Probes
 

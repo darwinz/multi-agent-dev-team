@@ -87,7 +87,7 @@ def _kill_tree(proc: subprocess.Popen) -> None:
     else:
         try:
             os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
+        except (ProcessLookupError, PermissionError):
             pass
 
 
@@ -123,9 +123,13 @@ def exec_python(
         else {"start_new_session": True}
     )
 
+    # Bytecode goes to a cache outside the workspace; the runner drops the workspace's part of it
+    # before importing anything (see _runner.py), so workspace code always compiles from source
+    env = {**os.environ, "PYTHONPYCACHEPREFIX": str(record_dir / "pycache")}
+
     t0 = time.monotonic()
     proc = subprocess.Popen(
-        cmd, cwd=ws.root, stdin=subprocess.DEVNULL,
+        cmd, cwd=ws.root, stdin=subprocess.DEVNULL, env=env,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, **group,
     )
     readers = [_BoundedReader(proc.stdout), _BoundedReader(proc.stderr)]
@@ -136,9 +140,10 @@ def exec_python(
         proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
         timed_out = True
-        _kill_tree(proc)
-        proc.wait()
     duration = time.monotonic() - t0
+    # The process group belongs to this run alone: anything it spawned dies with it, success or not
+    _kill_tree(proc)
+    proc.wait()
     for r in readers:
         # A descendant that escaped the process group could keep a pipe open; don't wait on it forever
         r.join(timeout=2)

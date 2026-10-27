@@ -135,13 +135,17 @@ class CoderAgent:
                 return
 
             result = CoderResult.model_validate(state["result"])
-            self.semantic.add(memory_document(task, result), {
-                "run_id": run_id,
-                "status": result.status,
-                "files": ",".join(result.files),
-                "created_at": datetime.now(UTC).isoformat(),
-            })
             self.window.add(task, result.explanation)
+            try:
+                self.semantic.add(memory_document(task, result), {
+                    "run_id": run_id,
+                    "status": result.status,
+                    "files": ",".join(result.files),
+                    "created_at": datetime.now(UTC).isoformat(),
+                })
+            except Exception as e:  # e.g. the embedding model can't download: keep the result
+                yield StepEvent(kind="error", iteration=result.iterations, max_iterations=s.max_iterations,
+                                data={"message": f"memory write-back failed: {type(e).__name__}: {e}"})
 
     def run(self, task: str) -> CoderResult:
         result = None

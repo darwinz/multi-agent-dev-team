@@ -11,11 +11,18 @@ import importlib.machinery
 import json
 import os
 import runpy
+import shutil
 import sys
 
 mode, target, root, record_path = sys.argv[1:5]
 root = os.path.realpath(root)
 loaded = {}
+
+# .pyc freshness is the source's mtime in whole seconds plus its size, so a same-size rewrite within
+# a second would run stale bytecode under the new file's hash. Drop every cached workspace module
+# (pytest's rewritten test files included) so this run compiles them from what is on disk now.
+if sys.pycache_prefix:
+    shutil.rmtree(os.path.join(sys.pycache_prefix, root.lstrip(os.sep)), ignore_errors=True)
 
 
 def _record(path):
@@ -54,5 +61,13 @@ try:
         sys.exit(pytest.main(["-q", "-p", "no:cacheprovider", f"--rootdir={root}", target]))
     runpy.run_path(target, run_name="__main__")
 finally:
+    # Modules loaded by other importers (pytest's assertion-rewriting hook sits ahead of ours and
+    # loads conftest.py and test helpers) are swept from sys.modules, hashed at exit
+    for module in list(sys.modules.values()):
+        path = getattr(module, "__file__", None)
+        if path and os.path.realpath(path).startswith(root + os.sep):
+            rel = os.path.relpath(os.path.realpath(path), root).replace(os.sep, "/")
+            if rel not in loaded:
+                _record(path)
     with open(record_path, "w") as f:
         json.dump({"loaded": loaded}, f)

@@ -111,3 +111,37 @@ def test_target_outside_rejected(tmp_path):
 def test_no_eval_in_tools():
     for f in (REPO_ROOT / "tools").glob("*.py"):
         assert not re.search(r"\b(eval|exec)\(", f.read_text()), f
+
+
+def test_same_second_same_size_rewrite_runs_new_code(tmp_path):  # review I1: stale .pyc
+    ws = Workspace(tmp_path / "ws")
+    write_file(ws, "test_m.py", "from m import f\ndef test_f():\n    assert f() == 1\n")
+    write_file(ws, "m.py", "def f(): return 1\n")
+    assert run(ws, tmp_path, path="test_m.py").ok
+    st = (ws.root / "m.py").stat()
+    write_file(ws, "m.py", "def f(): return 2\n")  # same size...
+    os.utime(ws.root / "m.py", ns=(st.st_atime_ns, st.st_mtime_ns))  # ...and same mtime: a .pyc would look fresh
+    out = run(ws, tmp_path, path="test_m.py")
+    assert not out.ok and out.loaded["m.py"] == sha256_file(ws.root / "m.py")
+
+
+def test_conftest_is_recorded(tmp_path):  # review I2: pytest's rewrite hook bypasses the finder
+    ws = Workspace(tmp_path / "ws")
+    write_file(ws, "conftest.py", "import pytest\n@pytest.fixture\ndef word():\n    return 'aba'\n")
+    write_file(ws, "pal.py", "def is_pal(s): return s == s[::-1]\n")
+    write_file(ws, "test_pal.py", "from pal import is_pal\ndef test_it(word):\n    assert is_pal(word)\n")
+    out = run(ws, tmp_path, path="test_pal.py")
+    assert out.ok and set(out.loaded) == {"conftest.py", "pal.py", "test_pal.py"}
+
+
+def test_children_killed_after_successful_run(tmp_path):  # review I3
+    ws = Workspace(tmp_path / "ws")
+    write_file(ws, "bg.py", "import subprocess, sys\n"
+               "c = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\n"
+               "open('child.pid', 'w').write(str(c.pid))\n")
+    t0 = time.monotonic()
+    out = run(ws, tmp_path, path="bg.py")
+    assert out.ok and time.monotonic() - t0 < 2
+    time.sleep(0.3)
+    with pytest.raises(ProcessLookupError):
+        os.kill(int((ws.root / "child.pid").read_text()), 0)

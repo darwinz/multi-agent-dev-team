@@ -91,7 +91,7 @@ Details are in [docs/architecture.md](docs/architecture.md).
 - **Chroma with its default local embedding.** No second API key; Anthropic has no embeddings endpoint. After each run the agent stores what it did (task, outcome, files, plan, summary, defined functions). Retrieval keeps the top 3 within a cosine-distance threshold.
 - **Verification from execution records, not hashes alone.** A small runner inside the subprocess records which workspace files each run actually imported, with their hashes at load time. A file is verified only if a successful run after its last write loaded it in its current form. The Pydantic validator refuses `success` without that.
 - **One shared workspace with a cross-process lock.** Follow-up tasks build on earlier files. `filelock` makes a second concurrent run fail fast with "workspace busy" instead of corrupting the first.
-- **Process-group timeouts.** `exec_python` starts each run in a new session and kills the whole group on timeout, so a script that spawns children can't outlive it. Output is drained by threads into bounded buffers, and stdin is `/dev/null`.
+- **Process-group cleanup.** `exec_python` starts each run in a new session and kills the whole group when the run ends (timeout or not), so a script that spawns children can't outlive it. Workspace modules always compile from current source, never from a cached `.pyc`. Output is drained by threads into bounded buffers, and stdin is `/dev/null`.
 
 ## Rubric evidence
 
@@ -108,7 +108,7 @@ Details are in [docs/architecture.md](docs/architecture.md).
 
 - **The subprocess is not a security sandbox.** Paths and execution targets are confined to `./workspace/`, but code that `exec_python` runs is a normal host process with full filesystem and network access. Container isolation is the Module 4 work. Run the agent only on tasks you'd run yourself.
 - **One run per workspace at a time.** A second concurrent run is refused, not queued.
-- **The web UI is local and read-only.** There is no authentication, and it binds to 127.0.0.1 by default.
+- **The web UI is local and read-only.** There is no authentication. It binds to 127.0.0.1 by default and refuses foreign `Host` headers (`CODER_WEB_ALLOWED_HOSTS`).
 - **The memory threshold (cosine distance 0.65) is tuned for the default embedding model.** Other embedding models may need `MEMORY_MAX_DISTANCE`.
 
 ## Roadmap

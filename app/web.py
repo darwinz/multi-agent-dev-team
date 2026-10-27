@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from agents.coder_agent import CoderAgent
 from agents.events import StepEvent
@@ -30,6 +31,9 @@ def _frame(event: StepEvent) -> str:
 
 def create_app(agent: CoderAgent) -> FastAPI:
     app = FastAPI(title="Coder agent")
+    # /api/run executes code: refuse foreign Host headers so a DNS-rebinding page can't drive it
+    hosts = os.environ.get("CODER_WEB_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=[h.strip() for h in hosts if h.strip()])
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
 
     @app.get("/", include_in_schema=False)

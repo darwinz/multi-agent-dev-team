@@ -63,3 +63,15 @@ def test_reset_from_another_process_clears_window(settings):
     a.run("next task")
     assert "Write a palindrome checker" not in a.model.calls[-1][0].content
     assert a.semantic.count() == 1  # only the run after the reset
+
+
+def test_memory_write_back_failure_keeps_result(settings):  # review M1 (re-graded Important)
+    a = agent(settings, *happy())
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("embedding model download failed")
+
+    a.semantic.add = boom
+    events = list(a.stream("Write a palindrome checker with tests"))
+    assert events[-1].kind == "error" and "memory" in events[-1].data["message"]
+    assert [e for e in events if e.kind == "result"][0].data["result"]["status"] == "success"

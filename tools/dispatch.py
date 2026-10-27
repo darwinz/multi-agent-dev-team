@@ -35,6 +35,15 @@ def run_action(ctx: ToolContext, name: str, args: dict) -> ActionOutcome:
     except ValidationError as e:
         raise ToolError(f"invalid arguments for {name}: {e}") from None
 
+    try:
+        return _dispatch(ctx, name, a)
+    except ToolError:
+        raise
+    except (OSError, ValueError) as e:  # e.g. a directory in the way, an unencodable character
+        raise ToolError(f"{name} failed: {type(e).__name__}: {e}") from None
+
+
+def _dispatch(ctx: ToolContext, name: str, a) -> ActionOutcome:
     if name == "write_file":
         w = write_file(ctx.workspace, a.path, a.content)
         return ActionOutcome(f"wrote {w.path} ({w.lines} lines, {w.bytes} bytes)", write=w)

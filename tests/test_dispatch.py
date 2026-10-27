@@ -50,3 +50,12 @@ def test_per_call_timeout_cannot_exceed_configured(tmp_path, monkeypatch):
     assert seen["timeout"] == 2.0
     run_action(c, "exec_python", {"code": "print(1)", "timeout": 1})
     assert seen["timeout"] == 1.0
+
+
+@pytest.mark.parametrize("args", [
+    {"path": "workspace", "content": "x"},  # resolves to the workspace dir itself
+    {"path": "s.py", "content": "\ud800"},  # lone surrogate: not encodable
+])
+def test_os_and_encoding_errors_become_tool_errors(tmp_path, args):  # review I4
+    with pytest.raises(ToolError, match="write_file failed"):
+        run_action(ctx(tmp_path), "write_file", args)

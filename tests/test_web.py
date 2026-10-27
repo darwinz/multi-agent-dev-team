@@ -8,7 +8,7 @@ from tools.workspace import RunLock
 
 
 def client(settings, *responses):
-    return TestClient(create_app(agent(settings, *responses)))
+    return TestClient(create_app(agent(settings, *responses)), base_url="http://127.0.0.1")
 
 
 def sse_events(response):
@@ -53,3 +53,9 @@ def test_file_endpoints(settings):
 
 def test_index_served(settings):
     assert "Coder" in client(settings).get("/").text
+
+
+def test_foreign_host_header_rejected(settings):  # review I5: DNS rebinding
+    c = client(settings)
+    assert c.post("/api/run", json={"task": "x"}, headers={"host": "evil.example"}).status_code == 400
+    assert c.get("/api/status", headers={"host": "localhost:8000"}).status_code == 200
