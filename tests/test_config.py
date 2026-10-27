@@ -29,3 +29,9 @@ def test_max_iterations_never_above_cap(tmp_path, bad):
 def test_timeout_must_be_positive(tmp_path):
     with pytest.raises(ValidationError):
         Settings.from_env(project_dir=tmp_path, exec_timeout_s=0)
+
+
+def test_dotenv_read_from_project_dir_only(tmp_path, monkeypatch):
+    monkeypatch.delenv("CODER_MODEL", raising=False)
+    (tmp_path / ".env").write_text("CODER_MODEL=openai:gpt-4o\n")
+    assert Settings.from_env(project_dir=tmp_path).model == "openai:gpt-4o"

@@ -55,13 +55,14 @@ class Settings(BaseModel):
 
     @classmethod
     def from_env(cls, **overrides: Any) -> Settings:
-        """Build settings from the environment (and `.env`); non-None overrides win."""
-        load_dotenv()
-        values: dict[str, Any] = {}
+        """Build settings from the environment (and the project's `.env`); non-None overrides win."""
+        project_dir = overrides.get("project_dir") or os.environ.get("CODER_PROJECT_DIR") or Path.cwd()
+        # Only the project's own .env: load_dotenv()'s default upward search would pick up an ancestor's keys
+        load_dotenv(Path(project_dir) / ".env")
+        values: dict[str, Any] = {"project_dir": project_dir}
         for field, var in _ENV_VARS.items():
             raw = os.environ.get(var)
             if raw:
                 values[field] = raw
-        values.setdefault("project_dir", Path.cwd())
         values.update({k: v for k, v in overrides.items() if v is not None})
         return cls(**values)
