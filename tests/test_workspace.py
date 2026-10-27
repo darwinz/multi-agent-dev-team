@@ -71,3 +71,15 @@ def test_run_lock_is_exclusive_across_processes(tmp_path):
 def test_generation_bumps(tmp_path):
     g = ResetGeneration(tmp_path)
     assert g.read() == 0 and g.bump() == 1 and ResetGeneration(tmp_path).read() == 1
+
+
+def test_run_lock_released_from_another_thread(tmp_path):
+    # the web UI's stream acquires in one threadpool thread and may release in another
+    import threading
+
+    lock = RunLock(tmp_path)
+    t = threading.Thread(target=lock.__enter__)
+    t.start()
+    t.join()
+    lock.__exit__(None, None, None)
+    assert not RunLock(tmp_path).is_locked_elsewhere()

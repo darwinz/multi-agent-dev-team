@@ -70,7 +70,8 @@ class RunLock:
 
     def __init__(self, state_dir: Path) -> None:
         state_dir.mkdir(parents=True, exist_ok=True)
-        self._lock = FileLock(state_dir / "workspace.lock")
+        # Not thread-local: the web UI acquires and releases on different threadpool threads
+        self._lock = FileLock(state_dir / "workspace.lock", thread_local=False)
 
     def __enter__(self) -> RunLock:
         try:
