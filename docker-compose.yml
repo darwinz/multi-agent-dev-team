@@ -1,0 +1,23 @@
+# Web UI:   ANTHROPIC_API_KEY=... docker compose up web   (or: op run --env-file=.env.op -- docker compose up web)
+# CLI:      docker compose run --rm coder "your task"
+x-coder: &coder
+  build: .
+  image: multi-agent-dev-team:latest
+  environment:
+    ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY}
+    CODER_MODEL: ${CODER_MODEL:-anthropic:claude-sonnet-5-5}
+  volumes:
+    - ./workspace:/app/workspace
+    - ./.chroma:/app/.chroma
+    - ./.coder:/app/.coder
+
+services:
+  web:
+    <<: *coder
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  coder:
+    <<: *coder
+    entrypoint: ["coder"]
+    profiles: ["cli"]
