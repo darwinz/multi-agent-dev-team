@@ -79,3 +79,27 @@ def test_demo_api_text():
 
 def test_demo_large_lists_many_features():
     assert len(DEMO_LARGE) > 200
+
+
+def test_summary_lists_only_executed_tasks():
+    # After consolidation task_status still holds the original ids as pending (merge reducer);
+    # the summary judges only the tasks that ran, as finalize does
+    from io import StringIO
+
+    from rich.console import Console
+
+    from app.render import render_team_summary
+
+    out = StringIO()
+    data = {
+        "tasks": [{"task_id": "T1"}],
+        "task_status": {
+            "T1": {"task_id": "T1", "status": "done", "iterations": 2, "files": ["a.py"]},
+            "T9": {"task_id": "T9", "status": "pending"},
+        },
+        "status": "completed",
+    }
+    render_team_summary(Console(file=out, width=100), data)
+    text = out.getvalue()
+    assert "T1" in text and "done" in text
+    assert "T9" not in text and "pending" not in text

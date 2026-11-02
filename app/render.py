@@ -129,7 +129,10 @@ def render_task_header(console: Console, data: dict) -> None:
 
 def render_team_summary(console: Console, data: dict) -> None:
     table = Table("id", "status", "iterations", "files")
-    for task_id, rec in (data.get("task_status") or {}).items():
+    # Only the tasks that ran: after consolidation task_status still holds the original ids as pending
+    records = data.get("task_status") or {}
+    for task_id in (t["task_id"] for t in data.get("tasks") or []):
+        rec = records.get(task_id, {"status": "pending"})
         table.add_row(task_id, Text(rec["status"], style=_TASK_STYLE.get(rec["status"], "")),
                       str(rec.get("iterations", 0)), ", ".join(rec.get("files", [])) or "none")
     status = data.get("status", "failed")
