@@ -58,7 +58,7 @@ def _parser() -> argparse.ArgumentParser:
 def _api_check(ws: Path, written: list[str]) -> tuple[bool, str]:
     app_spec = find_app(ws, written)
     if app_spec is None:
-        return False, f"FAIL find app: no module assigns app = FastAPI(...) in {ws}"
+        return False, f"FAIL find app: no file this run delivered assigns app = FastAPI(...) in {ws}"
     results = check_api(app_spec, ws)
     report = "\n".join(f"{'PASS' if r.passed else 'FAIL'} {r.name}" + (f": {r.detail}" if r.detail else "")
                        for r in results)

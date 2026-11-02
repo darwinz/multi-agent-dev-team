@@ -95,13 +95,17 @@ def test_find_app_skips_hidden_and_test_dirs(tmp_path):
     assert find_app(tmp_path) is None
 
 
-def test_find_app_prefers_written_files(tmp_path):
-    (tmp_path / "app.py").write_text(APP_SRC)  # stale, sorts first
+def test_find_app_searches_only_delivered_files(tmp_path):
+    (tmp_path / "app.py").write_text(APP_SRC)  # left over from an earlier run, sorts first
     (tmp_path / "pkg").mkdir()
     (tmp_path / "pkg" / "main.py").write_text(APP_SRC)
+    (tmp_path / "palindrome.py").write_text("def is_palindrome(s): return s == s[::-1]\n")
     assert find_app(tmp_path) == "app:app"
     assert find_app(tmp_path, ["pkg/main.py"]) == "pkg.main:app"
     assert find_app(tmp_path, ["missing.py", "notes.txt", "pkg/main.py"]) == "pkg.main:app"
+    # A delivery with no app finds nothing, even though a leftover app sits in the workspace
+    assert find_app(tmp_path, ["palindrome.py"]) is None
+    assert find_app(tmp_path, []) is None
 
 
 def test_find_app_reference_only(tmp_path):

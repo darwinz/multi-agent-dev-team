@@ -54,20 +54,21 @@ def _assigns_app(path: Path) -> bool:
     return False
 
 
-def find_app(app_dir: Path, prefer: Iterable[str] = ()) -> str | None:
+def find_app(app_dir: Path, only: Iterable[str] | None = None) -> str | None:
     """Return "dotted.module:app" for the first non-test .py file under app_dir assigning `app = FastAPI(...)`.
 
-    Files in `prefer` (app_dir-relative paths) are tried first, in the given order; the rest follow sorted.
-    Hidden directories and test files are skipped.
+    With `only` (app_dir-relative paths, e.g. the files a run delivered), just those files are searched,
+    in the given order, so a leftover app from an earlier run can't be picked up. Without it, every
+    file under app_dir is searched in sorted order. Hidden directories and test files are skipped.
     """
     root = Path(app_dir)
-    preferred = [Path(p) for p in prefer]
-    rest = sorted(p.relative_to(root) for p in root.rglob("*.py") if p.is_file())
-    seen: set[Path] = set()
-    for rel in [*preferred, *rest]:
-        if rel in seen or rel.is_absolute() or ".." in rel.parts:
+    if only is None:
+        candidates = sorted(p.relative_to(root) for p in root.rglob("*.py") if p.is_file())
+    else:
+        candidates = [Path(p) for p in only]
+    for rel in dict.fromkeys(candidates):
+        if rel.is_absolute() or ".." in rel.parts:
             continue
-        seen.add(rel)
         if _is_candidate(rel) and (root / rel).is_file() and _assigns_app(root / rel):
             return ".".join(rel.with_suffix("").parts) + ":app"
     return None

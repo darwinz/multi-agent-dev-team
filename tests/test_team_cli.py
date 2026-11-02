@@ -92,8 +92,19 @@ def test_demo_api_without_app_fails_without_guessing(settings, monkeypatch):
     assert main(["--demo", "api"], runner=r) == 1
     assert calls == []
     report = (r.run_dir / "api-check.txt").read_text()
-    assert report == f"FAIL find app: no module assigns app = FastAPI(...) in {settings.workspace_dir}"
+    assert report == f"FAIL find app: no file this run delivered assigns app = FastAPI(...) in {settings.workspace_dir}"
 
+
+def test_demo_api_ignores_leftover_app(settings, monkeypatch):
+    # An app from an earlier run is in the workspace, but this run delivered none: the check fails
+    calls = []
+    monkeypatch.setattr(team_cli, "check_api", lambda *a, **kw: calls.append(a) or [])
+    settings.workspace_dir.mkdir(parents=True, exist_ok=True)
+    (settings.workspace_dir / "main.py").write_text("from fastapi import FastAPI\napp = FastAPI()\n")
+    r = make_runner(settings, *happy(), *happy())
+    assert main(["--demo", "api"], runner=r) == 1
+    assert calls == []
+    assert (r.run_dir / "api-check.txt").read_text().startswith("FAIL find app:")
 
 def test_demo_api_text():
     assert DEMO_API.startswith("Build a REST API with two endpoints: GET /health (returns {status: ok})")
