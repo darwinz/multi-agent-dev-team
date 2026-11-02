@@ -108,3 +108,11 @@ def test_state_to_jsonable_dumps_models():
     assert Spec.model_validate(out["spec"]) == spec
     assert out["task_status"]["T1"]["status"] == "failed"
     assert out["artifacts"][0]["result"]["status"] == "failed"
+
+
+@pytest.mark.parametrize("task_id", ["feature/health", "../T1", "t1", "T0", "Task1", "M1", ""])
+def test_spec_rejects_unsupported_task_ids(task_id):
+    data = make_spec().model_dump()
+    data["tasks"][0]["task_id"] = task_id
+    with pytest.raises(ValidationError, match="task id"):
+        Spec.model_validate(data)

@@ -61,3 +61,15 @@ def test_model_exception_raises_pm_error(settings):
     agent, _ = pm(settings, RuntimeError("boom"))
     with pytest.raises(PMError, match="boom"):
         agent.draft_spec("Build a REST API")
+
+
+def test_unsafe_task_id_is_repaired(settings):
+    # Task ids name evidence files (handoff-<id>.json); a schema-valid "feature/health" must be
+    # rejected as invalid so the repair retry fixes it, not crash the run while writing evidence
+    bad = make_spec().model_dump()
+    bad["tasks"][1]["task_id"] = "feature/health"
+    agent, model = pm(settings, structured("Spec", bad), spec_response(make_spec()))
+    assert agent.draft_spec("Build a REST API") == make_spec()
+    assert len(model.calls) == 2
+    last_human = [m for m in model.calls[1] if isinstance(m, HumanMessage)][-1]
+    assert "feature/health" in last_human.content

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import operator
+import re
 from collections.abc import Mapping
 from typing import Annotated, Any, Literal, TypedDict
 
@@ -22,6 +23,10 @@ class AcceptanceCriterion(BaseModel):
 
     id: str  # "AC1", "AC2", ... unique within a spec
     text: str  # testable statement of required behaviour
+
+
+# Task ids name evidence files (handoff-<id>.json), so the PM may only use T1, T2, ...
+TASK_ID_RE = re.compile(r"T[1-9][0-9]*")
 
 
 class Task(BaseModel):
@@ -52,6 +57,9 @@ class Spec(BaseModel):
             dupes = sorted({i for i in ids if ids.count(i) > 1})
             if dupes:
                 problems.append(f"duplicate {label} ids: {', '.join(dupes)}")
+        bad = [repr(i) for i in task_ids if not TASK_ID_RE.fullmatch(i)]
+        if bad:
+            problems.append(f"unsupported task ids {', '.join(bad)}: each task id must be T1, T2, ... (T and a number)")
         known = set(crit_ids)
         unknown = sorted({c for t in self.tasks for c in t.covers if c not in known})
         if unknown:
