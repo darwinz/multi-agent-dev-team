@@ -6,7 +6,9 @@ from orchestration.project_state import ProjectState, TaskHandoff
 
 BUILD_ON = (
     "Build on the files from earlier tasks rather than replacing them, keep their tests passing, "
-    "and run all tests before finishing."
+    "and run all tests before finishing: run each test file by its path with exec_python, one call "
+    "per file. Tests run any other way (for example through subprocess) are not verified, so the "
+    "task fails."
 )
 
 

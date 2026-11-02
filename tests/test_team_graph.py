@@ -111,6 +111,10 @@ def test_render_task_contains_fields():
     assert text.index("Project:") < text.index("Task T2") < text.index("Acceptance criteria:") \
         < text.index("Files from earlier tasks:")
     assert "run all tests" in text
+    # exec_python runs one file and a subprocess-run suite is invisible to delivery verification,
+    # so the handoff must say how "all tests" are run (live demo: T3 ran pytest via subprocess)
+    assert "each test file by its path with exec_python" in text
+    assert "subprocess" in text
     empty = render_task(h.model_copy(update={"prior_files": []}))
     assert "none yet" in empty
 
