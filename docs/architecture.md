@@ -62,9 +62,70 @@ There is one active run per workspace across processes, enforced by `filelock` o
 
 `CoderAgent.stream(task)` yields `StepEvent`s (`start`, `memory`, `thought`, `plan`, `action`, `observation`, `nudge`, `limit`, `error`, `result`). Graph nodes emit them with `get_stream_writer()`, and the agent reads them with `stream_mode=["custom", "values"]`. The CLI renders them with rich. The web server forwards them as server-sent events on `POST /api/run`. A dedicated thread drives each run. When the browser disconnects, that thread stops at the next event and closes the run, which releases the lock.
 
+## v2: the PM → Coder team graph
+
+Module 2 wraps the Coder in an outer graph (`orchestration/team_graph.py`, built by `build_team_graph(TeamDeps(pm, coder))`). The inner graph above is untouched and runs inside `coder_node`. The diagram is in the [README](../README.md#v20-pm--coder), and `tests/test_docs.py` checks it against the compiled graph.
+
+| Node | What it does |
+|---|---|
+| `pm_node` | `PMAgent.draft_spec(requirement)` returns a validated `Spec`. On a `PMError` it records `error` and `status="failed"`. |
+| `consolidate_node` | Runs only when the PM returned more than `MAX_TASKS` (8) tasks. Merges them (model first, deterministic fallback) and records a `Consolidation`. |
+| `dispatch_node` | Builds a `TaskHandoff` for `tasks[current_task_index]`, sets `handoff`, marks the task `in_progress`. |
+| `coder_node` | Reads only `state["handoff"]`, renders it with `render_task`, runs one `CoderAgent` for the whole project, forwards each step event, records the task result. |
+| `finalize` | Sets the run status: `completed` (every task `done`), `partial` (some `failed`), `failed` (PM error or no tasks). |
+
+Routers: `route_after_pm` sends an error or an empty task list to `finalize`, more than 8 tasks to `consolidate_node`, otherwise to `dispatch_node`. `route_after_coder` sends the run back to `dispatch_node` while tasks remain, otherwise to `finalize`. A failed task does not stop the run.
+
+### `ProjectState`
+
+Defined in `orchestration/project_state.py`. Fields without a reducer are overwritten by the node that owns them.
+
+| Field | Type | Owner (writes it) | Reducer |
+|---|---|---|---|
+| `requirement` | `str` | set at entry | none, never modified |
+| `spec` | `Spec \| None` | `pm_node` | none (written once) |
+| `tasks` | `list[Task]` | `pm_node`; `consolidate_node` replaces it | none (overwrite) |
+| `consolidation` | `Consolidation \| None` | `consolidate_node` | none |
+| `task_status` | `dict[str, TaskRecord]` | `pm_node` (pending), `consolidate_node` (pending), `dispatch_node` (`in_progress`), `coder_node` (`done` / `failed`) | `merge_dicts` (later keys win) |
+| `current_task_index` | `int` | `coder_node` (+1 per task) | none |
+| `handoff` | `TaskHandoff \| None` | `dispatch_node` sets it, `coder_node` clears it | none |
+| `artifacts` | `list[TaskArtifact]` | `coder_node` (one `CoderResult` per task) | `operator.add` |
+| `code_output` | `dict[str, str]` | `coder_node` (path to content) | `merge_dicts` (later tasks win) |
+| `work_in_progress` | `list[str]` | every node (chronological log) | `operator.add` |
+| `error` | `str \| None` | `pm_node` | none |
+| `status` | `"running" \| "completed" \| "partial" \| "failed"` | `pm_node` on failure, `finalize` | none |
+
+### Handoff protocol
+
+`dispatch_node` is the readiness signal: it writes a `TaskHandoff` into state before the Coder starts, so the handoff is visible in the streamed state. `coder_node` then uses that object and nothing else. It never sees `spec`, `tasks` or `requirement`. `render_task(handoff)` turns it into the Coder's task text: project name and description, "Task T2 (2 of 4, high priority)", the title and description, the acceptance criteria as a checklist, the files earlier tasks produced, and the instruction to build on them, keep earlier tests passing and run all tests before finishing.
+
+Every run writes `handoff-<task_id>.json` into `.coder/runs/<run id>/`. An example of what `handoff-T1.json` looks like (illustrative values; the real file from the demo run will be in `docs/evidence/v2/`):
+
+```json
+{
+  "task_id": "T1",
+  "title": "Create the FastAPI app with GET /health",
+  "description": "Create main.py with a FastAPI app and a GET /health endpoint that returns {\"status\": \"ok\"}.",
+  "acceptance_criteria": [
+    "GET /health returns HTTP 200 with the JSON body {\"status\": \"ok\"}",
+    "main.py defines a module-level `app = FastAPI(...)`"
+  ],
+  "priority": "high",
+  "position": 1,
+  "total": 2,
+  "spec_name": "Echo API",
+  "spec_description": "A small REST API with a health check and an echo endpoint.",
+  "prior_files": []
+}
+```
+
+Later tasks get `prior_files` filled from the keys of `code_output` (for T2: `["main.py", "test_main.py"]`, say).
+
+Locking and limits: `TeamRunner` holds the workspace lock for the whole project run, so no other `coder` or `team` run can interleave between tasks. Each task keeps v1's limits: at most 10 Coder iterations and a 10 s exec timeout.
+
 ## Extension points for Modules 2–5
 
-- **Module 2 (PM agent).** `agents/pm_agent.py` produces a spec. The PM → Coder handoff is `CoderAgent.run(task)`, and the structured `CoderResult` is the return contract.
+- **Module 2 (PM agent), built.** `agents/pm_agent.py` produces a spec; the outer graph (see above) hands each task to the Coder as a `TaskHandoff`, and the structured `CoderResult` is the return contract.
 - **Module 3 (QA agent).** `CoderResult.files`, `result` and `verification_notes` give QA everything it needs to re-run and critique. A QA loop becomes a second graph that calls the Coder again with feedback.
 - **Module 4 (MCP/A2A, Docker).** The tools are plain functions behind `tools/dispatch.py::run_action`, so they can be exposed over MCP unchanged. Real isolation replaces the subprocess with a container per run.
 - **Module 5 (observability, cost).** LangSmith tracing already works through environment variables. `StepEvent` is the place to add token and cost accounting.

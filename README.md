@@ -73,11 +73,12 @@ flowchart LR
 
 ```
 agents/         coder_agent.py (CoderAgent), config, model, prompts, result (CoderResult), events
-                pm_agent.py, qa_agent.py: placeholders for Modules 2 and 3
+                pm_agent.py (PMAgent, v2); qa_agent.py: placeholder for Module 3
 tools/          workspace confinement + lock, read_file / write_file, exec_python + _runner, specs, dispatch
 memory/         sliding window, Chroma semantic store, context formatting
-orchestration/  graph, routing, state, verify, finalize
-app/            cli.py (coder), web.py (coder-web), render.py
+orchestration/  graph, routing, state, verify, finalize (v1 inner graph)
+                team_graph, project_state, handoff, consolidation, team_runner (v2 outer graph)
+app/            cli.py (coder), web.py (coder-web), team_cli.py (team), api_check.py, render.py
 web/            static mini-IDE (HTML/JS/CSS, no build step)
 tests/          unit tests (scripted fake model) + tests/live (real model)
 docs/           architecture.md, usage.md, evidence/
@@ -112,6 +113,73 @@ Details are in [docs/architecture.md](docs/architecture.md).
 - **One run per workspace at a time.** A second concurrent run is refused, not queued.
 - **The web UI is local and read-only.** There is no authentication. It binds to 127.0.0.1 by default and refuses foreign `Host` headers (`CODER_WEB_ALLOWED_HOSTS`).
 - **The memory threshold (cosine distance 0.65) is tuned for the default embedding model.** Other embedding models may need `MEMORY_MAX_DISTANCE`.
+
+## v2.0: PM → Coder
+
+Module 2 adds a Product Manager agent in front of the Coder. One LangGraph graph (`orchestration/team_graph.py`) takes a free-text requirement, has the PM turn it into a spec with acceptance criteria and a task list, then hands the tasks to the Coder one at a time. Both agents read and write one shared `ProjectState`. The v1 `coder` and `coder-web` commands are unchanged.
+
+```mermaid
+flowchart TD
+    START((start)) --> pm_node
+    pm_node -->|"error or no tasks"| finalize
+    pm_node -->|"more than 8 tasks"| consolidate_node
+    pm_node -->|"8 tasks or fewer"| dispatch_node
+    consolidate_node --> dispatch_node
+    dispatch_node -->|"TaskHandoff"| coder_node
+    coder_node -->|"more tasks"| dispatch_node
+    coder_node -->|"all tasks run"| finalize
+    finalize --> END((end))
+    PS[("ProjectState<br/>shared by both agents")]
+    pm_node -.- PS
+    consolidate_node -.- PS
+    dispatch_node -.- PS
+    coder_node -.- PS
+    finalize -.- PS
+```
+
+The same flow as text:
+
+```
+            requirement
+                │
+   START ──► pm_node ──route_after_pm──┬── error ──────────────────────────► finalize ──► END
+                                       ├── > 8 tasks ──► consolidate_node ──┐      ▲
+                                       └── ≤ 8 tasks ───────────────────────┤      │
+                                                                            ▼      │
+                                         ┌──────────────────────────► dispatch_node│
+                                         │                                  │ handoff (TaskHandoff)
+                                         │                                  ▼      │
+                                         └──── more tasks ◄── route_after_coder ◄── coder_node
+                                                               └── all done ───────┘
+```
+
+- `pm_node` drafts a `Spec` (acceptance criteria `AC1…`, tasks `T1…`, each task covering at least one criterion). It is validated, so a task that covers an unknown criterion, or a criterion no task covers, fails the run.
+- `consolidate_node` runs only when the PM returns more than 8 tasks. It merges them to at most 8 (model first, deterministic fallback) and records the mapping in `consolidation`.
+- `dispatch_node` writes a `TaskHandoff` into state. That is the readiness signal for the Coder, and `coder_node` reads nothing else.
+- `coder_node` runs the existing `CoderAgent` for one task and records the result. A failed task does not stop the run; the next task still runs and the run ends `partial`.
+
+### Running it
+
+```bash
+uv run team --demo api --reset-memory     # the published task: GET /health + POST /echo (make team-demo)
+uv run team --demo large --reset-memory   # an 11-feature requirement, so the PM yields > 8 tasks and consolidation runs (make team-large)
+uv run team "Build a CLI that converts CSV to JSON, with tests"
+uv run team --json "…"                    # only the final ProjectState JSON on stdout
+uv run python scripts/check_api.py        # run the Postman fixture against the generated API in workspace/
+```
+
+`--demo api` runs `scripts/check_api.py`'s checks automatically after the Coder finishes and passes only if they do. Each run writes its evidence to `.coder/runs/<id>/`: `requirement.txt`, `state-after-pm.json`, `handoff-<task>.json`, `state-after-<task>.json`, `consolidation.json` (when consolidation ran), `api-check.txt` (for `--demo api`) and `final-state.json`. Flags and exit codes are in [docs/usage.md](docs/usage.md).
+
+### v2 rubric evidence
+
+| Criterion | Where in code | Evidence |
+|---|---|---|
+| **C2.1** PM agent | `agents/pm_agent.py` | [requirement.txt and state-after-pm.json](docs/evidence/v2/) from the demo run; the spec has at least 2 tasks |
+| **C2.2** Shared state | `ProjectState` in `orchestration/project_state.py` | `state-after-pm.json` against `state-after-T1.json` in [docs/evidence/v2/](docs/evidence/v2/) |
+| **C2.3** Handoff | `orchestration/team_graph.py`, `render_task` in `orchestration/handoff.py` | `handoff-T1.json` in [docs/evidence/v2/](docs/evidence/v2/); `render_task` tests in `tests/test_team_graph.py` |
+| **C2.4** Task tracking and consolidation | `task_status` and `work_in_progress` in `ProjectState`; `orchestration/consolidation.py` | The `state-after-<id>.json` sequence and the `work_in_progress` log; `consolidation.json` from `team --demo large`, all in [docs/evidence/v2/](docs/evidence/v2/) |
+| **C2.5** Working end to end | `tests/test_team_graph.py`, `scripts/check_api.py` | The `tests/test_team_graph.py` result, the demo run and the `check_api.py` output on the generated API, in [docs/evidence/v2/](docs/evidence/v2/) |
+| **C2.6** Documentation | This section, [docs/architecture.md](docs/architecture.md) | The diagram above is checked against the compiled graph by `tests/test_docs.py` |
 
 ## Roadmap
 
