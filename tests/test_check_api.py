@@ -76,6 +76,34 @@ def test_find_app(tmp_path):
     assert find_app(empty) is None
 
 
+APP_SRC = "from fastapi import FastAPI\napp = FastAPI()\n"
+
+
+def test_find_app_package(tmp_path):
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "main.py").write_text(APP_SRC)
+    assert find_app(tmp_path) == "pkg.main:app"
+
+
+def test_find_app_skips_hidden_and_test_dirs(tmp_path):
+    for d in (".coder_snippets", ".pytest_cache"):
+        (tmp_path / d).mkdir()
+        (tmp_path / d / "app.py").write_text(APP_SRC)
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_app.py").write_text(APP_SRC)
+    (tmp_path / "tests" / "app_test.py").write_text(APP_SRC)
+    assert find_app(tmp_path) is None
+
+
+def test_find_app_prefers_written_files(tmp_path):
+    (tmp_path / "app.py").write_text(APP_SRC)  # stale, sorts first
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "main.py").write_text(APP_SRC)
+    assert find_app(tmp_path) == "app:app"
+    assert find_app(tmp_path, ["pkg/main.py"]) == "pkg.main:app"
+    assert find_app(tmp_path, ["missing.py", "notes.txt", "pkg/main.py"]) == "pkg.main:app"
+
+
 def test_find_app_reference_only(tmp_path):
     src = (FIXTURES / "reference_api.py").read_text()
     (tmp_path / "reference_api.py").write_text(src)

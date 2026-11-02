@@ -15,7 +15,7 @@ from orchestration.project_state import MAX_TASKS, initial_project_state, state_
 from orchestration.team_graph import TeamDeps, build_team_graph
 from tools.workspace import RunLock
 
-ApiCheck = Callable[[Path], tuple[bool, str]]
+ApiCheck = Callable[[Path, list[str]], tuple[bool, str]]  # (workspace, files this run wrote)
 
 
 class TeamRunner:
@@ -77,7 +77,7 @@ class TeamRunner:
             # Still under the lock, so the check and the evidence describe the same workspace
             check: dict | None = None
             if api_check is not None and state["status"] != "failed":
-                passed, report = api_check(s.workspace_dir)
+                passed, report = api_check(s.workspace_dir, sorted(state["code_output"]))
                 (run_dir / "api-check.txt").write_text(report)
                 check = {"passed": passed, "report": report}
             self._write_json("final-state.json", state)

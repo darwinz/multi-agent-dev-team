@@ -6,7 +6,7 @@ from app.team_cli import DEMO_API, DEMO_LARGE, main
 from agents.pm_agent import PMAgent
 from orchestration.project_state import Spec
 from orchestration.team_runner import TeamRunner
-from tests.fakes import ScriptedChatModel, agent, happy, make_spec, spec_response
+from tests.fakes import ScriptedChatModel, agent, ai, happy, make_spec, spec_response, tool_call
 from tools.workspace import RunLock
 
 
@@ -57,19 +57,42 @@ def test_reset_memory_only(settings):
     assert not any(settings.workspace_dir.iterdir())
 
 
+def app_scripts(path: str) -> list:
+    """A one-task script that writes a FastAPI app at `path`, then finishes."""
+    return [
+        ai("1. write app\n2. write test\n3. run",
+           tool_call("write_file", path=path, content="from fastapi import FastAPI\napp = FastAPI()\n"),
+           tool_call("write_file", path="test_ok.py", content="from pkg.main import app\n\ndef test_ok():\n    assert app is not None\n"),
+           tool_call("exec_python", path="test_ok.py")),
+        ai("done", tool_call("finish", explanation="app", plan=["write", "test"], entry_point="test_ok.py")),
+    ]
+
+
 def test_demo_api_runs_fixture(settings, monkeypatch):
     seen = {}
 
     def fake_check(spec, app_dir, *a, **kw):
         seen["locked"] = RunLock.is_running(settings.state_dir)
+        seen["spec"] = spec
         return [CheckResult(name="GET /health", passed=False, detail="nope")]
 
     monkeypatch.setattr(team_cli, "check_api", fake_check)
-    r = make_runner(settings, *happy(), *happy())
+    r = make_runner(settings, *app_scripts("pkg/main.py"), *happy())
     assert main(["--demo", "api"], runner=r) == 1
     assert r.final_state["status"] == "completed"
     assert "FAIL" in (r.run_dir / "api-check.txt").read_text()
     assert seen["locked"] is True
+    assert seen["spec"] == "pkg.main:app"
+
+
+def test_demo_api_without_app_fails_without_guessing(settings, monkeypatch):
+    calls = []
+    monkeypatch.setattr(team_cli, "check_api", lambda *a, **kw: calls.append(a) or [])
+    r = make_runner(settings, *happy(), *happy())
+    assert main(["--demo", "api"], runner=r) == 1
+    assert calls == []
+    report = (r.run_dir / "api-check.txt").read_text()
+    assert report == f"FAIL find app: no module assigns app = FastAPI(...) in {settings.workspace_dir}"
 
 
 def test_demo_api_text():

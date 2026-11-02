@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Iterable
 from pathlib import Path
 
 import httpx
@@ -32,22 +33,43 @@ def load_collection(path: Path) -> list[dict]:
     return json.loads(Path(path).read_text())["item"]
 
 
-def find_app(app_dir: Path) -> str | None:
-    """Return "module:app" for the first non-test .py file assigning `app = FastAPI(...)` at top level."""
-    for path in sorted(Path(app_dir).glob("*.py")):
-        if path.name.startswith("test_") or path.name.endswith("_test.py"):
+def _is_candidate(rel: Path) -> bool:
+    if rel.suffix != ".py" or any(part.startswith(".") for part in rel.parts):
+        return False
+    return not (rel.name.startswith("test_") or rel.name.endswith("_test.py"))
+
+
+def _assigns_app(path: Path) -> bool:
+    try:
+        tree = ast.parse(path.read_text())
+    except (SyntaxError, UnicodeDecodeError, OSError):
+        return False
+    for node in tree.body:
+        if not (isinstance(node, ast.Assign) and isinstance(node.value, ast.Call)):
             continue
-        try:
-            tree = ast.parse(path.read_text())
-        except (SyntaxError, UnicodeDecodeError):
+        func = node.value.func
+        name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
+        if name == "FastAPI" and any(isinstance(t, ast.Name) and t.id == "app" for t in node.targets):
+            return True
+    return False
+
+
+def find_app(app_dir: Path, prefer: Iterable[str] = ()) -> str | None:
+    """Return "dotted.module:app" for the first non-test .py file under app_dir assigning `app = FastAPI(...)`.
+
+    Files in `prefer` (app_dir-relative paths) are tried first, in the given order; the rest follow sorted.
+    Hidden directories and test files are skipped.
+    """
+    root = Path(app_dir)
+    preferred = [Path(p) for p in prefer]
+    rest = sorted(p.relative_to(root) for p in root.rglob("*.py") if p.is_file())
+    seen: set[Path] = set()
+    for rel in [*preferred, *rest]:
+        if rel in seen or rel.is_absolute() or ".." in rel.parts:
             continue
-        for node in tree.body:
-            if not (isinstance(node, ast.Assign) and isinstance(node.value, ast.Call)):
-                continue
-            func = node.value.func
-            name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
-            if name == "FastAPI" and any(isinstance(t, ast.Name) and t.id == "app" for t in node.targets):
-                return f"{path.stem}:app"
+        seen.add(rel)
+        if _is_candidate(rel) and (root / rel).is_file() and _assigns_app(root / rel):
+            return ".".join(rel.with_suffix("").parts) + ":app"
     return None
 
 

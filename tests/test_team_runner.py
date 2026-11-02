@@ -140,15 +140,15 @@ def test_api_check_runs_under_lock(settings):
     runner = happy_runner(settings)
     calls = []
 
-    def api_check(workspace):
-        calls.append(workspace)
+    def api_check(workspace, written):
+        calls.append((workspace, written))
         assert RunLock(settings.state_dir).is_locked_elsewhere()
         with pytest.raises(WorkspaceBusyError):
             list(TeamRunner(settings, pm=runner.pm, coder=runner.coder).stream("r"))
         return False, "FAIL echo"
 
     events = list(runner.stream(REQ, api_check=api_check))
-    assert calls == [settings.workspace_dir]
+    assert calls == [(settings.workspace_dir, ["palindrome.py", "test_palindrome.py"])]
     assert "FAIL echo" in (runner.run_dir / "api-check.txt").read_text()
     assert events[-1].data["api_check"] == {"passed": False, "report": "FAIL echo"}
     assert [p.name for p in (settings.state_dir / "runs").iterdir()] == [runner.run_dir.name]
@@ -158,7 +158,7 @@ def test_api_check_skipped_when_pm_failed(settings):
     runner = make_runner(settings, bad_spec_responses())
     calls = []
 
-    def api_check(workspace):
+    def api_check(workspace, written):
         calls.append(workspace)
         return True, "PASS"
 

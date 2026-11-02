@@ -17,7 +17,9 @@ def test_demo_api_end_to_end(live_settings):
     assert len(state["spec"]["tasks"]) >= 2
     assert state["status"] == "completed", state.get("error") or state["task_status"]
     ws = live_settings.workspace_dir
-    results = check_api(find_app(ws) or "main:app", ws)
+    app_spec = find_app(ws, sorted(state["code_output"]))
+    assert app_spec is not None
+    results = check_api(app_spec, ws)
     assert results and all(r.passed for r in results), [(r.name, r.detail) for r in results if not r.passed]
 
 
