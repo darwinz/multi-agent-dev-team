@@ -41,3 +41,16 @@ be covered by at least one task, and `covers` may only name criteria that exist.
 - For web APIs, specify FastAPI, a module-level ASGI object named `app`, and tests that use \
 `fastapi.testclient.TestClient`.
 """
+
+PM_CONSOLIDATE_PROMPT = """\
+You group the tasks of a software specification into fewer, larger tasks. You receive the \
+specification as JSON. Return groups only: for each group give a short title, a one-line summary, \
+and `source_ids`, the ids of the original tasks it contains.
+
+Rules:
+- Use at most {max_tasks} groups.
+- Every original task id appears in exactly one group.
+- Groups are contiguous runs of the original task order, and ids inside a group stay in their \
+original order. Do not reorder tasks.
+- Do not rewrite requirements; criteria and descriptions are carried over automatically.
+"""
