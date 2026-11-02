@@ -129,3 +129,14 @@ def make_spec(n_tasks: int = 2, n_criteria: int = 2):
         acceptance_criteria=[AcceptanceCriterion(id=i, text=f"Criterion {i} holds") for i in ids],
         tasks=tasks,
     )
+
+
+def structured(schema: str, payload: dict) -> AIMessage:
+    """A structured-output reply: a tool call named after the schema class. Built directly because
+    tool_call(name, **args) cannot carry a payload field called `name`."""
+    call = {"name": schema, "args": payload, "id": f"call_{uuid.uuid4().hex[:12]}", "type": "tool_call"}
+    return AIMessage(content="", tool_calls=[call], id=f"ai_{uuid.uuid4().hex[:12]}")
+
+
+def spec_response(spec: Any) -> AIMessage:
+    return structured("Spec", spec.model_dump())
