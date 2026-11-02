@@ -1,0 +1,298 @@
+{
+  "info": {
+    "name": "Demo API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000"
+    }
+  ],
+  "item": [
+    {
+      "name": "health",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "health example",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"status\":\"ok\"}"
+        }
+      ]
+    },
+    {
+      "name": "echo object",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/echo",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "echo"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"message\":\"hello\",\"n\":1}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [
+        {
+          "name": "echo object example",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/echo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "echo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"message\":\"hello\",\"n\":1}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\"message\":\"hello\",\"n\":1}"
+        }
+      ]
+    },
+    {
+      "name": "echo malformed json",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/echo",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "echo"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"message\":",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [
+        {
+          "name": "echo malformed json example",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/echo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "echo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"message\":",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Unprocessable Entity",
+          "code": 422,
+          "header": [],
+          "body": ""
+        }
+      ]
+    },
+    {
+      "name": "echo non-object",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/echo",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "echo"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "[1,2,3]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [
+        {
+          "name": "echo non-object example",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/echo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "echo"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "[1,2,3]",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "Unprocessable Entity",
+          "code": 422,
+          "header": [],
+          "body": ""
+        }
+      ]
+    },
+    {
+      "name": "echo no body",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/echo",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "echo"
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "echo no body example",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/echo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "echo"
+              ]
+            }
+          },
+          "status": "Unprocessable Entity",
+          "code": 422,
+          "header": [],
+          "body": ""
+        }
+      ]
+    }
+  ]
+}

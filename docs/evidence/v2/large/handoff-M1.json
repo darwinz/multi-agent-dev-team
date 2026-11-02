@@ -1,0 +1,18 @@
+{
+  "task_id": "M1",
+  "title": "Scaffold, models and add()",
+  "description": "Package, errors, TodoItem, TodoList, add() and id-validation helper.\n\n[T1] Create package `todo` with TodoItem dataclass, TodoError/ItemNotFoundError/ValidationError, TodoList with internal store and id counter, add(), and an internal _get(item_id) helper that validates id type (non-int/bool -> ValidationError) and raises ItemNotFoundError with the id in the message. Add tests/test_add.py and tests for _get behaviour via public API where possible.",
+  "acceptance_criteria": [
+    "add returns TodoItem with defaults and stripped text",
+    "ids start at 1, increment, and are not reused after deletion (tested once delete exists, or via counter)",
+    "add with '', '   ', or non-str raises ValidationError and creates nothing",
+    "ItemNotFoundError and ValidationError importable from todo; hierarchy as described",
+    "pytest passes"
+  ],
+  "priority": "high",
+  "position": 1,
+  "total": 6,
+  "spec_name": "todo-lib",
+  "spec_description": "A tiny in-memory to-do library in Python (package `todo`, class `TodoList` in todo/__init__.py or todo.py) with custom exceptions `TodoError` (base, subclass of Exception), `ItemNotFoundError` (subclass of TodoError and KeyError-free; message includes the unknown id) and `ValidationError` (subclass of TodoError and ValueError). Items are represented by a dataclass `TodoItem` with fields: id (int, auto-incremented from 1, never reused), text (str), complete (bool, default False), due_date (datetime.date or None), priority ('high'|'medium'|'low', default 'medium'). All features are methods on `TodoList`, each covered by pytest tests in tests/.",
+  "prior_files": []
+}

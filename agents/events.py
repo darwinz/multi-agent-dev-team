@@ -14,3 +14,11 @@ class StepEvent(BaseModel):
     iteration: int
     max_iterations: int
     data: dict = {}
+
+
+class TeamEvent(BaseModel):
+    """A team-run event: run milestones from TeamRunner, or a Coder StepEvent tagged with its task."""
+
+    kind: Literal["start", "spec", "consolidation", "handoff", "coder", "task_done", "final", "progress"]
+    task_id: str | None = None
+    data: dict = {}

@@ -1,4 +1,4 @@
-.PHONY: setup test verify demo web requirements
+.PHONY: setup test verify demo web requirements team-demo team-large
 
 setup:
 	uv sync
@@ -17,3 +17,9 @@ web:
 
 requirements:
 	uv export --no-hashes --no-emit-project --format requirements-txt > requirements.txt
+
+team-demo:
+	uv run team --demo api --reset-memory
+
+team-large:
+	uv run team --demo large --reset-memory

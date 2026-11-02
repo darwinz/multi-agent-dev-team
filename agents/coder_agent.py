@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import contextlib
 import shutil
 import uuid
 from collections.abc import Iterator
@@ -75,9 +76,9 @@ class CoderAgent:
             self.model = make_model(self.settings)
         return self.model.bind_tools(TOOL_SPECS)
 
-    def stream(self, task: str) -> Iterator[StepEvent]:
+    def stream(self, task: str, *, lock_held: bool = False) -> Iterator[StepEvent]:
         s = self.settings
-        with RunLock(s.state_dir):
+        with contextlib.nullcontext() if lock_held else RunLock(s.state_dir):
             current = self._generation.read()
             if current != self.generation_seen:
                 self.window.clear()
@@ -158,9 +159,9 @@ class CoderAgent:
                 files[path] = p.read_bytes().decode("utf-8", errors="replace")
         return files
 
-    def run(self, task: str) -> CoderResult:
+    def run(self, task: str, *, lock_held: bool = False) -> CoderResult:
         result = None
-        for event in self.stream(task):
+        for event in self.stream(task, lock_held=lock_held):
             if event.kind == "result":
                 result = CoderResult.model_validate(event.data["result"])
         assert result is not None, "stream ended without a result event"

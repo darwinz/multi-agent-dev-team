@@ -7,6 +7,7 @@ import json
 from rich.console import Console, Group
 from rich.panel import Panel
 from rich.syntax import Syntax
+from rich.table import Table
 from rich.text import Text
 
 from agents.events import StepEvent
@@ -90,3 +91,52 @@ def render_result(console: Console, result: CoderResult) -> None:
     if result.error:
         parts.append(Text.assemble(("error: ", "bold red"), result.error))
     console.print(Panel(Group(*parts), title="CoderResult", border_style=_STATUS_STYLE[result.status].split()[-1]))
+
+
+# --- team (PM -> Coder) renderers ---------------------------------------------------
+
+_TASK_STYLE = {"done": "green", "failed": "red", "in_progress": "yellow", "pending": "dim"}
+_RUN_STYLE = {"completed": "bold green", "partial": "bold yellow", "failed": "bold red", "running": "bold"}
+
+
+def render_spec(console: Console, data: dict) -> None:
+    if "error" in data and "name" not in data:
+        console.print(Panel(Text(str(data["error"]), style="red"), title="PM failed", border_style="red"))
+        return
+    table = Table("id", "priority", "title", "covers", expand=True)
+    for t in data.get("tasks", []):
+        table.add_row(t["task_id"], t["priority"], t["title"], ", ".join(t["covers"]))
+    criteria = [Text(f"  {c['id']}: {c['text']}") for c in data.get("acceptance_criteria", [])]
+    body = Group(Text(data.get("description", "")), Text("acceptance criteria:", style="bold"), *criteria, table)
+    console.print(Panel(body, title=f"Spec: {data.get('name', '')}", border_style="cyan"))
+
+
+def render_consolidation(console: Console, data: dict) -> None:
+    titles = {t["task_id"]: t["title"] for t in data.get("original_tasks", [])}
+    lines = [
+        Text(f"{new} <- " + ", ".join(f"{o} ({titles.get(o, '?')})" for o in originals))
+        for new, originals in data.get("merged_from", {}).items()
+    ]
+    n = len(data.get("original_tasks", []))
+    console.print(Panel(Group(*lines), title=f"Consolidated {n} tasks ({data.get('method')})",
+                        border_style="magenta"))
+
+
+def render_task_header(console: Console, data: dict) -> None:
+    console.rule(Text(f"T{data['position']}/{data['total']} · {data['priority']} · {data['title']}",
+                      style="bold"), align="left")
+
+
+def render_team_summary(console: Console, data: dict) -> None:
+    table = Table("id", "status", "iterations", "files")
+    # One row per task that executes (the merged tasks after consolidation)
+    records = data.get("task_status") or {}
+    for task_id in (t["task_id"] for t in data.get("tasks") or []):
+        rec = records.get(task_id, {"status": "pending"})
+        table.add_row(task_id, Text(rec["status"], style=_TASK_STYLE.get(rec["status"], "")),
+                      str(rec.get("iterations", 0)), ", ".join(rec.get("files", [])) or "none")
+    status = data.get("status", "failed")
+    parts: list = [table, Text.assemble(("run status: ", "bold"), (status, _RUN_STYLE.get(status, "bold")))]
+    if data.get("error"):
+        parts.append(Text.assemble(("error: ", "bold red"), str(data["error"])))
+    console.print(Panel(Group(*parts), title="Team summary", border_style=_RUN_STYLE.get(status, "bold").split()[-1]))

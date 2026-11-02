@@ -1,0 +1,5 @@
+PASS health
+PASS echo object
+PASS echo malformed json
+PASS echo non-object
+PASS echo no body

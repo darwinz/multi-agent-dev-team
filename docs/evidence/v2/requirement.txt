@@ -1,0 +1,1 @@
+Build a REST API with two endpoints: GET /health (returns {status: ok}) and POST /echo (returns the JSON body it receives). Include basic input validation. Use FastAPI; invalid input to /echo (malformed JSON, a non-JSON-object body, or no body) must return HTTP 422.

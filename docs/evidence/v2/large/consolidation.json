@@ -1,0 +1,239 @@
+{
+  "original_tasks": [
+    {
+      "task_id": "T1",
+      "title": "Project scaffold, models, errors and add()",
+      "description": "Create package `todo` with TodoItem dataclass, TodoError/ItemNotFoundError/ValidationError, TodoList with internal store and id counter, add(), and an internal _get(item_id) helper that validates id type (non-int/bool -> ValidationError) and raises ItemNotFoundError with the id in the message. Add tests/test_add.py and tests for _get behaviour via public API where possible.",
+      "acceptance_criteria": [
+        "add returns TodoItem with defaults and stripped text",
+        "ids start at 1, increment, and are not reused after deletion (tested once delete exists, or via counter)",
+        "add with '', '   ', or non-str raises ValidationError and creates nothing",
+        "ItemNotFoundError and ValidationError importable from todo; hierarchy as described",
+        "pytest passes"
+      ],
+      "priority": "high",
+      "covers": [
+        "AC1",
+        "AC2",
+        "AC14",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T2",
+      "title": "list_items()",
+      "description": "Implement list_items() returning a copy list of items in insertion order. Tests in tests/test_list.py.",
+      "acceptance_criteria": [
+        "empty list for new TodoList",
+        "items returned in insertion order",
+        "mutating returned list does not affect the store",
+        "pytest passes"
+      ],
+      "priority": "high",
+      "covers": [
+        "AC3",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T3",
+      "title": "complete()",
+      "description": "Implement complete(item_id). Tests in tests/test_complete.py.",
+      "acceptance_criteria": [
+        "marks item complete and returns it",
+        "idempotent when called twice",
+        "unknown id raises ItemNotFoundError mentioning the id",
+        "non-int/bool id raises ValidationError",
+        "pytest passes"
+      ],
+      "priority": "high",
+      "covers": [
+        "AC4",
+        "AC14",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T4",
+      "title": "delete()",
+      "description": "Implement delete(item_id). Tests in tests/test_delete.py.",
+      "acceptance_criteria": [
+        "deleted item absent from list_items",
+        "second delete raises ItemNotFoundError",
+        "unknown id raises ItemNotFoundError",
+        "new add after delete gets a fresh, never-reused id",
+        "pytest passes"
+      ],
+      "priority": "high",
+      "covers": [
+        "AC5",
+        "AC1",
+        "AC14",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T5",
+      "title": "rename()",
+      "description": "Implement rename(item_id, new_text). Tests in tests/test_rename.py.",
+      "acceptance_criteria": [
+        "text updated and stripped, item returned",
+        "empty/whitespace/non-str raises ValidationError and text unchanged",
+        "unknown id raises ItemNotFoundError",
+        "pytest passes"
+      ],
+      "priority": "medium",
+      "covers": [
+        "AC6",
+        "AC14",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T6",
+      "title": "set_due_date()",
+      "description": "Implement set_due_date(item_id, due) accepting date, ISO string, or None. Tests in tests/test_due_date.py.",
+      "acceptance_criteria": [
+        "date object stored",
+        "'2024-05-01' string stored as date(2024,5,1)",
+        "None clears the due date",
+        "'2024-13-01', 'tomorrow', 123 raise ValidationError",
+        "unknown id raises ItemNotFoundError",
+        "pytest passes"
+      ],
+      "priority": "medium",
+      "covers": [
+        "AC7",
+        "AC14",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T7",
+      "title": "set_priority()",
+      "description": "Implement set_priority(item_id, priority). Tests in tests/test_priority.py.",
+      "acceptance_criteria": [
+        "'high','medium','low' accepted and item returned",
+        "'urgent', '', None, 'HIGH' raise ValidationError and priority unchanged",
+        "unknown id raises ItemNotFoundError",
+        "pytest passes"
+      ],
+      "priority": "medium",
+      "covers": [
+        "AC8",
+        "AC14",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T8",
+      "title": "filter_by_status()",
+      "description": "Implement filter_by_status(status). Tests in tests/test_filter.py.",
+      "acceptance_criteria": [
+        "'open' returns only incomplete items",
+        "'complete' returns only complete items",
+        "results in id order; empty list if none",
+        "invalid status (e.g. 'done', None) raises ValidationError",
+        "pytest passes"
+      ],
+      "priority": "medium",
+      "covers": [
+        "AC9",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T9",
+      "title": "search()",
+      "description": "Implement search(query) case-insensitive substring match. Tests in tests/test_search.py.",
+      "acceptance_criteria": [
+        "case-insensitive substring match returns matching items in id order",
+        "no match returns []",
+        "empty/whitespace/non-str query raises ValidationError",
+        "pytest passes"
+      ],
+      "priority": "medium",
+      "covers": [
+        "AC10",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T10",
+      "title": "export_json()",
+      "description": "Implement export_json() returning JSON string of list of item dicts. Tests in tests/test_export.py.",
+      "acceptance_criteria": [
+        "empty list exports '[]' (parsed equals [])",
+        "each object has keys id,text,complete,due_date,priority",
+        "due_date serialized as ISO string or null",
+        "pytest passes"
+      ],
+      "priority": "medium",
+      "covers": [
+        "AC11",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T11",
+      "title": "import_json() happy path and round trip",
+      "description": "Implement import_json(data) for valid input with defaults for optional fields, preserving ids, updating the id counter, returning count. Tests in tests/test_import.py.",
+      "acceptance_criteria": [
+        "returns number of items imported",
+        "ids preserved and later add() gets id greater than max existing",
+        "missing complete/due_date/priority default to False/None/'medium'",
+        "export -> import into a new TodoList yields equal items",
+        "pytest passes"
+      ],
+      "priority": "medium",
+      "covers": [
+        "AC12",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T12",
+      "title": "import_json() validation and atomicity",
+      "description": "Add full validation to import_json: validate everything before mutating the store. Tests in tests/test_import_validation.py.",
+      "acceptance_criteria": [
+        "invalid JSON, non-list top level, non-object items raise ValidationError",
+        "empty text, bad priority, non-bool complete, bad due_date, non-int/bool id, missing id or text raise ValidationError",
+        "duplicate ids within the data or against existing items raise ValidationError",
+        "after any failure the list is unchanged (atomic)",
+        "pytest passes"
+      ],
+      "priority": "medium",
+      "covers": [
+        "AC13",
+        "AC15"
+      ]
+    }
+  ],
+  "merged_from": {
+    "M1": [
+      "T1"
+    ],
+    "M2": [
+      "T2",
+      "T3",
+      "T4"
+    ],
+    "M3": [
+      "T5",
+      "T6",
+      "T7"
+    ],
+    "M4": [
+      "T8",
+      "T9"
+    ],
+    "M5": [
+      "T10"
+    ],
+    "M6": [
+      "T11",
+      "T12"
+    ]
+  },
+  "method": "llm"
+}

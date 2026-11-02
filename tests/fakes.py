@@ -103,3 +103,40 @@ def agent(settings: Any, *responses: Any) -> Any:
     from agents.coder_agent import CoderAgent
 
     return CoderAgent(settings, model=ScriptedChatModel(responses=list(responses)), embedding_function=FakeEmbedding())
+
+
+# --- project state fixtures -------------------------------------------------------
+
+def make_spec(n_tasks: int = 2, n_criteria: int = 2):
+    """A valid Spec: criteria AC1..ACn, tasks T1..Tn. T1 covers every criterion; Ti (i >= 2) covers one."""
+    from orchestration.project_state import AcceptanceCriterion, Spec, Task
+
+    ids = [f"AC{i}" for i in range(1, n_criteria + 1)]
+    tasks = [
+        Task(
+            task_id=f"T{i}",
+            title=f"Task {i}",
+            description=f"Implement part {i} of the demo API.",
+            acceptance_criteria=[f"Behaviour {i} works when the code is run"],
+            priority="high",
+            covers=list(ids) if i == 1 else [f"AC{(i - 2) % n_criteria + 1}"],
+        )
+        for i in range(1, n_tasks + 1)
+    ]
+    return Spec(
+        name="Demo API",
+        description="A small demo API.",
+        acceptance_criteria=[AcceptanceCriterion(id=i, text=f"Criterion {i} holds") for i in ids],
+        tasks=tasks,
+    )
+
+
+def structured(schema: str, payload: dict) -> AIMessage:
+    """A structured-output reply: a tool call named after the schema class. Built directly because
+    tool_call(name, **args) cannot carry a payload field called `name`."""
+    call = {"name": schema, "args": payload, "id": f"call_{uuid.uuid4().hex[:12]}", "type": "tool_call"}
+    return AIMessage(content="", tool_calls=[call], id=f"ai_{uuid.uuid4().hex[:12]}")
+
+
+def spec_response(spec: Any) -> AIMessage:
+    return structured("Spec", spec.model_dump())

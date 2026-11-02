@@ -1,0 +1,51 @@
+"""The PM → Coder handoff: build a TaskHandoff from project state and render it as Coder task text."""
+
+from __future__ import annotations
+
+from orchestration.project_state import ProjectState, TaskHandoff
+
+BUILD_ON = (
+    "Build on the files from earlier tasks rather than replacing them, keep their tests passing, "
+    "and run all tests before finishing: run each test file by its path with exec_python, one call "
+    "per file. Tests run any other way (for example through subprocess) are not verified, so the "
+    "task fails."
+)
+
+
+def make_handoff(state: ProjectState) -> TaskHandoff:
+    """The handoff for tasks[current_task_index]; prior_files are the files earlier tasks produced."""
+    tasks = state["tasks"]
+    i = state["current_task_index"]
+    task, spec = tasks[i], state["spec"]
+    return TaskHandoff(
+        task_id=task.task_id,
+        title=task.title,
+        description=task.description,
+        acceptance_criteria=list(task.acceptance_criteria),
+        priority=task.priority,
+        position=i + 1,
+        total=len(tasks),
+        spec_name=spec.name,
+        spec_description=spec.description,
+        prior_files=sorted(state["code_output"]),
+    )
+
+
+def render_task(h: TaskHandoff) -> str:
+    """The Coder's task text: built only from the handoff, never from the raw requirement."""
+    files = "\n".join(f"- {p}" for p in h.prior_files) or "none yet"
+    return "\n".join([
+        f"Project: {h.spec_name}",
+        h.spec_description,
+        "",
+        f"Task {h.task_id} ({h.position} of {h.total}, {h.priority} priority): {h.title}",
+        h.description,
+        "",
+        "Acceptance criteria:",
+        *(f"- [ ] {c}" for c in h.acceptance_criteria),
+        "",
+        "Files from earlier tasks:",
+        files,
+        "",
+        BUILD_ON,
+    ])

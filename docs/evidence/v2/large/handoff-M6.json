@@ -1,0 +1,36 @@
+{
+  "task_id": "M6",
+  "title": "JSON import",
+  "description": "import_json() happy path with round trip, plus validation and atomicity.\n\n[T11] Implement import_json(data) for valid input with defaults for optional fields, preserving ids, updating the id counter, returning count. Tests in tests/test_import.py.\n[T12] Add full validation to import_json: validate everything before mutating the store. Tests in tests/test_import_validation.py.",
+  "acceptance_criteria": [
+    "returns number of items imported",
+    "ids preserved and later add() gets id greater than max existing",
+    "missing complete/due_date/priority default to False/None/'medium'",
+    "export -> import into a new TodoList yields equal items",
+    "pytest passes",
+    "invalid JSON, non-list top level, non-object items raise ValidationError",
+    "empty text, bad priority, non-bool complete, bad due_date, non-int/bool id, missing id or text raise ValidationError",
+    "duplicate ids within the data or against existing items raise ValidationError",
+    "after any failure the list is unchanged (atomic)",
+    "pytest passes"
+  ],
+  "priority": "medium",
+  "position": 6,
+  "total": 6,
+  "spec_name": "todo-lib",
+  "spec_description": "A tiny in-memory to-do library in Python (package `todo`, class `TodoList` in todo/__init__.py or todo.py) with custom exceptions `TodoError` (base, subclass of Exception), `ItemNotFoundError` (subclass of TodoError and KeyError-free; message includes the unknown id) and `ValidationError` (subclass of TodoError and ValueError). Items are represented by a dataclass `TodoItem` with fields: id (int, auto-incremented from 1, never reused), text (str), complete (bool, default False), due_date (datetime.date or None), priority ('high'|'medium'|'low', default 'medium'). All features are methods on `TodoList`, each covered by pytest tests in tests/.",
+  "prior_files": [
+    "conftest.py",
+    "tests/test_add.py",
+    "tests/test_complete.py",
+    "tests/test_delete.py",
+    "tests/test_due_date.py",
+    "tests/test_export.py",
+    "tests/test_filter.py",
+    "tests/test_list.py",
+    "tests/test_priority.py",
+    "tests/test_rename.py",
+    "tests/test_search.py",
+    "todo/__init__.py"
+  ]
+}

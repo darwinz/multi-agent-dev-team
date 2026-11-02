@@ -88,3 +88,14 @@ def test_reset_clears_exec_records(settings):  # review M8
     a.run("Write a palindrome checker with tests")
     a.reset_memory()
     assert not (settings.state_dir / "exec").exists()
+
+
+def test_stream_under_caller_lock(settings):
+    with RunLock(settings.state_dir):
+        assert agent(settings, *happy()).run("t", lock_held=True).status == "success"
+
+
+def test_default_still_raises_when_busy(settings):
+    with RunLock(settings.state_dir):
+        with pytest.raises(WorkspaceBusyError):
+            agent(settings).run("t")

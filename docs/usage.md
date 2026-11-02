@@ -32,6 +32,41 @@ make demo        # = uv run coder --demo --reset-memory
 - **Task 1:** `palindrome.py` plus pytest tests.
 - **Task 2:** "Now make the palindrome checker also ignore punctuation…". The memory line before each call shows the first run retrieved from Chroma, and the agent reads and extends the existing files.
 
+## Team (PM → Coder)
+
+```bash
+uv run team --demo api --reset-memory
+uv run team "Build a CLI that converts CSV to JSON, with tests"
+```
+
+| Flag | Meaning |
+|---|---|
+| `requirement` | The free-text requirement. Give this or `--demo` or `--reset-memory`, not a requirement together with `--demo`. |
+| `--demo api` | The published grading task (GET /health, POST /echo with FastAPI). After the run it checks the generated API against the Postman fixture. |
+| `--demo large` | An 11-feature to-do library requirement. The PM yields more than 8 tasks, so `consolidate_node` runs. |
+| `--model` | A provider-prefixed model, as for `coder`. Same as `CODER_MODEL`. |
+| `--max-iterations N` | Per-task Coder model-call limit, from 1 to 10 (default 10). |
+| `--timeout S` | `exec_python` timeout in seconds (default 10). |
+| `--reset-memory` | Clears both memory layers and the workspace first. Can be used alone. |
+| `--json` | Prints only the final `ProjectState` JSON on stdout. Progress goes to stderr. |
+
+Exit codes:
+- **0**: the run `completed` (every task done). With `--demo api`, the API fixture check must also pass. `--reset-memory` alone also exits 0.
+- **1**: the run ended `partial` or `failed`, or the `--demo api` fixture check failed.
+- **2**: a usage or settings error, a missing provider prerequisite, or a busy workspace (another `coder` or `team` run holds the lock).
+- **130**: interrupted with Ctrl-C (the lock is released).
+
+Each run writes its evidence to `.coder/runs/<run id>/` (`requirement.txt`, `state-after-pm.json`, `handoff-<task>.json`, `state-after-<task>.json`, `consolidation.json`, `api-check.txt`, `final-state.json`). `make team-demo` and `make team-large` run the two demos.
+
+To check an API you already generated in `workspace/`:
+
+```bash
+uv run python scripts/check_api.py                         # auto-detects `app = FastAPI(...)` in workspace/
+uv run python scripts/check_api.py --app main:app --app-dir workspace --collection tests/fixtures/demo_api.postman_collection.json
+```
+
+It starts the app, runs each request in the Postman collection against it, prints one `PASS` / `FAIL` line per request, and exits 0 only if all pass.
+
 ## Web UI
 
 ```bash
