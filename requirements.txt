@@ -99,6 +99,7 @@ httpx==0.28.1
     #   chromadb
     #   langchain-core
     #   langgraph-sdk
+    #   multi-agent-dev-team
 httpx2==2.16.0
     # via
     #   anthropic
