@@ -1,0 +1,216 @@
+{
+  "original_tasks": [
+    {
+      "task_id": "T1",
+      "title": "Project skeleton, errors, item model and add",
+      "description": "Create package `todo` with errors.py (TodoError, ItemNotFoundError, ValidationError), an Item dataclass, TodoStore with internal dict storage and id counter, add(title), and a shared internal helper to look up an item by id with validation (non-int/bool -> ValidationError, unknown -> ItemNotFoundError with id in message). Add tests/test_add.py and a test of the id lookup helper behaviour.",
+      "acceptance_criteria": [
+        "add returns item with id 1, stripped title, completed False, due_date None, priority 'medium'",
+        "second add gets id 2; id not reused after internal removal",
+        "add('') , add('   ') and add(123) raise ValidationError",
+        "lookup helper raises ItemNotFoundError mentioning the id for unknown ids and ValidationError for non-int/bool ids",
+        "tests/test_add.py passes"
+      ],
+      "priority": "high",
+      "covers": [
+        "AC1",
+        "AC2",
+        "AC14",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T2",
+      "title": "List items",
+      "description": "Implement list_items() returning a new list of items in id order.",
+      "acceptance_criteria": [
+        "empty store returns []",
+        "returns items in insertion order",
+        "mutating the returned list does not change the store",
+        "tests/test_list.py passes"
+      ],
+      "priority": "high",
+      "covers": [
+        "AC3",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T3",
+      "title": "Mark item complete",
+      "description": "Implement complete(item_id) using the lookup helper.",
+      "acceptance_criteria": [
+        "complete sets completed True and returns the item",
+        "completing twice keeps it True with no error",
+        "unknown id raises ItemNotFoundError; non-int id raises ValidationError",
+        "tests/test_complete.py passes"
+      ],
+      "priority": "high",
+      "covers": [
+        "AC4",
+        "AC14",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T4",
+      "title": "Delete item",
+      "description": "Implement delete(item_id).",
+      "acceptance_criteria": [
+        "deleted item not in list_items",
+        "deleting again raises ItemNotFoundError",
+        "unknown id raises ItemNotFoundError",
+        "new add after delete gets a fresh id",
+        "tests/test_delete.py passes"
+      ],
+      "priority": "high",
+      "covers": [
+        "AC5",
+        "AC14",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T5",
+      "title": "Rename item",
+      "description": "Implement rename(item_id, new_title) with title validation shared with add.",
+      "acceptance_criteria": [
+        "rename updates and strips the title and returns the item",
+        "empty, whitespace-only and non-str titles raise ValidationError and leave title unchanged",
+        "unknown id raises ItemNotFoundError",
+        "tests/test_rename.py passes"
+      ],
+      "priority": "medium",
+      "covers": [
+        "AC6",
+        "AC14",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T6",
+      "title": "Set due date",
+      "description": "Implement set_due_date(item_id, due) accepting date, ISO string, or None.",
+      "acceptance_criteria": [
+        "date object stored as-is; ISO string parsed to date",
+        "None clears the due date",
+        "'2024-13-45', 'tomorrow', 123 raise ValidationError and leave value unchanged",
+        "unknown id raises ItemNotFoundError",
+        "tests/test_due_date.py passes"
+      ],
+      "priority": "medium",
+      "covers": [
+        "AC7",
+        "AC14",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T7",
+      "title": "Set priority",
+      "description": "Implement set_priority(item_id, priority) for 'high','medium','low'.",
+      "acceptance_criteria": [
+        "each of the three valid values is stored and the item returned",
+        "'urgent', '', None, 'HIGH' raise ValidationError and leave priority unchanged",
+        "unknown id raises ItemNotFoundError",
+        "tests/test_priority.py passes"
+      ],
+      "priority": "medium",
+      "covers": [
+        "AC8",
+        "AC14",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T8",
+      "title": "Filter by status",
+      "description": "Implement filter_by_status(status) for 'open' and 'complete'.",
+      "acceptance_criteria": [
+        "'open' returns only incomplete items in id order",
+        "'complete' returns only completed items in id order",
+        "invalid status (e.g. 'done', None, '') raises ValidationError",
+        "tests/test_filter.py passes"
+      ],
+      "priority": "medium",
+      "covers": [
+        "AC9",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T9",
+      "title": "Search by text",
+      "description": "Implement search(text) as a case-insensitive substring match on title.",
+      "acceptance_criteria": [
+        "matches case-insensitively and returns in id order",
+        "no match returns []",
+        "empty, whitespace-only or non-str query raises ValidationError",
+        "tests/test_search.py passes"
+      ],
+      "priority": "medium",
+      "covers": [
+        "AC10",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T10",
+      "title": "Export to JSON",
+      "description": "Implement export_json() returning a JSON string list of item dicts with keys id, title, completed, due_date (ISO or null), priority.",
+      "acceptance_criteria": [
+        "empty store returns '[]'",
+        "output parses with json.loads to list of dicts with exactly the five keys",
+        "due_date serialised as ISO string or null; completed as JSON bool",
+        "tests/test_export.py passes"
+      ],
+      "priority": "medium",
+      "covers": [
+        "AC11",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "T11",
+      "title": "Import from JSON",
+      "description": "Implement import_json(json_str) with full validation, atomic replacement of existing items, and id counter set past the highest imported id. Reuse existing validators for title, priority and due date.",
+      "acceptance_criteria": [
+        "round trip export_json -> import_json into a new store reproduces identical items and returns the count",
+        "import replaces existing items; next add id is max imported id + 1",
+        "malformed JSON, non-list top level, missing keys, wrong types, empty title, bad priority, bad due_date, non-bool completed, non-int/bool id and duplicate ids all raise ValidationError",
+        "after a failed import the store's previous items and id counter are unchanged",
+        "tests/test_import.py passes"
+      ],
+      "priority": "low",
+      "covers": [
+        "AC12",
+        "AC13",
+        "AC15"
+      ]
+    }
+  ],
+  "merged_from": {
+    "T1": [
+      "T1"
+    ],
+    "T2": [
+      "T2",
+      "T3",
+      "T4"
+    ],
+    "T3": [
+      "T5",
+      "T6",
+      "T7"
+    ],
+    "T4": [
+      "T8",
+      "T9"
+    ],
+    "T5": [
+      "T10",
+      "T11"
+    ]
+  },
+  "method": "llm"
+}
