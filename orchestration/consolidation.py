@@ -60,7 +60,7 @@ def build_merged(
         sources = [by_id[i] for i in group.source_ids]
         covered = {c for s in sources for c in s.covers}
         descriptions = "\n".join(f"[{s.task_id}] {s.description}" for s in sources)
-        task_id = f"T{n}"
+        task_id = f"M{n}"  # distinct from the original T-ids, which spec.tasks keeps
         merged.append(Task(
             task_id=task_id,
             title=group.title,

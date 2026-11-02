@@ -41,15 +41,19 @@ def build_team_graph(deps: TeamDeps) -> CompiledStateGraph:
             spec = deps.pm.draft_spec(state["requirement"])
         except PMError as e:
             return {"error": str(e), "status": "failed", "work_in_progress": [f"PM failed: {e}"]}
+        # task_status merges (keys can't be removed), so seed only the ids that will execute;
+        # when the spec is consolidated, consolidate_node seeds the merged ids instead
+        seed = ({t.task_id: TaskRecord(task_id=t.task_id, status="pending") for t in spec.tasks}
+                if len(spec.tasks) <= MAX_TASKS else {})
         return {
             "spec": spec,
             "tasks": spec.tasks,
-            "task_status": {t.task_id: TaskRecord(task_id=t.task_id, status="pending") for t in spec.tasks},
+            "task_status": seed,
             "work_in_progress": [f"PM drafted spec '{spec.name}' with {len(spec.tasks)} task(s)"],
         }
 
     def consolidate_node(state: ProjectState) -> dict:
-        # task_status merges, so the original ids' pending records remain; only ids in `tasks` are judged
+        # the merged ids (M1..Mk) are what executes, so they are the only pending records seeded
         tasks, consolidation = deps.pm.consolidate(state["spec"])
         return {
             "tasks": tasks,

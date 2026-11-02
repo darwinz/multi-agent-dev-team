@@ -82,8 +82,8 @@ def test_demo_large_lists_many_features():
 
 
 def test_summary_lists_only_executed_tasks():
-    # After consolidation task_status still holds the original ids as pending (merge reducer);
-    # the summary judges only the tasks that ran, as finalize does
+    # The summary lists the tasks in data["tasks"], as finalize judges them; records for ids
+    # outside that list are ignored
     from io import StringIO
 
     from rich.console import Console

@@ -42,7 +42,7 @@ def mixed_spec() -> Spec:
 def test_deterministic_merge_partitions_in_order():
     spec = mixed_spec()
     tasks, cons = deterministic_merge(spec, 8)
-    assert [t.task_id for t in tasks] == ids(8)
+    assert [t.task_id for t in tasks] == [f"M{i}" for i in range(1, 9)]
     assert [len(cons.merged_from[t.task_id]) for t in tasks] == [2, 2, 2, 1, 1, 1, 1, 1]
     assert [o for t in tasks for o in cons.merged_from[t.task_id]] == ids(11)
     assert cons.method == "deterministic"
@@ -65,6 +65,13 @@ def test_build_merged_keeps_all_requirement_text():
             for crit in src.acceptance_criteria:
                 assert crit in merged.acceptance_criteria
             assert f"[{oid}] {src.description}" in merged.description
+
+
+def test_merged_ids_do_not_collide_with_originals():
+    spec = make_spec(11, 4)
+    tasks, cons = build_merged(spec, good_plan().groups, "llm")
+    assert [t.task_id for t in tasks] == [f"M{i}" for i in range(1, len(tasks) + 1)]
+    assert set(cons.merged_from) == {t.task_id for t in tasks}
 
 
 def test_llm_merge_cannot_drop_criteria(settings):

@@ -86,7 +86,7 @@ Defined in `orchestration/project_state.py`. Fields without a reducer are overwr
 | `spec` | `Spec \| None` | `pm_node` | none (written once) |
 | `tasks` | `list[Task]` | `pm_node`; `consolidate_node` replaces it | none (overwrite) |
 | `consolidation` | `Consolidation \| None` | `consolidate_node` | none |
-| `task_status` | `dict[str, TaskRecord]` | `pm_node` (pending), `consolidate_node` (pending), `dispatch_node` (`in_progress`), `coder_node` (`done` / `failed`) | `merge_dicts` (later keys win) |
+| `task_status` | `dict[str, TaskRecord]` | `pm_node` (pending, only when no consolidation follows), `consolidate_node` (pending, for the merged ids `M1…Mk`), `dispatch_node` (`in_progress`), `coder_node` (`done` / `failed`) | `merge_dicts` (later keys win) |
 | `current_task_index` | `int` | `coder_node` (+1 per task) | none |
 | `handoff` | `TaskHandoff \| None` | `dispatch_node` sets it, `coder_node` clears it | none |
 | `artifacts` | `list[TaskArtifact]` | `coder_node` (one `CoderResult` per task) | `operator.add` |

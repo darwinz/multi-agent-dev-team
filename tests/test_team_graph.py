@@ -192,7 +192,19 @@ def test_more_than_8_tasks_consolidated(settings):
     assert len(consolidation[0]["tasks"]) == 8
     assert consolidation[0]["consolidation"].method == "deterministic"
     assert len(updates(chunks, "coder_node")) == 8
-    assert [h["handoff"].task_id for h in updates(chunks, "dispatch_node")] == [f"T{i}" for i in range(1, 9)]
+    assert [h["handoff"].task_id for h in updates(chunks, "dispatch_node")] == [f"M{i}" for i in range(1, 9)]
+
+
+def test_consolidated_run_leaves_no_stale_pending_records(settings):
+    s = settings.model_copy(update={"max_iterations": 2})
+    scripts = [r for _ in range(8) for r in finish_only()]
+    chunks, _ = run([spec_response(make_spec(11)), RuntimeError("no merge")], agent(s, *scripts))
+    state = final(chunks)
+    task_ids = {t.task_id for t in state["tasks"]}
+    assert task_ids == {f"M{i}" for i in range(1, 9)}
+    assert set(state["task_status"]) == task_ids
+    assert all(r.status != "pending" for r in state["task_status"].values())
+    assert set(state["consolidation"].merged_from) == task_ids
 
 
 def test_eight_tasks_skip_consolidation(settings):

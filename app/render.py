@@ -129,7 +129,7 @@ def render_task_header(console: Console, data: dict) -> None:
 
 def render_team_summary(console: Console, data: dict) -> None:
     table = Table("id", "status", "iterations", "files")
-    # Only the tasks that ran: after consolidation task_status still holds the original ids as pending
+    # One row per task that executes (the merged tasks after consolidation)
     records = data.get("task_status") or {}
     for task_id in (t["task_id"] for t in data.get("tasks") or []):
         rec = records.get(task_id, {"status": "pending"})
