@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from agents.config import Settings
 from agents.pm_agent import PMAgent
 from orchestration.team_graph import TeamDeps, build_team_graph
 from tests.fakes import ScriptedChatModel, agent
@@ -19,8 +18,7 @@ def _team_graph_blocks() -> list[str]:
     return [b for b in blocks if "pm_node" in b]
 
 
-def test_readme_diagram_matches_graph():
-    settings = Settings.from_env()
+def test_readme_diagram_matches_graph(settings):
     deps = TeamDeps(pm=PMAgent(settings, model=ScriptedChatModel(responses=[])), coder=agent(settings))
     graph = build_team_graph(deps).get_graph()
 
