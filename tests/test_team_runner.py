@@ -168,3 +168,15 @@ def test_api_check_skipped_when_pm_failed(settings):
     assert "error" in next(e for e in events if e.kind == "spec").data
     assert events[-1].data["state"]["status"] == "failed"
     assert events[-1].data["api_check"] is None
+
+
+def test_pm_setup_failure_writes_failed_state(settings):
+    class NoStructured(ScriptedChatModel):
+        def with_structured_output(self, *a, **kw):
+            raise NotImplementedError("structured output not supported")
+
+    runner = TeamRunner(settings, pm=PMAgent(settings, model=NoStructured(responses=[])), coder=agent(settings))
+    state = runner.run("Build a REST API")
+    assert state["status"] == "failed"
+    assert "not supported" in state["error"]
+    assert load(runner, "final-state.json")["status"] == "failed"

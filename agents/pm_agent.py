@@ -30,7 +30,10 @@ class PMAgent:
 
     def draft_spec(self, requirement: str) -> Spec:
         """Ask for a Spec; on invalid output retry once with the validation error appended."""
-        structured = self._structured()
+        try:
+            structured = self._structured()
+        except Exception as e:  # missing provider package, unsupported structured output, bad model id
+            raise PMError(f"PM model setup failed: {type(e).__name__}: {e}") from e
         messages: list[Any] = [SystemMessage(PM_SYSTEM_PROMPT), HumanMessage(requirement)]
         error = ""
         for attempt in range(2):

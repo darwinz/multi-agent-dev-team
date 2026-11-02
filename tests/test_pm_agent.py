@@ -73,3 +73,22 @@ def test_unsafe_task_id_is_repaired(settings):
     assert len(model.calls) == 2
     last_human = [m for m in model.calls[1] if isinstance(m, HumanMessage)][-1]
     assert "feature/health" in last_human.content
+
+
+def test_model_init_error_raises_pm_error(settings, monkeypatch):
+    # A missing provider package fails inside make_model, before any call
+    def no_provider(_settings):
+        raise ImportError("langchain_openai is not installed")
+
+    monkeypatch.setattr("agents.pm_agent.make_model", no_provider)
+    with pytest.raises(PMError, match="langchain_openai"):
+        PMAgent(settings).draft_spec("Build a REST API")
+
+
+def test_structured_output_unsupported_raises_pm_error(settings):
+    class NoStructured(ScriptedChatModel):
+        def with_structured_output(self, *a, **kw):
+            raise NotImplementedError("structured output not supported")
+
+    with pytest.raises(PMError, match="not supported"):
+        PMAgent(settings, model=NoStructured(responses=[])).draft_spec("Build a REST API")
