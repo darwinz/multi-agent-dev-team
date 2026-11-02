@@ -1,0 +1,17 @@
+{
+  "task_id": "T1",
+  "title": "Project skeleton and GET /health",
+  "description": "Create the FastAPI app in main.py as module-level `app`, add GET /health returning {\"status\": \"ok\"}, add requirements (fastapi, httpx, pytest, uvicorn) and tests using TestClient.",
+  "acceptance_criteria": [
+    "`from main import app` works and app is a FastAPI instance",
+    "GET /health returns 200 and exactly {\"status\": \"ok\"}",
+    "Response Content-Type is application/json",
+    "Tests pass with pytest"
+  ],
+  "priority": "high",
+  "position": 1,
+  "total": 4,
+  "spec_name": "Health and Echo REST API",
+  "spec_description": "A small FastAPI service exposing GET /health, which returns {\"status\": \"ok\"}, and POST /echo, which returns the JSON object it receives. /echo validates its input and returns HTTP 422 for malformed JSON, a body that is not a JSON object, or a missing body. The module-level ASGI object is named `app`. Tests use fastapi.testclient.TestClient.",
+  "prior_files": []
+}

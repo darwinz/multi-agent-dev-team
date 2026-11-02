@@ -1,0 +1,233 @@
+{
+  "requirement": "Build a REST API with two endpoints: GET /health (returns {status: ok}) and POST /echo (returns the JSON body it receives). Include basic input validation. Use FastAPI; invalid input to /echo (malformed JSON, a non-JSON-object body, or no body) must return HTTP 422.",
+  "spec": {
+    "name": "Health and Echo REST API",
+    "description": "A small FastAPI service exposing GET /health, which returns {\"status\": \"ok\"}, and POST /echo, which returns the JSON object it receives. /echo validates its input and returns HTTP 422 for malformed JSON, a body that is not a JSON object, or a missing body. The module-level ASGI object is named `app`. Tests use fastapi.testclient.TestClient.",
+    "acceptance_criteria": [
+      {
+        "id": "AC1",
+        "text": "The application is a FastAPI instance exposed as module-level ASGI object `app` (e.g. main.py), and can be exercised with fastapi.testclient.TestClient."
+      },
+      {
+        "id": "AC2",
+        "text": "GET /health returns HTTP 200 with JSON body exactly {\"status\": \"ok\"}."
+      },
+      {
+        "id": "AC3",
+        "text": "GET /health responds with Content-Type application/json."
+      },
+      {
+        "id": "AC4",
+        "text": "POST /echo with a valid JSON object body (e.g. {\"a\": 1, \"b\": [1,2], \"c\": {\"d\": null}}) returns HTTP 200 with a JSON body identical to the one sent, including nested values and preserving types."
+      },
+      {
+        "id": "AC5",
+        "text": "POST /echo with an empty JSON object {} returns HTTP 200 and {}."
+      },
+      {
+        "id": "AC6",
+        "text": "POST /echo with malformed JSON (e.g. '{\"a\": ' with Content-Type application/json) returns HTTP 422."
+      },
+      {
+        "id": "AC7",
+        "text": "POST /echo with a valid JSON body that is not an object (array, string, number, boolean, or null, e.g. [1,2,3], \"hi\", 42, true, null) returns HTTP 422."
+      },
+      {
+        "id": "AC8",
+        "text": "POST /echo with no body (empty body) returns HTTP 422."
+      },
+      {
+        "id": "AC9",
+        "text": "All 422 responses from /echo have a JSON body containing a 'detail' field describing the error; no 500 errors occur for any invalid input."
+      },
+      {
+        "id": "AC10",
+        "text": "Unsupported methods on the endpoints (e.g. POST /health, GET /echo) return HTTP 405, and unknown paths return 404."
+      }
+    ],
+    "tasks": [
+      {
+        "task_id": "T1",
+        "title": "Project skeleton and GET /health",
+        "description": "Create the FastAPI app in main.py as module-level `app`, add GET /health returning {\"status\": \"ok\"}, add requirements (fastapi, httpx, pytest, uvicorn) and tests using TestClient.",
+        "acceptance_criteria": [
+          "`from main import app` works and app is a FastAPI instance",
+          "GET /health returns 200 and exactly {\"status\": \"ok\"}",
+          "Response Content-Type is application/json",
+          "Tests pass with pytest"
+        ],
+        "priority": "high",
+        "covers": [
+          "AC1",
+          "AC2",
+          "AC3"
+        ]
+      },
+      {
+        "task_id": "T2",
+        "title": "POST /echo happy path",
+        "description": "Add POST /echo that accepts a JSON object body and returns it unchanged with status 200. Use a body parameter typed as dict (or equivalent) so that FastAPI validation applies. Add tests.",
+        "acceptance_criteria": [
+          "Valid object with nested dicts, lists, numbers, booleans, and nulls is echoed identically with 200",
+          "{} returns 200 and {}",
+          "Tests pass with pytest"
+        ],
+        "priority": "high",
+        "covers": [
+          "AC4",
+          "AC5"
+        ]
+      },
+      {
+        "task_id": "T3",
+        "title": "Input validation for /echo returning 422",
+        "description": "Ensure malformed JSON, non-object JSON bodies and a missing/empty body all return 422 with a JSON 'detail' field and never 500. Ensure the body is required (not optional). Add tests for each case.",
+        "acceptance_criteria": [
+          "Malformed JSON returns 422",
+          "Each of [1,2,3], \"hi\", 42, true, null returns 422",
+          "Empty/no body returns 422",
+          "422 responses are JSON with a 'detail' field",
+          "No invalid input yields a 500"
+        ],
+        "priority": "high",
+        "covers": [
+          "AC6",
+          "AC7",
+          "AC8",
+          "AC9"
+        ]
+      },
+      {
+        "task_id": "T4",
+        "title": "Method and route error handling tests",
+        "description": "Verify and test that wrong methods on existing routes return 405 and unknown paths return 404 (FastAPI default behaviour); fix if not so.",
+        "acceptance_criteria": [
+          "POST /health returns 405",
+          "GET /echo returns 405",
+          "GET /unknown returns 404",
+          "Full test suite passes"
+        ],
+        "priority": "low",
+        "covers": [
+          "AC10"
+        ]
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "task_id": "T1",
+      "title": "Project skeleton and GET /health",
+      "description": "Create the FastAPI app in main.py as module-level `app`, add GET /health returning {\"status\": \"ok\"}, add requirements (fastapi, httpx, pytest, uvicorn) and tests using TestClient.",
+      "acceptance_criteria": [
+        "`from main import app` works and app is a FastAPI instance",
+        "GET /health returns 200 and exactly {\"status\": \"ok\"}",
+        "Response Content-Type is application/json",
+        "Tests pass with pytest"
+      ],
+      "priority": "high",
+      "covers": [
+        "AC1",
+        "AC2",
+        "AC3"
+      ]
+    },
+    {
+      "task_id": "T2",
+      "title": "POST /echo happy path",
+      "description": "Add POST /echo that accepts a JSON object body and returns it unchanged with status 200. Use a body parameter typed as dict (or equivalent) so that FastAPI validation applies. Add tests.",
+      "acceptance_criteria": [
+        "Valid object with nested dicts, lists, numbers, booleans, and nulls is echoed identically with 200",
+        "{} returns 200 and {}",
+        "Tests pass with pytest"
+      ],
+      "priority": "high",
+      "covers": [
+        "AC4",
+        "AC5"
+      ]
+    },
+    {
+      "task_id": "T3",
+      "title": "Input validation for /echo returning 422",
+      "description": "Ensure malformed JSON, non-object JSON bodies and a missing/empty body all return 422 with a JSON 'detail' field and never 500. Ensure the body is required (not optional). Add tests for each case.",
+      "acceptance_criteria": [
+        "Malformed JSON returns 422",
+        "Each of [1,2,3], \"hi\", 42, true, null returns 422",
+        "Empty/no body returns 422",
+        "422 responses are JSON with a 'detail' field",
+        "No invalid input yields a 500"
+      ],
+      "priority": "high",
+      "covers": [
+        "AC6",
+        "AC7",
+        "AC8",
+        "AC9"
+      ]
+    },
+    {
+      "task_id": "T4",
+      "title": "Method and route error handling tests",
+      "description": "Verify and test that wrong methods on existing routes return 405 and unknown paths return 404 (FastAPI default behaviour); fix if not so.",
+      "acceptance_criteria": [
+        "POST /health returns 405",
+        "GET /echo returns 405",
+        "GET /unknown returns 404",
+        "Full test suite passes"
+      ],
+      "priority": "low",
+      "covers": [
+        "AC10"
+      ]
+    }
+  ],
+  "consolidation": null,
+  "task_status": {
+    "T1": {
+      "task_id": "T1",
+      "status": "pending",
+      "coder_status": null,
+      "run_id": null,
+      "iterations": 0,
+      "files": [],
+      "summary": ""
+    },
+    "T2": {
+      "task_id": "T2",
+      "status": "pending",
+      "coder_status": null,
+      "run_id": null,
+      "iterations": 0,
+      "files": [],
+      "summary": ""
+    },
+    "T3": {
+      "task_id": "T3",
+      "status": "pending",
+      "coder_status": null,
+      "run_id": null,
+      "iterations": 0,
+      "files": [],
+      "summary": ""
+    },
+    "T4": {
+      "task_id": "T4",
+      "status": "pending",
+      "coder_status": null,
+      "run_id": null,
+      "iterations": 0,
+      "files": [],
+      "summary": ""
+    }
+  },
+  "current_task_index": 0,
+  "handoff": null,
+  "artifacts": [],
+  "code_output": {},
+  "work_in_progress": [
+    "PM drafted spec 'Health and Echo REST API' with 4 task(s)"
+  ],
+  "error": null,
+  "status": "running"
+}
