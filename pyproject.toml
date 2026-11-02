@@ -31,6 +31,7 @@ dev = []
 [project.scripts]
 coder = "app.cli:main"
 coder-web = "app.web:main"
+team = "app.team_cli:main"
 
 [build-system]
 requires = ["hatchling"]
