@@ -1,0 +1,29 @@
+{
+  "task_id": "M5",
+  "title": "JSON export",
+  "description": "export_json() serialization of all items.\n\n[T10] Implement export_json() returning JSON string of list of item dicts. Tests in tests/test_export.py.",
+  "acceptance_criteria": [
+    "empty list exports '[]' (parsed equals [])",
+    "each object has keys id,text,complete,due_date,priority",
+    "due_date serialized as ISO string or null",
+    "pytest passes"
+  ],
+  "priority": "medium",
+  "position": 5,
+  "total": 6,
+  "spec_name": "todo-lib",
+  "spec_description": "A tiny in-memory to-do library in Python (package `todo`, class `TodoList` in todo/__init__.py or todo.py) with custom exceptions `TodoError` (base, subclass of Exception), `ItemNotFoundError` (subclass of TodoError and KeyError-free; message includes the unknown id) and `ValidationError` (subclass of TodoError and ValueError). Items are represented by a dataclass `TodoItem` with fields: id (int, auto-incremented from 1, never reused), text (str), complete (bool, default False), due_date (datetime.date or None), priority ('high'|'medium'|'low', default 'medium'). All features are methods on `TodoList`, each covered by pytest tests in tests/.",
+  "prior_files": [
+    "conftest.py",
+    "tests/test_add.py",
+    "tests/test_complete.py",
+    "tests/test_delete.py",
+    "tests/test_due_date.py",
+    "tests/test_filter.py",
+    "tests/test_list.py",
+    "tests/test_priority.py",
+    "tests/test_rename.py",
+    "tests/test_search.py",
+    "todo/__init__.py"
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "task_id": "M2",
+  "title": "Read and lifecycle operations",
+  "description": "list_items(), complete() and delete().\n\n[T2] Implement list_items() returning a copy list of items in insertion order. Tests in tests/test_list.py.\n[T3] Implement complete(item_id). Tests in tests/test_complete.py.\n[T4] Implement delete(item_id). Tests in tests/test_delete.py.",
+  "acceptance_criteria": [
+    "empty list for new TodoList",
+    "items returned in insertion order",
+    "mutating returned list does not affect the store",
+    "pytest passes",
+    "marks item complete and returns it",
+    "idempotent when called twice",
+    "unknown id raises ItemNotFoundError mentioning the id",
+    "non-int/bool id raises ValidationError",
+    "pytest passes",
+    "deleted item absent from list_items",
+    "second delete raises ItemNotFoundError",
+    "unknown id raises ItemNotFoundError",
+    "new add after delete gets a fresh, never-reused id",
+    "pytest passes"
+  ],
+  "priority": "high",
+  "position": 2,
+  "total": 6,
+  "spec_name": "todo-lib",
+  "spec_description": "A tiny in-memory to-do library in Python (package `todo`, class `TodoList` in todo/__init__.py or todo.py) with custom exceptions `TodoError` (base, subclass of Exception), `ItemNotFoundError` (subclass of TodoError and KeyError-free; message includes the unknown id) and `ValidationError` (subclass of TodoError and ValueError). Items are represented by a dataclass `TodoItem` with fields: id (int, auto-incremented from 1, never reused), text (str), complete (bool, default False), due_date (datetime.date or None), priority ('high'|'medium'|'low', default 'medium'). All features are methods on `TodoList`, each covered by pytest tests in tests/.",
+  "prior_files": [
+    "conftest.py",
+    "tests/test_add.py",
+    "todo/__init__.py"
+  ]
+}

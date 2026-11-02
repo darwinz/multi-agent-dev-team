@@ -1,0 +1,934 @@
+{
+  "requirement": "Build a tiny in-memory to-do library in Python with these separately testable features, each with pytest tests: (1) add a to-do item; (2) list all items; (3) mark an item complete; (4) delete an item; (5) rename an item; (6) set a due date on an item; (7) set a priority (high, medium or low) on an item; (8) filter items by status (open or complete); (9) search items by text; (10) export all items to JSON; (11) import items from JSON. Validate inputs and raise clear errors for unknown item ids.",
+  "spec": {
+    "name": "todo-lib",
+    "description": "A tiny in-memory to-do library in Python (package `todo`, class `TodoList` in todo/__init__.py or todo.py) with custom exceptions `TodoError` (base, subclass of Exception), `ItemNotFoundError` (subclass of TodoError and KeyError-free; message includes the unknown id) and `ValidationError` (subclass of TodoError and ValueError). Items are represented by a dataclass `TodoItem` with fields: id (int, auto-incremented from 1, never reused), text (str), complete (bool, default False), due_date (datetime.date or None), priority ('high'|'medium'|'low', default 'medium'). All features are methods on `TodoList`, each covered by pytest tests in tests/.",
+    "acceptance_criteria": [
+      {
+        "id": "AC1",
+        "text": "add(text) returns a new TodoItem with a unique integer id (starting at 1, incrementing, never reused after deletion), the given text stripped of surrounding whitespace, complete=False, due_date=None, priority='medium'."
+      },
+      {
+        "id": "AC2",
+        "text": "add() raises ValidationError if text is not a str or is empty/whitespace-only; no item is created."
+      },
+      {
+        "id": "AC3",
+        "text": "list_items() returns all items as a list in insertion (id) order; returns an empty list for an empty TodoList; mutating the returned list does not alter the store."
+      },
+      {
+        "id": "AC4",
+        "text": "complete(item_id) marks the item complete=True and returns the updated item; completing an already-complete item is allowed and idempotent."
+      },
+      {
+        "id": "AC5",
+        "text": "delete(item_id) removes the item so it no longer appears in list_items(); a second delete of the same id raises ItemNotFoundError."
+      },
+      {
+        "id": "AC6",
+        "text": "rename(item_id, new_text) updates the text (stripped) and returns the updated item; raises ValidationError for empty/whitespace/non-str new_text, leaving the old text unchanged."
+      },
+      {
+        "id": "AC7",
+        "text": "set_due_date(item_id, due) accepts a datetime.date or an ISO 'YYYY-MM-DD' string (stored as date) or None (clears the due date); returns the updated item; raises ValidationError for invalid strings (e.g. '2024-13-01', 'tomorrow') or other types."
+      },
+      {
+        "id": "AC8",
+        "text": "set_priority(item_id, priority) accepts exactly 'high', 'medium' or 'low' and returns the updated item; raises ValidationError for any other value (e.g. 'urgent', '', None, 'HIGH')."
+      },
+      {
+        "id": "AC9",
+        "text": "filter_by_status(status) returns only items with status 'open' (complete=False) or 'complete' (complete=True) in id order; raises ValidationError for any other status value."
+      },
+      {
+        "id": "AC10",
+        "text": "search(query) returns items whose text contains the query as a case-insensitive substring, in id order; returns an empty list when nothing matches; raises ValidationError if query is not a str or is empty/whitespace-only."
+      },
+      {
+        "id": "AC11",
+        "text": "export_json() returns a JSON string representing a list of all items, each object with keys id, text, complete, due_date (ISO string or null), priority; an empty list exports as '[]'."
+      },
+      {
+        "id": "AC12",
+        "text": "import_json(data) parses a JSON string in the export format and adds the items to the list, returning the number of items imported; imported ids are preserved, and subsequently added items get an id greater than any existing id. A round trip export_json -> import_json into a new TodoList yields equal items."
+      },
+      {
+        "id": "AC13",
+        "text": "import_json raises ValidationError (and leaves the list unchanged, i.e. atomic) for invalid JSON, a non-list top level, items that are not objects, missing/invalid fields (empty text, bad priority, non-bool complete, bad due_date, non-int id), or ids that duplicate existing ids or each other. Missing optional fields complete, due_date, priority default to False, None, 'medium'."
+      },
+      {
+        "id": "AC14",
+        "text": "Every method taking an item_id (complete, delete, rename, set_due_date, set_priority) raises ItemNotFoundError with a message containing the id when the id does not exist; a non-int item_id (including bool) raises ValidationError."
+      },
+      {
+        "id": "AC15",
+        "text": "Each feature has pytest tests in tests/ that pass with `pytest`, and the library uses only the Python standard library."
+      }
+    ],
+    "tasks": [
+      {
+        "task_id": "T1",
+        "title": "Project scaffold, models, errors and add()",
+        "description": "Create package `todo` with TodoItem dataclass, TodoError/ItemNotFoundError/ValidationError, TodoList with internal store and id counter, add(), and an internal _get(item_id) helper that validates id type (non-int/bool -> ValidationError) and raises ItemNotFoundError with the id in the message. Add tests/test_add.py and tests for _get behaviour via public API where possible.",
+        "acceptance_criteria": [
+          "add returns TodoItem with defaults and stripped text",
+          "ids start at 1, increment, and are not reused after deletion (tested once delete exists, or via counter)",
+          "add with '', '   ', or non-str raises ValidationError and creates nothing",
+          "ItemNotFoundError and ValidationError importable from todo; hierarchy as described",
+          "pytest passes"
+        ],
+        "priority": "high",
+        "covers": [
+          "AC1",
+          "AC2",
+          "AC14",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T2",
+        "title": "list_items()",
+        "description": "Implement list_items() returning a copy list of items in insertion order. Tests in tests/test_list.py.",
+        "acceptance_criteria": [
+          "empty list for new TodoList",
+          "items returned in insertion order",
+          "mutating returned list does not affect the store",
+          "pytest passes"
+        ],
+        "priority": "high",
+        "covers": [
+          "AC3",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T3",
+        "title": "complete()",
+        "description": "Implement complete(item_id). Tests in tests/test_complete.py.",
+        "acceptance_criteria": [
+          "marks item complete and returns it",
+          "idempotent when called twice",
+          "unknown id raises ItemNotFoundError mentioning the id",
+          "non-int/bool id raises ValidationError",
+          "pytest passes"
+        ],
+        "priority": "high",
+        "covers": [
+          "AC4",
+          "AC14",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T4",
+        "title": "delete()",
+        "description": "Implement delete(item_id). Tests in tests/test_delete.py.",
+        "acceptance_criteria": [
+          "deleted item absent from list_items",
+          "second delete raises ItemNotFoundError",
+          "unknown id raises ItemNotFoundError",
+          "new add after delete gets a fresh, never-reused id",
+          "pytest passes"
+        ],
+        "priority": "high",
+        "covers": [
+          "AC5",
+          "AC1",
+          "AC14",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T5",
+        "title": "rename()",
+        "description": "Implement rename(item_id, new_text). Tests in tests/test_rename.py.",
+        "acceptance_criteria": [
+          "text updated and stripped, item returned",
+          "empty/whitespace/non-str raises ValidationError and text unchanged",
+          "unknown id raises ItemNotFoundError",
+          "pytest passes"
+        ],
+        "priority": "medium",
+        "covers": [
+          "AC6",
+          "AC14",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T6",
+        "title": "set_due_date()",
+        "description": "Implement set_due_date(item_id, due) accepting date, ISO string, or None. Tests in tests/test_due_date.py.",
+        "acceptance_criteria": [
+          "date object stored",
+          "'2024-05-01' string stored as date(2024,5,1)",
+          "None clears the due date",
+          "'2024-13-01', 'tomorrow', 123 raise ValidationError",
+          "unknown id raises ItemNotFoundError",
+          "pytest passes"
+        ],
+        "priority": "medium",
+        "covers": [
+          "AC7",
+          "AC14",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T7",
+        "title": "set_priority()",
+        "description": "Implement set_priority(item_id, priority). Tests in tests/test_priority.py.",
+        "acceptance_criteria": [
+          "'high','medium','low' accepted and item returned",
+          "'urgent', '', None, 'HIGH' raise ValidationError and priority unchanged",
+          "unknown id raises ItemNotFoundError",
+          "pytest passes"
+        ],
+        "priority": "medium",
+        "covers": [
+          "AC8",
+          "AC14",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T8",
+        "title": "filter_by_status()",
+        "description": "Implement filter_by_status(status). Tests in tests/test_filter.py.",
+        "acceptance_criteria": [
+          "'open' returns only incomplete items",
+          "'complete' returns only complete items",
+          "results in id order; empty list if none",
+          "invalid status (e.g. 'done', None) raises ValidationError",
+          "pytest passes"
+        ],
+        "priority": "medium",
+        "covers": [
+          "AC9",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T9",
+        "title": "search()",
+        "description": "Implement search(query) case-insensitive substring match. Tests in tests/test_search.py.",
+        "acceptance_criteria": [
+          "case-insensitive substring match returns matching items in id order",
+          "no match returns []",
+          "empty/whitespace/non-str query raises ValidationError",
+          "pytest passes"
+        ],
+        "priority": "medium",
+        "covers": [
+          "AC10",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T10",
+        "title": "export_json()",
+        "description": "Implement export_json() returning JSON string of list of item dicts. Tests in tests/test_export.py.",
+        "acceptance_criteria": [
+          "empty list exports '[]' (parsed equals [])",
+          "each object has keys id,text,complete,due_date,priority",
+          "due_date serialized as ISO string or null",
+          "pytest passes"
+        ],
+        "priority": "medium",
+        "covers": [
+          "AC11",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T11",
+        "title": "import_json() happy path and round trip",
+        "description": "Implement import_json(data) for valid input with defaults for optional fields, preserving ids, updating the id counter, returning count. Tests in tests/test_import.py.",
+        "acceptance_criteria": [
+          "returns number of items imported",
+          "ids preserved and later add() gets id greater than max existing",
+          "missing complete/due_date/priority default to False/None/'medium'",
+          "export -> import into a new TodoList yields equal items",
+          "pytest passes"
+        ],
+        "priority": "medium",
+        "covers": [
+          "AC12",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T12",
+        "title": "import_json() validation and atomicity",
+        "description": "Add full validation to import_json: validate everything before mutating the store. Tests in tests/test_import_validation.py.",
+        "acceptance_criteria": [
+          "invalid JSON, non-list top level, non-object items raise ValidationError",
+          "empty text, bad priority, non-bool complete, bad due_date, non-int/bool id, missing id or text raise ValidationError",
+          "duplicate ids within the data or against existing items raise ValidationError",
+          "after any failure the list is unchanged (atomic)",
+          "pytest passes"
+        ],
+        "priority": "medium",
+        "covers": [
+          "AC13",
+          "AC15"
+        ]
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "task_id": "M1",
+      "title": "Scaffold, models and add()",
+      "description": "Package, errors, TodoItem, TodoList, add() and id-validation helper.\n\n[T1] Create package `todo` with TodoItem dataclass, TodoError/ItemNotFoundError/ValidationError, TodoList with internal store and id counter, add(), and an internal _get(item_id) helper that validates id type (non-int/bool -> ValidationError) and raises ItemNotFoundError with the id in the message. Add tests/test_add.py and tests for _get behaviour via public API where possible.",
+      "acceptance_criteria": [
+        "add returns TodoItem with defaults and stripped text",
+        "ids start at 1, increment, and are not reused after deletion (tested once delete exists, or via counter)",
+        "add with '', '   ', or non-str raises ValidationError and creates nothing",
+        "ItemNotFoundError and ValidationError importable from todo; hierarchy as described",
+        "pytest passes"
+      ],
+      "priority": "high",
+      "covers": [
+        "AC1",
+        "AC2",
+        "AC14",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "M2",
+      "title": "Read and lifecycle operations",
+      "description": "list_items(), complete() and delete().\n\n[T2] Implement list_items() returning a copy list of items in insertion order. Tests in tests/test_list.py.\n[T3] Implement complete(item_id). Tests in tests/test_complete.py.\n[T4] Implement delete(item_id). Tests in tests/test_delete.py.",
+      "acceptance_criteria": [
+        "empty list for new TodoList",
+        "items returned in insertion order",
+        "mutating returned list does not affect the store",
+        "pytest passes",
+        "marks item complete and returns it",
+        "idempotent when called twice",
+        "unknown id raises ItemNotFoundError mentioning the id",
+        "non-int/bool id raises ValidationError",
+        "pytest passes",
+        "deleted item absent from list_items",
+        "second delete raises ItemNotFoundError",
+        "unknown id raises ItemNotFoundError",
+        "new add after delete gets a fresh, never-reused id",
+        "pytest passes"
+      ],
+      "priority": "high",
+      "covers": [
+        "AC1",
+        "AC3",
+        "AC4",
+        "AC5",
+        "AC14",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "M3",
+      "title": "Item attribute updates",
+      "description": "rename(), set_due_date() and set_priority().\n\n[T5] Implement rename(item_id, new_text). Tests in tests/test_rename.py.\n[T6] Implement set_due_date(item_id, due) accepting date, ISO string, or None. Tests in tests/test_due_date.py.\n[T7] Implement set_priority(item_id, priority). Tests in tests/test_priority.py.",
+      "acceptance_criteria": [
+        "text updated and stripped, item returned",
+        "empty/whitespace/non-str raises ValidationError and text unchanged",
+        "unknown id raises ItemNotFoundError",
+        "pytest passes",
+        "date object stored",
+        "'2024-05-01' string stored as date(2024,5,1)",
+        "None clears the due date",
+        "'2024-13-01', 'tomorrow', 123 raise ValidationError",
+        "unknown id raises ItemNotFoundError",
+        "pytest passes",
+        "'high','medium','low' accepted and item returned",
+        "'urgent', '', None, 'HIGH' raise ValidationError and priority unchanged",
+        "unknown id raises ItemNotFoundError",
+        "pytest passes"
+      ],
+      "priority": "medium",
+      "covers": [
+        "AC6",
+        "AC7",
+        "AC8",
+        "AC14",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "M4",
+      "title": "Querying: filter and search",
+      "description": "filter_by_status() and search().\n\n[T8] Implement filter_by_status(status). Tests in tests/test_filter.py.\n[T9] Implement search(query) case-insensitive substring match. Tests in tests/test_search.py.",
+      "acceptance_criteria": [
+        "'open' returns only incomplete items",
+        "'complete' returns only complete items",
+        "results in id order; empty list if none",
+        "invalid status (e.g. 'done', None) raises ValidationError",
+        "pytest passes",
+        "case-insensitive substring match returns matching items in id order",
+        "no match returns []",
+        "empty/whitespace/non-str query raises ValidationError",
+        "pytest passes"
+      ],
+      "priority": "medium",
+      "covers": [
+        "AC9",
+        "AC10",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "M5",
+      "title": "JSON export",
+      "description": "export_json() serialization of all items.\n\n[T10] Implement export_json() returning JSON string of list of item dicts. Tests in tests/test_export.py.",
+      "acceptance_criteria": [
+        "empty list exports '[]' (parsed equals [])",
+        "each object has keys id,text,complete,due_date,priority",
+        "due_date serialized as ISO string or null",
+        "pytest passes"
+      ],
+      "priority": "medium",
+      "covers": [
+        "AC11",
+        "AC15"
+      ]
+    },
+    {
+      "task_id": "M6",
+      "title": "JSON import",
+      "description": "import_json() happy path with round trip, plus validation and atomicity.\n\n[T11] Implement import_json(data) for valid input with defaults for optional fields, preserving ids, updating the id counter, returning count. Tests in tests/test_import.py.\n[T12] Add full validation to import_json: validate everything before mutating the store. Tests in tests/test_import_validation.py.",
+      "acceptance_criteria": [
+        "returns number of items imported",
+        "ids preserved and later add() gets id greater than max existing",
+        "missing complete/due_date/priority default to False/None/'medium'",
+        "export -> import into a new TodoList yields equal items",
+        "pytest passes",
+        "invalid JSON, non-list top level, non-object items raise ValidationError",
+        "empty text, bad priority, non-bool complete, bad due_date, non-int/bool id, missing id or text raise ValidationError",
+        "duplicate ids within the data or against existing items raise ValidationError",
+        "after any failure the list is unchanged (atomic)",
+        "pytest passes"
+      ],
+      "priority": "medium",
+      "covers": [
+        "AC12",
+        "AC13",
+        "AC15"
+      ]
+    }
+  ],
+  "consolidation": {
+    "original_tasks": [
+      {
+        "task_id": "T1",
+        "title": "Project scaffold, models, errors and add()",
+        "description": "Create package `todo` with TodoItem dataclass, TodoError/ItemNotFoundError/ValidationError, TodoList with internal store and id counter, add(), and an internal _get(item_id) helper that validates id type (non-int/bool -> ValidationError) and raises ItemNotFoundError with the id in the message. Add tests/test_add.py and tests for _get behaviour via public API where possible.",
+        "acceptance_criteria": [
+          "add returns TodoItem with defaults and stripped text",
+          "ids start at 1, increment, and are not reused after deletion (tested once delete exists, or via counter)",
+          "add with '', '   ', or non-str raises ValidationError and creates nothing",
+          "ItemNotFoundError and ValidationError importable from todo; hierarchy as described",
+          "pytest passes"
+        ],
+        "priority": "high",
+        "covers": [
+          "AC1",
+          "AC2",
+          "AC14",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T2",
+        "title": "list_items()",
+        "description": "Implement list_items() returning a copy list of items in insertion order. Tests in tests/test_list.py.",
+        "acceptance_criteria": [
+          "empty list for new TodoList",
+          "items returned in insertion order",
+          "mutating returned list does not affect the store",
+          "pytest passes"
+        ],
+        "priority": "high",
+        "covers": [
+          "AC3",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T3",
+        "title": "complete()",
+        "description": "Implement complete(item_id). Tests in tests/test_complete.py.",
+        "acceptance_criteria": [
+          "marks item complete and returns it",
+          "idempotent when called twice",
+          "unknown id raises ItemNotFoundError mentioning the id",
+          "non-int/bool id raises ValidationError",
+          "pytest passes"
+        ],
+        "priority": "high",
+        "covers": [
+          "AC4",
+          "AC14",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T4",
+        "title": "delete()",
+        "description": "Implement delete(item_id). Tests in tests/test_delete.py.",
+        "acceptance_criteria": [
+          "deleted item absent from list_items",
+          "second delete raises ItemNotFoundError",
+          "unknown id raises ItemNotFoundError",
+          "new add after delete gets a fresh, never-reused id",
+          "pytest passes"
+        ],
+        "priority": "high",
+        "covers": [
+          "AC5",
+          "AC1",
+          "AC14",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T5",
+        "title": "rename()",
+        "description": "Implement rename(item_id, new_text). Tests in tests/test_rename.py.",
+        "acceptance_criteria": [
+          "text updated and stripped, item returned",
+          "empty/whitespace/non-str raises ValidationError and text unchanged",
+          "unknown id raises ItemNotFoundError",
+          "pytest passes"
+        ],
+        "priority": "medium",
+        "covers": [
+          "AC6",
+          "AC14",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T6",
+        "title": "set_due_date()",
+        "description": "Implement set_due_date(item_id, due) accepting date, ISO string, or None. Tests in tests/test_due_date.py.",
+        "acceptance_criteria": [
+          "date object stored",
+          "'2024-05-01' string stored as date(2024,5,1)",
+          "None clears the due date",
+          "'2024-13-01', 'tomorrow', 123 raise ValidationError",
+          "unknown id raises ItemNotFoundError",
+          "pytest passes"
+        ],
+        "priority": "medium",
+        "covers": [
+          "AC7",
+          "AC14",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T7",
+        "title": "set_priority()",
+        "description": "Implement set_priority(item_id, priority). Tests in tests/test_priority.py.",
+        "acceptance_criteria": [
+          "'high','medium','low' accepted and item returned",
+          "'urgent', '', None, 'HIGH' raise ValidationError and priority unchanged",
+          "unknown id raises ItemNotFoundError",
+          "pytest passes"
+        ],
+        "priority": "medium",
+        "covers": [
+          "AC8",
+          "AC14",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T8",
+        "title": "filter_by_status()",
+        "description": "Implement filter_by_status(status). Tests in tests/test_filter.py.",
+        "acceptance_criteria": [
+          "'open' returns only incomplete items",
+          "'complete' returns only complete items",
+          "results in id order; empty list if none",
+          "invalid status (e.g. 'done', None) raises ValidationError",
+          "pytest passes"
+        ],
+        "priority": "medium",
+        "covers": [
+          "AC9",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T9",
+        "title": "search()",
+        "description": "Implement search(query) case-insensitive substring match. Tests in tests/test_search.py.",
+        "acceptance_criteria": [
+          "case-insensitive substring match returns matching items in id order",
+          "no match returns []",
+          "empty/whitespace/non-str query raises ValidationError",
+          "pytest passes"
+        ],
+        "priority": "medium",
+        "covers": [
+          "AC10",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T10",
+        "title": "export_json()",
+        "description": "Implement export_json() returning JSON string of list of item dicts. Tests in tests/test_export.py.",
+        "acceptance_criteria": [
+          "empty list exports '[]' (parsed equals [])",
+          "each object has keys id,text,complete,due_date,priority",
+          "due_date serialized as ISO string or null",
+          "pytest passes"
+        ],
+        "priority": "medium",
+        "covers": [
+          "AC11",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T11",
+        "title": "import_json() happy path and round trip",
+        "description": "Implement import_json(data) for valid input with defaults for optional fields, preserving ids, updating the id counter, returning count. Tests in tests/test_import.py.",
+        "acceptance_criteria": [
+          "returns number of items imported",
+          "ids preserved and later add() gets id greater than max existing",
+          "missing complete/due_date/priority default to False/None/'medium'",
+          "export -> import into a new TodoList yields equal items",
+          "pytest passes"
+        ],
+        "priority": "medium",
+        "covers": [
+          "AC12",
+          "AC15"
+        ]
+      },
+      {
+        "task_id": "T12",
+        "title": "import_json() validation and atomicity",
+        "description": "Add full validation to import_json: validate everything before mutating the store. Tests in tests/test_import_validation.py.",
+        "acceptance_criteria": [
+          "invalid JSON, non-list top level, non-object items raise ValidationError",
+          "empty text, bad priority, non-bool complete, bad due_date, non-int/bool id, missing id or text raise ValidationError",
+          "duplicate ids within the data or against existing items raise ValidationError",
+          "after any failure the list is unchanged (atomic)",
+          "pytest passes"
+        ],
+        "priority": "medium",
+        "covers": [
+          "AC13",
+          "AC15"
+        ]
+      }
+    ],
+    "merged_from": {
+      "M1": [
+        "T1"
+      ],
+      "M2": [
+        "T2",
+        "T3",
+        "T4"
+      ],
+      "M3": [
+        "T5",
+        "T6",
+        "T7"
+      ],
+      "M4": [
+        "T8",
+        "T9"
+      ],
+      "M5": [
+        "T10"
+      ],
+      "M6": [
+        "T11",
+        "T12"
+      ]
+    },
+    "method": "llm"
+  },
+  "task_status": {
+    "M1": {
+      "task_id": "M1",
+      "status": "done",
+      "coder_status": "success",
+      "run_id": "e00c9323c2c9",
+      "iterations": 3,
+      "files": [
+        "conftest.py",
+        "tests/test_add.py",
+        "todo/__init__.py"
+      ],
+      "summary": "I created the `todo` package with the three exceptions, the `TodoItem` dataclass and `TodoList`. `TodoList` has `add()` and the `_get()` id helper. `tests/test_add.py` has 24 tests and all pass.\n\n- **Exceptions:** `ItemNotFoundError` subclasses `TodoError` and not `KeyError`, and its message includes the unknown id. `ValidationError` subclasses both `TodoError` and `ValueError`.\n- **`add()`:** it strips the text and returns a `TodoItem` with the defaults (`complete=False`, `due_date=None`, `prio"
+    },
+    "M2": {
+      "task_id": "M2",
+      "status": "done",
+      "coder_status": "success",
+      "run_id": "02025d270d7e",
+      "iterations": 3,
+      "files": [
+        "tests/test_complete.py",
+        "tests/test_delete.py",
+        "tests/test_list.py",
+        "todo/__init__.py"
+      ],
+      "summary": "I added `list_items()`, `complete()` and `delete()` to `TodoList` in `todo/__init__.py`. I added one test file for each: `tests/test_list.py`, `tests/test_complete.py` and `tests/test_delete.py`. I ran all four test files, including the earlier `tests/test_add.py`, by path with exec_python. All pass (24, 3, 9 and 7 tests).\n\n- **`list_items()`:** it returns a new list each call, in insertion order. Clearing the returned list doesn't change the store. The `TodoItem` objects inside it are the store"
+    },
+    "M3": {
+      "task_id": "M3",
+      "status": "done",
+      "coder_status": "success",
+      "run_id": "1521e12336ea",
+      "iterations": 3,
+      "files": [
+        "tests/test_due_date.py",
+        "tests/test_priority.py",
+        "tests/test_rename.py",
+        "todo/__init__.py"
+      ],
+      "summary": "I added `rename()`, `set_due_date()` and `set_priority()` to `TodoList` in `todo/__init__.py`. Each has its own test file: `tests/test_rename.py`, `tests/test_due_date.py` and `tests/test_priority.py`. I ran all seven test files by path with exec_python and every one passes.\n\n- **Id check first:** each method looks up the item with `_get()` before validating the new value. A bad id type raises `ValidationError` and an unknown id raises `ItemNotFoundError`, whatever the value passed. If the value"
+    },
+    "M4": {
+      "task_id": "M4",
+      "status": "done",
+      "coder_status": "success",
+      "run_id": "90cd5f1f1cf5",
+      "iterations": 4,
+      "files": [
+        "tests/test_filter.py",
+        "tests/test_search.py",
+        "todo/__init__.py"
+      ],
+      "summary": "I added `filter_by_status()` and `search()` to `TodoList` in `todo/__init__.py`. I added `tests/test_filter.py` (10 tests) and `tests/test_search.py` (11 tests). I ran every test file by path with exec_python and all pass. My first run of `tests/test_filter.py` failed because a decorator name was mangled in the test file. I fixed it and reran, and it passes.\n\n- **`filter_by_status()`:** it accepts only 'open' and 'complete'. It returns a new list in id order, or an empty list if nothing matches."
+    },
+    "M5": {
+      "task_id": "M5",
+      "status": "pending",
+      "coder_status": null,
+      "run_id": null,
+      "iterations": 0,
+      "files": [],
+      "summary": ""
+    },
+    "M6": {
+      "task_id": "M6",
+      "status": "pending",
+      "coder_status": null,
+      "run_id": null,
+      "iterations": 0,
+      "files": [],
+      "summary": ""
+    }
+  },
+  "current_task_index": 4,
+  "handoff": null,
+  "artifacts": [
+    {
+      "task_id": "M1",
+      "result": {
+        "code": "# ===== conftest.py =====\n# Presence of this file puts the project root on sys.path for pytest.\n\n\n# ===== tests/test_add.py =====\nimport datetime\n\nimport pytest\n\nfrom todo import (ItemNotFoundError, TodoError, TodoItem, TodoList,\n                  ValidationError)\n\n\ndef test_add_defaults_and_strip():\n    t = TodoList()\n    item = t.add(\"  buy milk  \")\n    assert isinstance(item, TodoItem)\n    assert item == TodoItem(id=1, text=\"buy milk\", complete=False, due_date=None, priority=\"medium\")\n\n\ndef test_add_with_options():\n    d = datetime.date(2030, 1, 2)\n    item = TodoList().add(\"x\", due_date=d, priority=\"high\")\n    assert item.due_date == d and item.priority == \"high\"\n\n\ndef test_ids_increment():\n    t = TodoList()\n    assert [t.add(\"a\").id, t.add(\"b\").id, t.add(\"c\").id] == [1, 2, 3]\n\n\ndef test_ids_not_reused_after_removal():\n    t = TodoList()\n    t.add(\"a\")\n    t.add(\"b\")\n    del t._items[2]  # simulate deletion\n    assert t.add(\"c\").id == 3\n\n\n@pytest.mark.parametrize(\"bad\", [\"\", \"   \", \"\\t\\n\", None, 5, b\"x\", [\"a\"]])\ndef test_add_invalid_text(bad):\n    t = TodoList()\n    with pytest.raises(ValidationError):\n        t.add(bad)\n    assert t._items == {}\n    assert t.add(\"ok\").id == 1  # counter not consumed\n\n\n@pytest.mark.parametrize(\"kwargs\", [\n    {\"priority\": \"urgent\"}, {\"priority\": None},\n    {\"due_date\": \"2030-01-01\"}, {\"due_date\": datetime.datetime(2030, 1, 1)},\n])\ndef test_add_invalid_options_creates_nothing(kwargs):\n    t = TodoList()\n    with pytest.raises(ValidationError):\n        t.add(\"x\", **kwargs)\n    assert t._items == {}\n\n\ndef test_hierarchy():\n    assert issubclass(TodoError, Exception)\n    assert issubclass(ItemNotFoundError, TodoError)\n    assert not issubclass(ItemNotFoundError, KeyError)\n    assert issubclass(ValidationError, TodoError)\n    assert issubclass(ValidationError, ValueError)\n\n\ndef test_get_found():\n    t = TodoList()\n    item = t.add(\"a\")\n    assert t._get(1) is item\n\n\ndef test_get_unknown_message_contains_id():\n    t = TodoList()\n    with pytest.raises(ItemNotFoundError, match=\"42\"):\n        t._get(42)\n\n\n@pytest.mark.parametrize(\"bad\", [\"1\", 1.0, None, True, False, [1]])\ndef test_get_bad_type(bad):\n    t = TodoList()\n    t.add(\"a\")\n    with pytest.raises(ValidationError):\n        t._get(bad)\n\n\n# ===== todo/__init__.py =====\n\"\"\"todo: a tiny in-memory to-do library.\"\"\"\nfrom __future__ import annotations\n\nimport datetime\nfrom dataclasses import dataclass\nfrom typing import Dict, Optional\n\n__all__ = [\"TodoItem\", \"TodoList\", \"TodoError\", \"ItemNotFoundError\", \"ValidationError\"]\n\nPRIORITIES = (\"high\", \"medium\", \"low\")\n\n\nclass TodoError(Exception):\n    \"\"\"Base class for all todo errors.\"\"\"\n\n\nclass ItemNotFoundError(TodoError):\n    \"\"\"Raised when an item id is unknown.\"\"\"\n\n    def __init__(self, item_id):\n        self.item_id = item_id\n        super().__init__(f\"Item not found: {item_id!r}\")\n\n\nclass ValidationError(TodoError, ValueError):\n    \"\"\"Raised on invalid input.\"\"\"\n\n\n@dataclass\nclass TodoItem:\n    id: int\n    text: str\n    complete: bool = False\n    due_date: Optional[datetime.date] = None\n    priority: str = \"medium\"\n\n\nclass TodoList:\n    def __init__(self) -> None:\n        self._items: Dict[int, TodoItem] = {}\n        self._next_id: int = 1\n\n    def _get(self, item_id) -> TodoItem:\n        if not isinstance(item_id, int) or isinstance(item_id, bool):\n            raise ValidationError(f\"item id must be an int, got {type(item_id).__name__}\")\n        try:\n            return self._items[item_id]\n        except KeyError:\n            raise ItemNotFoundError(item_id) from None\n\n    def add(self, text, due_date=None, priority: str = \"medium\") -> TodoItem:\n        if not isinstance(text, str):\n            raise ValidationError(\"text must be a string\")\n        text = text.strip()\n        if not text:\n            raise ValidationError(\"text must not be empty\")\n        if due_date is not None and (\n            not isinstance(due_date, datetime.date) or isinstance(due_date, datetime.datetime)\n        ):\n            raise ValidationError(\"due_date must be a datetime.date or None\")\n        if priority not in PRIORITIES:\n            raise ValidationError(f\"priority must be one of {PRIORITIES}\")\n        item = TodoItem(id=self._next_id, text=text, due_date=due_date, priority=priority)\n        self._items[item.id] = item\n        self._next_id += 1\n        return item\n",
+        "explanation": "I created the `todo` package with the three exceptions, the `TodoItem` dataclass and `TodoList`. `TodoList` has `add()` and the `_get()` id helper. `tests/test_add.py` has 24 tests and all pass.\n\n- **Exceptions:** `ItemNotFoundError` subclasses `TodoError` and not `KeyError`, and its message includes the unknown id. `ValidationError` subclasses both `TodoError` and `ValueError`.\n- **`add()`:** it strips the text and returns a `TodoItem` with the defaults (`complete=False`, `due_date=None`, `priority='medium'`). Empty, whitespace-only or non-string text raises `ValidationError` and creates nothing. I also made it reject an invalid priority, and a `due_date` that isn't a plain `date` (a `datetime` is rejected). Those checks go beyond what you listed.\n- **Ids:** they start at 1 and the counter only moves forward. Since `delete` doesn't exist yet, the \"not reused\" test removes an item straight from the internal store and checks the next id is 3. It would be worth adding a proper test once `delete` exists.\n- **`_get()`:** it raises `ValidationError` for non-int ids, including bools, and `ItemNotFoundError` for unknown ids.\n- **`conftest.py`:** I added an empty one at the project root so the tests can import `todo`.",
+        "plan": [
+          "Create todo/__init__.py with errors, TodoItem, TodoList, add(), _get()",
+          "Add root conftest.py so todo is importable under pytest",
+          "Write tests/test_add.py covering add, ids, validation, hierarchy, _get",
+          "Run tests/test_add.py"
+        ],
+        "result": {
+          "executed": true,
+          "target": "tests/test_add.py",
+          "exit_code": 0,
+          "stdout": "........................                                                 [100%]\n24 passed in 0.02s\n",
+          "stderr": "",
+          "timed_out": false,
+          "duration_s": 2.01
+        },
+        "status": "success",
+        "iterations": 3,
+        "files": {
+          "conftest.py": "# Presence of this file puts the project root on sys.path for pytest.\n",
+          "tests/test_add.py": "import datetime\n\nimport pytest\n\nfrom todo import (ItemNotFoundError, TodoError, TodoItem, TodoList,\n                  ValidationError)\n\n\ndef test_add_defaults_and_strip():\n    t = TodoList()\n    item = t.add(\"  buy milk  \")\n    assert isinstance(item, TodoItem)\n    assert item == TodoItem(id=1, text=\"buy milk\", complete=False, due_date=None, priority=\"medium\")\n\n\ndef test_add_with_options():\n    d = datetime.date(2030, 1, 2)\n    item = TodoList().add(\"x\", due_date=d, priority=\"high\")\n    assert item.due_date == d and item.priority == \"high\"\n\n\ndef test_ids_increment():\n    t = TodoList()\n    assert [t.add(\"a\").id, t.add(\"b\").id, t.add(\"c\").id] == [1, 2, 3]\n\n\ndef test_ids_not_reused_after_removal():\n    t = TodoList()\n    t.add(\"a\")\n    t.add(\"b\")\n    del t._items[2]  # simulate deletion\n    assert t.add(\"c\").id == 3\n\n\n@pytest.mark.parametrize(\"bad\", [\"\", \"   \", \"\\t\\n\", None, 5, b\"x\", [\"a\"]])\ndef test_add_invalid_text(bad):\n    t = TodoList()\n    with pytest.raises(ValidationError):\n        t.add(bad)\n    assert t._items == {}\n    assert t.add(\"ok\").id == 1  # counter not consumed\n\n\n@pytest.mark.parametrize(\"kwargs\", [\n    {\"priority\": \"urgent\"}, {\"priority\": None},\n    {\"due_date\": \"2030-01-01\"}, {\"due_date\": datetime.datetime(2030, 1, 1)},\n])\ndef test_add_invalid_options_creates_nothing(kwargs):\n    t = TodoList()\n    with pytest.raises(ValidationError):\n        t.add(\"x\", **kwargs)\n    assert t._items == {}\n\n\ndef test_hierarchy():\n    assert issubclass(TodoError, Exception)\n    assert issubclass(ItemNotFoundError, TodoError)\n    assert not issubclass(ItemNotFoundError, KeyError)\n    assert issubclass(ValidationError, TodoError)\n    assert issubclass(ValidationError, ValueError)\n\n\ndef test_get_found():\n    t = TodoList()\n    item = t.add(\"a\")\n    assert t._get(1) is item\n\n\ndef test_get_unknown_message_contains_id():\n    t = TodoList()\n    with pytest.raises(ItemNotFoundError, match=\"42\"):\n        t._get(42)\n\n\n@pytest.mark.parametrize(\"bad\", [\"1\", 1.0, None, True, False, [1]])\ndef test_get_bad_type(bad):\n    t = TodoList()\n    t.add(\"a\")\n    with pytest.raises(ValidationError):\n        t._get(bad)\n",
+          "todo/__init__.py": "\"\"\"todo: a tiny in-memory to-do library.\"\"\"\nfrom __future__ import annotations\n\nimport datetime\nfrom dataclasses import dataclass\nfrom typing import Dict, Optional\n\n__all__ = [\"TodoItem\", \"TodoList\", \"TodoError\", \"ItemNotFoundError\", \"ValidationError\"]\n\nPRIORITIES = (\"high\", \"medium\", \"low\")\n\n\nclass TodoError(Exception):\n    \"\"\"Base class for all todo errors.\"\"\"\n\n\nclass ItemNotFoundError(TodoError):\n    \"\"\"Raised when an item id is unknown.\"\"\"\n\n    def __init__(self, item_id):\n        self.item_id = item_id\n        super().__init__(f\"Item not found: {item_id!r}\")\n\n\nclass ValidationError(TodoError, ValueError):\n    \"\"\"Raised on invalid input.\"\"\"\n\n\n@dataclass\nclass TodoItem:\n    id: int\n    text: str\n    complete: bool = False\n    due_date: Optional[datetime.date] = None\n    priority: str = \"medium\"\n\n\nclass TodoList:\n    def __init__(self) -> None:\n        self._items: Dict[int, TodoItem] = {}\n        self._next_id: int = 1\n\n    def _get(self, item_id) -> TodoItem:\n        if not isinstance(item_id, int) or isinstance(item_id, bool):\n            raise ValidationError(f\"item id must be an int, got {type(item_id).__name__}\")\n        try:\n            return self._items[item_id]\n        except KeyError:\n            raise ItemNotFoundError(item_id) from None\n\n    def add(self, text, due_date=None, priority: str = \"medium\") -> TodoItem:\n        if not isinstance(text, str):\n            raise ValidationError(\"text must be a string\")\n        text = text.strip()\n        if not text:\n            raise ValidationError(\"text must not be empty\")\n        if due_date is not None and (\n            not isinstance(due_date, datetime.date) or isinstance(due_date, datetime.datetime)\n        ):\n            raise ValidationError(\"due_date must be a datetime.date or None\")\n        if priority not in PRIORITIES:\n            raise ValidationError(f\"priority must be one of {PRIORITIES}\")\n        item = TodoItem(id=self._next_id, text=text, due_date=due_date, priority=priority)\n        self._items[item.id] = item\n        self._next_id += 1\n        return item\n"
+        },
+        "memories_used": [],
+        "run_id": "e00c9323c2c9",
+        "verified": true,
+        "verification_notes": [],
+        "error": null
+      }
+    },
+    {
+      "task_id": "M2",
+      "result": {
+        "code": "# ===== tests/test_complete.py =====\nimport pytest\nfrom todo import TodoList, ItemNotFoundError, ValidationError\n\n\ndef test_complete_marks_and_returns():\n    t = TodoList()\n    i = t.add(\"a\")\n    r = t.complete(i.id)\n    assert r.complete is True and r.id == i.id\n    assert t.list_items()[0].complete is True\n\n\ndef test_idempotent():\n    t = TodoList()\n    i = t.add(\"a\")\n    t.complete(i.id)\n    assert t.complete(i.id).complete is True\n\n\ndef test_unknown_id():\n    t = TodoList()\n    with pytest.raises(ItemNotFoundError, match=\"42\"):\n        t.complete(42)\n\n\n@pytest.mark.parametrize(\"bad\", [\"1\", None, 1.0, True, False, [1]])\ndef test_bad_id_type(bad):\n    t = TodoList()\n    t.add(\"a\")\n    with pytest.raises(ValidationError):\n        t.complete(bad)\n\n\n# ===== tests/test_delete.py =====\nimport pytest\nfrom todo import TodoList, ItemNotFoundError, ValidationError\n\n\ndef test_deleted_absent():\n    t = TodoList()\n    a, b = t.add(\"a\"), t.add(\"b\")\n    r = t.delete(a.id)\n    assert r == a\n    assert t.list_items() == [b]\n\n\ndef test_second_delete_raises():\n    t = TodoList()\n    a = t.add(\"a\")\n    t.delete(a.id)\n    with pytest.raises(ItemNotFoundError, match=str(a.id)):\n        t.delete(a.id)\n\n\ndef test_unknown_id():\n    with pytest.raises(ItemNotFoundError, match=\"99\"):\n        TodoList().delete(99)\n\n\n@pytest.mark.parametrize(\"bad\", [\"1\", None, True])\ndef test_bad_id_type(bad):\n    with pytest.raises(ValidationError):\n        TodoList().delete(bad)\n\n\ndef test_ids_never_reused():\n    t = TodoList()\n    a, b = t.add(\"a\"), t.add(\"b\")\n    t.delete(b.id)\n    c = t.add(\"c\")\n    assert c.id == 3\n    t.delete(a.id)\n    t.delete(c.id)\n    assert t.add(\"d\").id == 4\n\n\n# ===== tests/test_list.py =====\nimport pytest\nfrom todo import TodoList\n\n\ndef test_empty():\n    assert TodoList().list_items() == []\n\n\ndef test_insertion_order():\n    t = TodoList()\n    a, b, c = t.add(\"a\"), t.add(\"b\"), t.add(\"c\")\n    assert t.list_items() == [a, b, c]\n\n\ndef test_mutating_returned_list_does_not_affect_store():\n    t = TodoList()\n    t.add(\"a\")\n    t.add(\"b\")\n    lst = t.list_items()\n    lst.clear()\n    assert len(t.list_items()) == 2\n    assert t.list_items() is not t.list_items()\n\n\n# ===== todo/__init__.py =====\n\"\"\"todo: a tiny in-memory to-do library.\"\"\"\nfrom __future__ import annotations\n\nimport datetime\nfrom dataclasses import dataclass\nfrom typing import Dict, Optional\n\n__all__ = [\"TodoItem\", \"TodoList\", \"TodoError\", \"ItemNotFoundError\", \"ValidationError\"]\n\nPRIORITIES = (\"high\", \"medium\", \"low\")\n\n\nclass TodoError(Exception):\n    \"\"\"Base class for all todo errors.\"\"\"\n\n\nclass ItemNotFoundError(TodoError):\n    \"\"\"Raised when an item id is unknown.\"\"\"\n\n    def __init__(self, item_id):\n        self.item_id = item_id\n        super().__init__(f\"Item not found: {item_id!r}\")\n\n\nclass ValidationError(TodoError, ValueError):\n    \"\"\"Raised on invalid input.\"\"\"\n\n\n@dataclass\nclass TodoItem:\n    id: int\n    text: str\n    complete: bool = False\n    due_date: Optional[datetime.date] = None\n    priority: str = \"medium\"\n\n\nclass TodoList:\n    def __init__(self) -> None:\n        self._items: Dict[int, TodoItem] = {}\n        self._next_id: int = 1\n\n    def _get(self, item_id) -> TodoItem:\n        if not isinstance(item_id, int) or isinstance(item_id, bool):\n            raise ValidationError(f\"item id must be an int, got {type(item_id).__name__}\")\n        try:\n            return self._items[item_id]\n        except KeyError:\n            raise ItemNotFoundError(item_id) from None\n\n    def add(self, text, due_date=None, priority: str = \"medium\") -> TodoItem:\n        if not isinstance(text, str):\n            raise ValidationError(\"text must be a string\")\n        text = text.strip()\n        if not text:\n            raise ValidationError(\"text must not be empty\")\n        if due_date is not None and (\n            not isinstance(due_date, datetime.date) or isinstance(due_date, datetime.datetime)\n        ):\n            raise ValidationError(\"due_date must be a datetime.date or None\")\n        if priority not in PRIORITIES:\n            raise ValidationError(f\"priority must be one of {PRIORITIES}\")\n        item = TodoItem(id=self._next_id, text=text, due_date=due_date, priority=priority)\n        self._items[item.id] = item\n        self._next_id += 1\n        return item\n\n    def list_items(self) -> list:\n        \"\"\"Return a new list of items in insertion order.\"\"\"\n        return list(self._items.values())\n\n    def complete(self, item_id) -> TodoItem:\n        item = self._get(item_id)\n        item.complete = True\n        return item\n\n    def delete(self, item_id) -> TodoItem:\n        item = self._get(item_id)\n        del self._items[item.id]\n        return item\n",
+        "explanation": "I added `list_items()`, `complete()` and `delete()` to `TodoList` in `todo/__init__.py`. I added one test file for each: `tests/test_list.py`, `tests/test_complete.py` and `tests/test_delete.py`. I ran all four test files, including the earlier `tests/test_add.py`, by path with exec_python. All pass (24, 3, 9 and 7 tests).\n\n- **`list_items()`:** it returns a new list each call, in insertion order. Clearing the returned list doesn't change the store. The `TodoItem` objects inside it are the stored ones, not copies, so changing an item's fields through the list does change the store.\n- **`complete()`:** it marks the item complete and returns it. Calling it twice is fine.\n- **`delete()`:** it removes the item and returns it. A second delete raises `ItemNotFoundError`, and the next `add()` after a delete gets a fresh id, never a reused one.\n- **Id validation:** both `complete()` and `delete()` look the item up through `_get()`. An unknown id raises `ItemNotFoundError` with the id in the message, and a non-int or bool id raises `ValidationError`.",
+        "plan": [
+          "Add list_items, complete, delete to TodoList",
+          "Write tests/test_list.py, test_complete.py, test_delete.py",
+          "Run every test file by path"
+        ],
+        "result": {
+          "executed": true,
+          "target": "tests/test_delete.py",
+          "exit_code": 0,
+          "stdout": ".......                                                                  [100%]\n7 passed in 0.01s\n",
+          "stderr": "",
+          "timed_out": false,
+          "duration_s": 0.558
+        },
+        "status": "success",
+        "iterations": 3,
+        "files": {
+          "tests/test_complete.py": "import pytest\nfrom todo import TodoList, ItemNotFoundError, ValidationError\n\n\ndef test_complete_marks_and_returns():\n    t = TodoList()\n    i = t.add(\"a\")\n    r = t.complete(i.id)\n    assert r.complete is True and r.id == i.id\n    assert t.list_items()[0].complete is True\n\n\ndef test_idempotent():\n    t = TodoList()\n    i = t.add(\"a\")\n    t.complete(i.id)\n    assert t.complete(i.id).complete is True\n\n\ndef test_unknown_id():\n    t = TodoList()\n    with pytest.raises(ItemNotFoundError, match=\"42\"):\n        t.complete(42)\n\n\n@pytest.mark.parametrize(\"bad\", [\"1\", None, 1.0, True, False, [1]])\ndef test_bad_id_type(bad):\n    t = TodoList()\n    t.add(\"a\")\n    with pytest.raises(ValidationError):\n        t.complete(bad)\n",
+          "tests/test_delete.py": "import pytest\nfrom todo import TodoList, ItemNotFoundError, ValidationError\n\n\ndef test_deleted_absent():\n    t = TodoList()\n    a, b = t.add(\"a\"), t.add(\"b\")\n    r = t.delete(a.id)\n    assert r == a\n    assert t.list_items() == [b]\n\n\ndef test_second_delete_raises():\n    t = TodoList()\n    a = t.add(\"a\")\n    t.delete(a.id)\n    with pytest.raises(ItemNotFoundError, match=str(a.id)):\n        t.delete(a.id)\n\n\ndef test_unknown_id():\n    with pytest.raises(ItemNotFoundError, match=\"99\"):\n        TodoList().delete(99)\n\n\n@pytest.mark.parametrize(\"bad\", [\"1\", None, True])\ndef test_bad_id_type(bad):\n    with pytest.raises(ValidationError):\n        TodoList().delete(bad)\n\n\ndef test_ids_never_reused():\n    t = TodoList()\n    a, b = t.add(\"a\"), t.add(\"b\")\n    t.delete(b.id)\n    c = t.add(\"c\")\n    assert c.id == 3\n    t.delete(a.id)\n    t.delete(c.id)\n    assert t.add(\"d\").id == 4\n",
+          "tests/test_list.py": "import pytest\nfrom todo import TodoList\n\n\ndef test_empty():\n    assert TodoList().list_items() == []\n\n\ndef test_insertion_order():\n    t = TodoList()\n    a, b, c = t.add(\"a\"), t.add(\"b\"), t.add(\"c\")\n    assert t.list_items() == [a, b, c]\n\n\ndef test_mutating_returned_list_does_not_affect_store():\n    t = TodoList()\n    t.add(\"a\")\n    t.add(\"b\")\n    lst = t.list_items()\n    lst.clear()\n    assert len(t.list_items()) == 2\n    assert t.list_items() is not t.list_items()\n",
+          "todo/__init__.py": "\"\"\"todo: a tiny in-memory to-do library.\"\"\"\nfrom __future__ import annotations\n\nimport datetime\nfrom dataclasses import dataclass\nfrom typing import Dict, Optional\n\n__all__ = [\"TodoItem\", \"TodoList\", \"TodoError\", \"ItemNotFoundError\", \"ValidationError\"]\n\nPRIORITIES = (\"high\", \"medium\", \"low\")\n\n\nclass TodoError(Exception):\n    \"\"\"Base class for all todo errors.\"\"\"\n\n\nclass ItemNotFoundError(TodoError):\n    \"\"\"Raised when an item id is unknown.\"\"\"\n\n    def __init__(self, item_id):\n        self.item_id = item_id\n        super().__init__(f\"Item not found: {item_id!r}\")\n\n\nclass ValidationError(TodoError, ValueError):\n    \"\"\"Raised on invalid input.\"\"\"\n\n\n@dataclass\nclass TodoItem:\n    id: int\n    text: str\n    complete: bool = False\n    due_date: Optional[datetime.date] = None\n    priority: str = \"medium\"\n\n\nclass TodoList:\n    def __init__(self) -> None:\n        self._items: Dict[int, TodoItem] = {}\n        self._next_id: int = 1\n\n    def _get(self, item_id) -> TodoItem:\n        if not isinstance(item_id, int) or isinstance(item_id, bool):\n            raise ValidationError(f\"item id must be an int, got {type(item_id).__name__}\")\n        try:\n            return self._items[item_id]\n        except KeyError:\n            raise ItemNotFoundError(item_id) from None\n\n    def add(self, text, due_date=None, priority: str = \"medium\") -> TodoItem:\n        if not isinstance(text, str):\n            raise ValidationError(\"text must be a string\")\n        text = text.strip()\n        if not text:\n            raise ValidationError(\"text must not be empty\")\n        if due_date is not None and (\n            not isinstance(due_date, datetime.date) or isinstance(due_date, datetime.datetime)\n        ):\n            raise ValidationError(\"due_date must be a datetime.date or None\")\n        if priority not in PRIORITIES:\n            raise ValidationError(f\"priority must be one of {PRIORITIES}\")\n        item = TodoItem(id=self._next_id, text=text, due_date=due_date, priority=priority)\n        self._items[item.id] = item\n        self._next_id += 1\n        return item\n\n    def list_items(self) -> list:\n        \"\"\"Return a new list of items in insertion order.\"\"\"\n        return list(self._items.values())\n\n    def complete(self, item_id) -> TodoItem:\n        item = self._get(item_id)\n        item.complete = True\n        return item\n\n    def delete(self, item_id) -> TodoItem:\n        item = self._get(item_id)\n        del self._items[item.id]\n        return item\n"
+        },
+        "memories_used": [
+          {
+            "id": "ed3f36c01dc844f09638f84b67105c97",
+            "text": "Task: Project: todo-lib\nA tiny in-memory to-do library in Python (package `todo`, class `TodoList` in todo/__init__.py or todo.py) with custom exceptions `TodoError` (base, subclass of Exception), `ItemNotFoundError` (subclass of TodoError and KeyError-free; message includes the unknown id) and `ValidationError` (subclass of TodoError and ValueError). Items are represented by a dataclass `TodoItem` with fields: id (int, auto-incremented from 1, never reused), text (str), complete (bool, default False), due_date (datetime.date or None), priority ('high'|'medium'|'low', default 'medium'). All features are methods on `TodoList`, each covered by pytest tests in tests/.\n\nTask M1 (1 of 6, high priority): Scaffold, models and add()\nPackage, errors, TodoItem, TodoList, add() and id-validation helper.\n\n[T1] Create package `todo` with TodoItem dataclass, TodoError/ItemNotFoundError/ValidationError, TodoList with internal store and id counter, add(), and an internal _get(item_id) helper that validates id type (non-int/bool -> ValidationError) and raises ItemNotFoundError with the id in the message. Add tests/test_add.py and tests for _get behaviour via public API where possible.\n\nAcceptance criteria:\n- [ ] add returns TodoItem with defaults and stripped text\n- [ ] ids start at 1, increment, and are not reused after deletion (tested once delete exists, or via counter)\n- [ ] add with '', '   ', or non-str raises ValidationError and creates nothing\n- [ ] ItemNotFoundError and ValidationError importable from todo; hierarchy as described\n- [ ] pytest passes\n\nFiles from earlier tasks:\nnone yet\n\nBuild on the files from earlier tasks rather than replacing them, keep their tests passing, and run all tests before finishing: run each test file by its path with exec_python, one call per file. Tests run any other way (for example through subprocess) are not verified, so the task fails.\nOutcome: success\nFiles: conftest.py, tests/test_add.py, todo/__init__.py\nPlan: Create todo/__init__.py with errors, TodoItem, TodoList, add(), _get() | Add root conftest.py so todo is importable under pytest | Write tests/test_add.py covering add, ids, validation, hierarchy, _get | Run tests/test_add.py\nSummary: I created the `todo` package with the three exceptions, the `TodoItem` dataclass and `TodoList`. `TodoList` has `add()` and the `_get()` id helper. `tests/test_add.py` has 24 tests and all pass.\n\n- **Exceptions:** `ItemNotFoundError` subclasses `TodoError` and not `KeyError`, and its message includes the unknown id. `ValidationError` subclasses both `TodoError` and `ValueError`.\n- **`add()`:** it strips the text and returns a `TodoItem` with the defaults (`complete=False`, `due_date=None`, `prio\nDefines: tests/test_add.py:test_add_defaults_and_strip, tests/test_add.py:test_add_with_options, tests/test_add.py:test_ids_increment, tests/test_add.py:test_ids_not_reused_after_removal, tests/test_add.py:test_add_invalid_text, tests/test_add.py:test_add_invalid_options_creates_nothing, tests/test_add.py:test_hierarchy, tests/test_add.py:test_get_found, tests/test_add.py:test_get_unknown_message_contains_id, tests/test_add.py:test_get_bad_type, todo/__init__.py:TodoError, todo/__init__.py:ItemNotFoundError, todo/__init__.py:ValidationError, todo/__init__.py:TodoItem, todo/__init__.py:TodoList",
+            "distance": 0.14425063133239746
+          }
+        ],
+        "run_id": "02025d270d7e",
+        "verified": true,
+        "verification_notes": [],
+        "error": null
+      }
+    },
+    {
+      "task_id": "M3",
+      "result": {
+        "code": "# ===== tests/test_due_date.py =====\nimport datetime\nimport pytest\nfrom todo import TodoList, ItemNotFoundError, ValidationError\n\n\ndef test_date_object():\n    t = TodoList()\n    i = t.add(\"a\")\n    d = datetime.date(2024, 5, 1)\n    assert t.set_due_date(i.id, d) is i\n    assert i.due_date == d\n\n\ndef test_iso_string():\n    t = TodoList()\n    i = t.add(\"a\")\n    t.set_due_date(i.id, \"2024-05-01\")\n    assert i.due_date == datetime.date(2024, 5, 1)\n    assert type(i.due_date) is datetime.date\n\n\ndef test_none_clears():\n    t = TodoList()\n    i = t.add(\"a\", due_date=datetime.date(2024, 1, 1))\n    t.set_due_date(i.id, None)\n    assert i.due_date is None\n\n\n@pytest.mark.parametrize(\"bad\", [\"2024-13-01\", \"tomorrow\", 123, \"\", 1.5,\n                                 datetime.datetime(2024, 1, 1)])\ndef test_invalid(bad):\n    t = TodoList()\n    d = datetime.date(2024, 1, 1)\n    i = t.add(\"a\", due_date=d)\n    with pytest.raises(ValidationError):\n        t.set_due_date(i.id, bad)\n    assert i.due_date == d\n\n\ndef test_unknown_id():\n    with pytest.raises(ItemNotFoundError, match=\"9\"):\n        TodoList().set_due_date(9, None)\n\n\ndef test_bad_id_type():\n    with pytest.raises(ValidationError):\n        TodoList().set_due_date(True, None)\n\n\n# ===== tests/test_priority.py =====\nimport pytest\nfrom todo import TodoList, ItemNotFoundError, ValidationError\n\n\n@pytest.mark.parametrize(\"p\", [\"high\", \"medium\", \"low\"])\ndef test_valid(p):\n    t = TodoList()\n    i = t.add(\"a\")\n    assert t.set_priority(i.id, p) is i\n    assert i.priority == p\n\n\n@pytest.mark.parametrize(\"bad\", [\"urgent\", \"\", None, \"HIGH\", 1, [\"high\"]])\ndef test_invalid(bad):\n    t = TodoList()\n    i = t.add(\"a\", priority=\"low\")\n    with pytest.raises(ValidationError):\n        t.set_priority(i.id, bad)\n    assert i.priority == \"low\"\n\n\ndef test_unknown_id():\n    with pytest.raises(ItemNotFoundError, match=\"7\"):\n        TodoList().set_priority(7, \"high\")\n\n\ndef test_bad_id_type():\n    with pytest.raises(ValidationError):\n        TodoList().set_priority(None, \"high\")\n\n\n# ===== tests/test_rename.py =====\nimport pytest\nfrom todo import TodoList, ItemNotFoundError, ValidationError\n\n\ndef test_rename_strips_and_returns():\n    t = TodoList()\n    i = t.add(\"a\")\n    r = t.rename(i.id, \"  new  \")\n    assert r is i and r.text == \"new\"\n    assert t.list_items()[0].text == \"new\"\n\n\n@pytest.mark.parametrize(\"bad\", [\"\", \"   \", None, 5, b\"x\"])\ndef test_rename_invalid(bad):\n    t = TodoList()\n    i = t.add(\"a\")\n    with pytest.raises(ValidationError):\n        t.rename(i.id, bad)\n    assert i.text == \"a\"\n\n\ndef test_rename_unknown():\n    with pytest.raises(ItemNotFoundError, match=\"42\"):\n        TodoList().rename(42, \"x\")\n\n\ndef test_rename_bad_id():\n    with pytest.raises(ValidationError):\n        TodoList().rename(\"1\", \"x\")\n\n\n# ===== todo/__init__.py =====\n\"\"\"todo: a tiny in-memory to-do library.\"\"\"\nfrom __future__ import annotations\n\nimport datetime\nfrom dataclasses import dataclass\nfrom typing import Dict, Optional\n\n__all__ = [\"TodoItem\", \"TodoList\", \"TodoError\", \"ItemNotFoundError\", \"ValidationError\"]\n\nPRIORITIES = (\"high\", \"medium\", \"low\")\n\n\nclass TodoError(Exception):\n    \"\"\"Base class for all todo errors.\"\"\"\n\n\nclass ItemNotFoundError(TodoError):\n    \"\"\"Raised when an item id is unknown.\"\"\"\n\n    def __init__(self, item_id):\n        self.item_id = item_id\n        super().__init__(f\"Item not found: {item_id!r}\")\n\n\nclass ValidationError(TodoError, ValueError):\n    \"\"\"Raised on invalid input.\"\"\"\n\n\n@dataclass\nclass TodoItem:\n    id: int\n    text: str\n    complete: bool = False\n    due_date: Optional[datetime.date] = None\n    priority: str = \"medium\"\n\n\nclass TodoList:\n    def __init__(self) -> None:\n        self._items: Dict[int, TodoItem] = {}\n        self._next_id: int = 1\n\n    def _get(self, item_id) -> TodoItem:\n        if not isinstance(item_id, int) or isinstance(item_id, bool):\n            raise ValidationError(f\"item id must be an int, got {type(item_id).__name__}\")\n        try:\n            return self._items[item_id]\n        except KeyError:\n            raise ItemNotFoundError(item_id) from None\n\n    def add(self, text, due_date=None, priority: str = \"medium\") -> TodoItem:\n        if not isinstance(text, str):\n            raise ValidationError(\"text must be a string\")\n        text = text.strip()\n        if not text:\n            raise ValidationError(\"text must not be empty\")\n        if due_date is not None and (\n            not isinstance(due_date, datetime.date) or isinstance(due_date, datetime.datetime)\n        ):\n            raise ValidationError(\"due_date must be a datetime.date or None\")\n        if priority not in PRIORITIES:\n            raise ValidationError(f\"priority must be one of {PRIORITIES}\")\n        item = TodoItem(id=self._next_id, text=text, due_date=due_date, priority=priority)\n        self._items[item.id] = item\n        self._next_id += 1\n        return item\n\n    def list_items(self) -> list:\n        \"\"\"Return a new list of items in insertion order.\"\"\"\n        return list(self._items.values())\n\n    def complete(self, item_id) -> TodoItem:\n        item = self._get(item_id)\n        item.complete = True\n        return item\n\n    def delete(self, item_id) -> TodoItem:\n        item = self._get(item_id)\n        del self._items[item.id]\n        return item\n\n    def rename(self, item_id, new_text) -> TodoItem:\n        item = self._get(item_id)\n        if not isinstance(new_text, str):\n            raise ValidationError(\"text must be a string\")\n        new_text = new_text.strip()\n        if not new_text:\n            raise ValidationError(\"text must not be empty\")\n        item.text = new_text\n        return item\n\n    def set_due_date(self, item_id, due) -> TodoItem:\n        item = self._get(item_id)\n        if due is None:\n            value = None\n        elif isinstance(due, datetime.datetime):\n            raise ValidationError(\"due must be a date, ISO date string or None\")\n        elif isinstance(due, datetime.date):\n            value = due\n        elif isinstance(due, str):\n            try:\n                value = datetime.date.fromisoformat(due.strip())\n            except ValueError:\n                raise ValidationError(f\"invalid ISO date string: {due!r}\") from None\n        else:\n            raise ValidationError(\"due must be a date, ISO date string or None\")\n        item.due_date = value\n        return item\n\n    def set_priority(self, item_id, priority) -> TodoItem:\n        item = self._get(item_id)\n        if not isinstance(priority, str) or priority not in PRIORITIES:\n            raise ValidationError(f\"priority must be one of {PRIORITIES}\")\n        item.priority = priority\n        return item\n",
+        "explanation": "I added `rename()`, `set_due_date()` and `set_priority()` to `TodoList` in `todo/__init__.py`. Each has its own test file: `tests/test_rename.py`, `tests/test_due_date.py` and `tests/test_priority.py`. I ran all seven test files by path with exec_python and every one passes.\n\n- **Id check first:** each method looks up the item with `_get()` before validating the new value. A bad id type raises `ValidationError` and an unknown id raises `ItemNotFoundError`, whatever the value passed. If the value is invalid, the item is left unchanged.\n- **`rename()`:** it strips the text and returns the item. Empty, whitespace-only and non-string text raise `ValidationError`.\n- **`set_due_date()`:** it accepts a `date`, an ISO string or `None`, and `None` clears the date. A `datetime` is rejected, as in `add()`. Bad strings such as '2024-13-01' and 'tomorrow', and other types such as 123, raise `ValidationError`.\n- **`set_priority()`:** it accepts only 'high', 'medium' or 'low', case-sensitive. 'urgent', '', `None` and 'HIGH' raise `ValidationError`.",
+        "plan": [
+          "Read existing todo/__init__.py",
+          "Add rename, set_due_date, set_priority",
+          "Write three test files",
+          "Run every test file by path"
+        ],
+        "result": {
+          "executed": true,
+          "target": "tests/test_delete.py",
+          "exit_code": 0,
+          "stdout": ".......                                                                  [100%]\n7 passed in 0.01s\n",
+          "stderr": "",
+          "timed_out": false,
+          "duration_s": 0.556
+        },
+        "status": "success",
+        "iterations": 3,
+        "files": {
+          "tests/test_due_date.py": "import datetime\nimport pytest\nfrom todo import TodoList, ItemNotFoundError, ValidationError\n\n\ndef test_date_object():\n    t = TodoList()\n    i = t.add(\"a\")\n    d = datetime.date(2024, 5, 1)\n    assert t.set_due_date(i.id, d) is i\n    assert i.due_date == d\n\n\ndef test_iso_string():\n    t = TodoList()\n    i = t.add(\"a\")\n    t.set_due_date(i.id, \"2024-05-01\")\n    assert i.due_date == datetime.date(2024, 5, 1)\n    assert type(i.due_date) is datetime.date\n\n\ndef test_none_clears():\n    t = TodoList()\n    i = t.add(\"a\", due_date=datetime.date(2024, 1, 1))\n    t.set_due_date(i.id, None)\n    assert i.due_date is None\n\n\n@pytest.mark.parametrize(\"bad\", [\"2024-13-01\", \"tomorrow\", 123, \"\", 1.5,\n                                 datetime.datetime(2024, 1, 1)])\ndef test_invalid(bad):\n    t = TodoList()\n    d = datetime.date(2024, 1, 1)\n    i = t.add(\"a\", due_date=d)\n    with pytest.raises(ValidationError):\n        t.set_due_date(i.id, bad)\n    assert i.due_date == d\n\n\ndef test_unknown_id():\n    with pytest.raises(ItemNotFoundError, match=\"9\"):\n        TodoList().set_due_date(9, None)\n\n\ndef test_bad_id_type():\n    with pytest.raises(ValidationError):\n        TodoList().set_due_date(True, None)\n",
+          "tests/test_priority.py": "import pytest\nfrom todo import TodoList, ItemNotFoundError, ValidationError\n\n\n@pytest.mark.parametrize(\"p\", [\"high\", \"medium\", \"low\"])\ndef test_valid(p):\n    t = TodoList()\n    i = t.add(\"a\")\n    assert t.set_priority(i.id, p) is i\n    assert i.priority == p\n\n\n@pytest.mark.parametrize(\"bad\", [\"urgent\", \"\", None, \"HIGH\", 1, [\"high\"]])\ndef test_invalid(bad):\n    t = TodoList()\n    i = t.add(\"a\", priority=\"low\")\n    with pytest.raises(ValidationError):\n        t.set_priority(i.id, bad)\n    assert i.priority == \"low\"\n\n\ndef test_unknown_id():\n    with pytest.raises(ItemNotFoundError, match=\"7\"):\n        TodoList().set_priority(7, \"high\")\n\n\ndef test_bad_id_type():\n    with pytest.raises(ValidationError):\n        TodoList().set_priority(None, \"high\")\n",
+          "tests/test_rename.py": "import pytest\nfrom todo import TodoList, ItemNotFoundError, ValidationError\n\n\ndef test_rename_strips_and_returns():\n    t = TodoList()\n    i = t.add(\"a\")\n    r = t.rename(i.id, \"  new  \")\n    assert r is i and r.text == \"new\"\n    assert t.list_items()[0].text == \"new\"\n\n\n@pytest.mark.parametrize(\"bad\", [\"\", \"   \", None, 5, b\"x\"])\ndef test_rename_invalid(bad):\n    t = TodoList()\n    i = t.add(\"a\")\n    with pytest.raises(ValidationError):\n        t.rename(i.id, bad)\n    assert i.text == \"a\"\n\n\ndef test_rename_unknown():\n    with pytest.raises(ItemNotFoundError, match=\"42\"):\n        TodoList().rename(42, \"x\")\n\n\ndef test_rename_bad_id():\n    with pytest.raises(ValidationError):\n        TodoList().rename(\"1\", \"x\")\n",
+          "todo/__init__.py": "\"\"\"todo: a tiny in-memory to-do library.\"\"\"\nfrom __future__ import annotations\n\nimport datetime\nfrom dataclasses import dataclass\nfrom typing import Dict, Optional\n\n__all__ = [\"TodoItem\", \"TodoList\", \"TodoError\", \"ItemNotFoundError\", \"ValidationError\"]\n\nPRIORITIES = (\"high\", \"medium\", \"low\")\n\n\nclass TodoError(Exception):\n    \"\"\"Base class for all todo errors.\"\"\"\n\n\nclass ItemNotFoundError(TodoError):\n    \"\"\"Raised when an item id is unknown.\"\"\"\n\n    def __init__(self, item_id):\n        self.item_id = item_id\n        super().__init__(f\"Item not found: {item_id!r}\")\n\n\nclass ValidationError(TodoError, ValueError):\n    \"\"\"Raised on invalid input.\"\"\"\n\n\n@dataclass\nclass TodoItem:\n    id: int\n    text: str\n    complete: bool = False\n    due_date: Optional[datetime.date] = None\n    priority: str = \"medium\"\n\n\nclass TodoList:\n    def __init__(self) -> None:\n        self._items: Dict[int, TodoItem] = {}\n        self._next_id: int = 1\n\n    def _get(self, item_id) -> TodoItem:\n        if not isinstance(item_id, int) or isinstance(item_id, bool):\n            raise ValidationError(f\"item id must be an int, got {type(item_id).__name__}\")\n        try:\n            return self._items[item_id]\n        except KeyError:\n            raise ItemNotFoundError(item_id) from None\n\n    def add(self, text, due_date=None, priority: str = \"medium\") -> TodoItem:\n        if not isinstance(text, str):\n            raise ValidationError(\"text must be a string\")\n        text = text.strip()\n        if not text:\n            raise ValidationError(\"text must not be empty\")\n        if due_date is not None and (\n            not isinstance(due_date, datetime.date) or isinstance(due_date, datetime.datetime)\n        ):\n            raise ValidationError(\"due_date must be a datetime.date or None\")\n        if priority not in PRIORITIES:\n            raise ValidationError(f\"priority must be one of {PRIORITIES}\")\n        item = TodoItem(id=self._next_id, text=text, due_date=due_date, priority=priority)\n        self._items[item.id] = item\n        self._next_id += 1\n        return item\n\n    def list_items(self) -> list:\n        \"\"\"Return a new list of items in insertion order.\"\"\"\n        return list(self._items.values())\n\n    def complete(self, item_id) -> TodoItem:\n        item = self._get(item_id)\n        item.complete = True\n        return item\n\n    def delete(self, item_id) -> TodoItem:\n        item = self._get(item_id)\n        del self._items[item.id]\n        return item\n\n    def rename(self, item_id, new_text) -> TodoItem:\n        item = self._get(item_id)\n        if not isinstance(new_text, str):\n            raise ValidationError(\"text must be a string\")\n        new_text = new_text.strip()\n        if not new_text:\n            raise ValidationError(\"text must not be empty\")\n        item.text = new_text\n        return item\n\n    def set_due_date(self, item_id, due) -> TodoItem:\n        item = self._get(item_id)\n        if due is None:\n            value = None\n        elif isinstance(due, datetime.datetime):\n            raise ValidationError(\"due must be a date, ISO date string or None\")\n        elif isinstance(due, datetime.date):\n            value = due\n        elif isinstance(due, str):\n            try:\n                value = datetime.date.fromisoformat(due.strip())\n            except ValueError:\n                raise ValidationError(f\"invalid ISO date string: {due!r}\") from None\n        else:\n            raise ValidationError(\"due must be a date, ISO date string or None\")\n        item.due_date = value\n        return item\n\n    def set_priority(self, item_id, priority) -> TodoItem:\n        item = self._get(item_id)\n        if not isinstance(priority, str) or priority not in PRIORITIES:\n            raise ValidationError(f\"priority must be one of {PRIORITIES}\")\n        item.priority = priority\n        return item\n"
+        },
+        "memories_used": [
+          {
+            "id": "0c9c4ef2b60d417f865246924a472d9d",
+            "text": "Task: Project: todo-lib\nA tiny in-memory to-do library in Python (package `todo`, class `TodoList` in todo/__init__.py or todo.py) with custom exceptions `TodoError` (base, subclass of Exception), `ItemNotFoundError` (subclass of TodoError and KeyError-free; message includes the unknown id) and `ValidationError` (subclass of TodoError and ValueError). Items are represented by a dataclass `TodoItem` with fields: id (int, auto-incremented from 1, never reused), text (str), complete (bool, default False), due_date (datetime.date or None), priority ('high'|'medium'|'low', default 'medium'). All features are methods on `TodoList`, each covered by pytest tests in tests/.\n\nTask M2 (2 of 6, high priority): Read and lifecycle operations\nlist_items(), complete() and delete().\n\n[T2] Implement list_items() returning a copy list of items in insertion order. Tests in tests/test_list.py.\n[T3] Implement complete(item_id). Tests in tests/test_complete.py.\n[T4] Implement delete(item_id). Tests in tests/test_delete.py.\n\nAcceptance criteria:\n- [ ] empty list for new TodoList\n- [ ] items returned in insertion order\n- [ ] mutating returned list does not affect the store\n- [ ] pytest passes\n- [ ] marks item complete and returns it\n- [ ] idempotent when called twice\n- [ ] unknown id raises ItemNotFoundError mentioning the id\n- [ ] non-int/bool id raises ValidationError\n- [ ] pytest passes\n- [ ] deleted item absent from list_items\n- [ ] second delete raises ItemNotFoundError\n- [ ] unknown id raises ItemNotFoundError\n- [ ] new add after delete gets a fresh, never-reused id\n- [ ] pytest passes\n\nFiles from earlier tasks:\n- conftest.py\n- tests/test_add.py\n- todo/__init__.py\n\nBuild on the files from earlier tasks rather than replacing them, keep their tests passing, and run all tests before finishing: run each test file by its path with exec_python, one call per file. Tests run any other way (for example through subprocess) are not verified, so the task fails.\nOutcome: success\nFiles: tests/test_complete.py, tests/test_delete.py, tests/test_list.py, todo/__init__.py\nPlan: Add list_items, complete, delete to TodoList | Write tests/test_list.py, test_complete.py, test_delete.py | Run every test file by path\nSummary: I added `list_items()`, `complete()` and `delete()` to `TodoList` in `todo/__init__.py`. I added one test file for each: `tests/test_list.py`, `tests/test_complete.py` and `tests/test_delete.py`. I ran all four test files, including the earlier `tests/test_add.py`, by path with exec_python. All pass (24, 3, 9 and 7 tests).\n\n- **`list_items()`:** it returns a new list each call, in insertion order. Clearing the returned list doesn't change the store. The `TodoItem` objects inside it are the store\nDefines: tests/test_complete.py:test_complete_marks_and_returns, tests/test_complete.py:test_idempotent, tests/test_complete.py:test_unknown_id, tests/test_complete.py:test_bad_id_type, tests/test_delete.py:test_deleted_absent, tests/test_delete.py:test_second_delete_raises, tests/test_delete.py:test_unknown_id, tests/test_delete.py:test_bad_id_type, tests/test_delete.py:test_ids_never_reused, tests/test_list.py:test_empty, tests/test_list.py:test_insertion_order, tests/test_list.py:test_mutating_returned_list_does_not_affect_store, todo/__init__.py:TodoError, todo/__init__.py:ItemNotFoundError, todo/__init__.py:ValidationError, todo/__init__.py:TodoItem, todo/__init__.py:TodoList",
+            "distance": 0.13474029302597046
+          },
+          {
+            "id": "ed3f36c01dc844f09638f84b67105c97",
+            "text": "Task: Project: todo-lib\nA tiny in-memory to-do library in Python (package `todo`, class `TodoList` in todo/__init__.py or todo.py) with custom exceptions `TodoError` (base, subclass of Exception), `ItemNotFoundError` (subclass of TodoError and KeyError-free; message includes the unknown id) and `ValidationError` (subclass of TodoError and ValueError). Items are represented by a dataclass `TodoItem` with fields: id (int, auto-incremented from 1, never reused), text (str), complete (bool, default False), due_date (datetime.date or None), priority ('high'|'medium'|'low', default 'medium'). All features are methods on `TodoList`, each covered by pytest tests in tests/.\n\nTask M1 (1 of 6, high priority): Scaffold, models and add()\nPackage, errors, TodoItem, TodoList, add() and id-validation helper.\n\n[T1] Create package `todo` with TodoItem dataclass, TodoError/ItemNotFoundError/ValidationError, TodoList with internal store and id counter, add(), and an internal _get(item_id) helper that validates id type (non-int/bool -> ValidationError) and raises ItemNotFoundError with the id in the message. Add tests/test_add.py and tests for _get behaviour via public API where possible.\n\nAcceptance criteria:\n- [ ] add returns TodoItem with defaults and stripped text\n- [ ] ids start at 1, increment, and are not reused after deletion (tested once delete exists, or via counter)\n- [ ] add with '', '   ', or non-str raises ValidationError and creates nothing\n- [ ] ItemNotFoundError and ValidationError importable from todo; hierarchy as described\n- [ ] pytest passes\n\nFiles from earlier tasks:\nnone yet\n\nBuild on the files from earlier tasks rather than replacing them, keep their tests passing, and run all tests before finishing: run each test file by its path with exec_python, one call per file. Tests run any other way (for example through subprocess) are not verified, so the task fails.\nOutcome: success\nFiles: conftest.py, tests/test_add.py, todo/__init__.py\nPlan: Create todo/__init__.py with errors, TodoItem, TodoList, add(), _get() | Add root conftest.py so todo is importable under pytest | Write tests/test_add.py covering add, ids, validation, hierarchy, _get | Run tests/test_add.py\nSummary: I created the `todo` package with the three exceptions, the `TodoItem` dataclass and `TodoList`. `TodoList` has `add()` and the `_get()` id helper. `tests/test_add.py` has 24 tests and all pass.\n\n- **Exceptions:** `ItemNotFoundError` subclasses `TodoError` and not `KeyError`, and its message includes the unknown id. `ValidationError` subclasses both `TodoError` and `ValueError`.\n- **`add()`:** it strips the text and returns a `TodoItem` with the defaults (`complete=False`, `due_date=None`, `prio\nDefines: tests/test_add.py:test_add_defaults_and_strip, tests/test_add.py:test_add_with_options, tests/test_add.py:test_ids_increment, tests/test_add.py:test_ids_not_reused_after_removal, tests/test_add.py:test_add_invalid_text, tests/test_add.py:test_add_invalid_options_creates_nothing, tests/test_add.py:test_hierarchy, tests/test_add.py:test_get_found, tests/test_add.py:test_get_unknown_message_contains_id, tests/test_add.py:test_get_bad_type, todo/__init__.py:TodoError, todo/__init__.py:ItemNotFoundError, todo/__init__.py:ValidationError, todo/__init__.py:TodoItem, todo/__init__.py:TodoList",
+            "distance": 0.14425063133239746
+          }
+        ],
+        "run_id": "1521e12336ea",
+        "verified": true,
+        "verification_notes": [],
+        "error": null
+      }
+    },
+    {
+      "task_id": "M4",
+      "result": {
+        "code": "# ===== tests/test_filter.py =====\nimport pytest\nfrom todo import TodoList, ValidationError\n\n\ndef make():\n    tl = TodoList()\n    for t in \"abc\":\n        tl.add(t)\n    tl.complete(2)\n    return tl\n\n\ndef test_open():\n    assert [i.id for i in make().filter_by_status(\"open\")] == [1, 3]\n\n\ndef test_complete():\n    assert [i.id for i in make().filter_by_status(\"complete\")] == [2]\n\n\ndef test_empty_results():\n    tl = TodoList()\n    assert tl.filter_by_status(\"open\") == []\n    assert tl.filter_by_status(\"complete\") == []\n    tl.add(\"x\")\n    assert tl.filter_by_status(\"complete\") == []\n\n\ndef test_returns_new_list():\n    tl = make()\n    tl.filter_by_status(\"open\").clear()\n    assert len(tl.filter_by_status(\"open\")) == 2\n\n\n@pytest.mark.parametrize(\"bad\", [\"done\", None, \"\", \"OPEN\", 1, True])\ndef test_invalid(bad):\n    with pytest.raises(ValidationError):\n        make().filter_by_status(bad)\n\n\n# ===== tests/test_search.py =====\nimport pytest\nfrom todo import TodoList, ValidationError\n\n\ndef make():\n    tl = TodoList()\n    tl.add(\"Buy Milk\")\n    tl.add(\"walk dog\")\n    tl.add(\"buy bread\")\n    return tl\n\n\ndef test_case_insensitive_id_order():\n    assert [i.id for i in make().search(\"BUY\")] == [1, 3]\n\n\ndef test_substring():\n    assert [i.id for i in make().search(\"al\")] == [2]\n\n\ndef test_no_match():\n    assert make().search(\"zzz\") == []\n\n\ndef test_empty_store():\n    assert TodoList().search(\"a\") == []\n\n\ndef test_includes_completed():\n    tl = make()\n    tl.complete(1)\n    assert [i.id for i in tl.search(\"buy\")] == [1, 3]\n\n\n@pytest.mark.parametrize(\"bad\", [\"\", \"   \", None, 5, b\"a\", [\"a\"]])\ndef test_invalid(bad):\n    with pytest.raises(ValidationError):\n        make().search(bad)\n\n\n# ===== todo/__init__.py =====\n\"\"\"todo: a tiny in-memory to-do library.\"\"\"\nfrom __future__ import annotations\n\nimport datetime\nfrom dataclasses import dataclass\nfrom typing import Dict, Optional\n\n__all__ = [\"TodoItem\", \"TodoList\", \"TodoError\", \"ItemNotFoundError\", \"ValidationError\"]\n\nPRIORITIES = (\"high\", \"medium\", \"low\")\n\n\nclass TodoError(Exception):\n    \"\"\"Base class for all todo errors.\"\"\"\n\n\nclass ItemNotFoundError(TodoError):\n    \"\"\"Raised when an item id is unknown.\"\"\"\n\n    def __init__(self, item_id):\n        self.item_id = item_id\n        super().__init__(f\"Item not found: {item_id!r}\")\n\n\nclass ValidationError(TodoError, ValueError):\n    \"\"\"Raised on invalid input.\"\"\"\n\n\n@dataclass\nclass TodoItem:\n    id: int\n    text: str\n    complete: bool = False\n    due_date: Optional[datetime.date] = None\n    priority: str = \"medium\"\n\n\nclass TodoList:\n    def __init__(self) -> None:\n        self._items: Dict[int, TodoItem] = {}\n        self._next_id: int = 1\n\n    def _get(self, item_id) -> TodoItem:\n        if not isinstance(item_id, int) or isinstance(item_id, bool):\n            raise ValidationError(f\"item id must be an int, got {type(item_id).__name__}\")\n        try:\n            return self._items[item_id]\n        except KeyError:\n            raise ItemNotFoundError(item_id) from None\n\n    def add(self, text, due_date=None, priority: str = \"medium\") -> TodoItem:\n        if not isinstance(text, str):\n            raise ValidationError(\"text must be a string\")\n        text = text.strip()\n        if not text:\n            raise ValidationError(\"text must not be empty\")\n        if due_date is not None and (\n            not isinstance(due_date, datetime.date) or isinstance(due_date, datetime.datetime)\n        ):\n            raise ValidationError(\"due_date must be a datetime.date or None\")\n        if priority not in PRIORITIES:\n            raise ValidationError(f\"priority must be one of {PRIORITIES}\")\n        item = TodoItem(id=self._next_id, text=text, due_date=due_date, priority=priority)\n        self._items[item.id] = item\n        self._next_id += 1\n        return item\n\n    def list_items(self) -> list:\n        \"\"\"Return a new list of items in insertion order.\"\"\"\n        return list(self._items.values())\n\n    def complete(self, item_id) -> TodoItem:\n        item = self._get(item_id)\n        item.complete = True\n        return item\n\n    def delete(self, item_id) -> TodoItem:\n        item = self._get(item_id)\n        del self._items[item.id]\n        return item\n\n    def rename(self, item_id, new_text) -> TodoItem:\n        item = self._get(item_id)\n        if not isinstance(new_text, str):\n            raise ValidationError(\"text must be a string\")\n        new_text = new_text.strip()\n        if not new_text:\n            raise ValidationError(\"text must not be empty\")\n        item.text = new_text\n        return item\n\n    def set_due_date(self, item_id, due) -> TodoItem:\n        item = self._get(item_id)\n        if due is None:\n            value = None\n        elif isinstance(due, datetime.datetime):\n            raise ValidationError(\"due must be a date, ISO date string or None\")\n        elif isinstance(due, datetime.date):\n            value = due\n        elif isinstance(due, str):\n            try:\n                value = datetime.date.fromisoformat(due.strip())\n            except ValueError:\n                raise ValidationError(f\"invalid ISO date string: {due!r}\") from None\n        else:\n            raise ValidationError(\"due must be a date, ISO date string or None\")\n        item.due_date = value\n        return item\n\n    def set_priority(self, item_id, priority) -> TodoItem:\n        item = self._get(item_id)\n        if not isinstance(priority, str) or priority not in PRIORITIES:\n            raise ValidationError(f\"priority must be one of {PRIORITIES}\")\n        item.priority = priority\n        return item\n\n    def filter_by_status(self, status) -> list:\n        \"\"\"Return items by status: 'open' (incomplete) or 'complete', in id order.\"\"\"\n        if not isinstance(status, str) or status not in (\"open\", \"complete\"):\n            raise ValidationError(\"status must be 'open' or 'complete'\")\n        want = status == \"complete\"\n        return [i for i in sorted(self._items.values(), key=lambda i: i.id) if i.complete == want]\n\n    def search(self, query) -> list:\n        \"\"\"Case-insensitive substring search on item text, in id order.\"\"\"\n        if not isinstance(query, str):\n            raise ValidationError(\"query must be a string\")\n        q = query.strip().casefold()\n        if not q:\n            raise ValidationError(\"query must not be empty\")\n        return [i for i in sorted(self._items.values(), key=lambda i: i.id) if q in i.text.casefold()]\n",
+        "explanation": "I added `filter_by_status()` and `search()` to `TodoList` in `todo/__init__.py`. I added `tests/test_filter.py` (10 tests) and `tests/test_search.py` (11 tests). I ran every test file by path with exec_python and all pass. My first run of `tests/test_filter.py` failed because a decorator name was mangled in the test file. I fixed it and reran, and it passes.\n\n- **`filter_by_status()`:** it accepts only 'open' and 'complete'. It returns a new list in id order, or an empty list if nothing matches. Anything else raises `ValidationError`, including 'done', `None`, '', 'OPEN', ints and bools.\n- **`search()`:** it does a case-insensitive substring match on the item text and returns matches in id order. No match returns `[]`. An empty, whitespace-only or non-string query raises `ValidationError`. The query is stripped before matching, so a query with leading or trailing spaces matches as if they weren't there.",
+        "plan": [
+          "Read todo/__init__.py",
+          "Add filter_by_status and search",
+          "Write tests/test_filter.py and tests/test_search.py",
+          "Run every test file by path, fixing failures"
+        ],
+        "result": {
+          "executed": true,
+          "target": "tests/test_filter.py",
+          "exit_code": 0,
+          "stdout": "..........                                                               [100%]\n10 passed in 0.01s\n",
+          "stderr": "",
+          "timed_out": false,
+          "duration_s": 0.556
+        },
+        "status": "success",
+        "iterations": 4,
+        "files": {
+          "tests/test_filter.py": "import pytest\nfrom todo import TodoList, ValidationError\n\n\ndef make():\n    tl = TodoList()\n    for t in \"abc\":\n        tl.add(t)\n    tl.complete(2)\n    return tl\n\n\ndef test_open():\n    assert [i.id for i in make().filter_by_status(\"open\")] == [1, 3]\n\n\ndef test_complete():\n    assert [i.id for i in make().filter_by_status(\"complete\")] == [2]\n\n\ndef test_empty_results():\n    tl = TodoList()\n    assert tl.filter_by_status(\"open\") == []\n    assert tl.filter_by_status(\"complete\") == []\n    tl.add(\"x\")\n    assert tl.filter_by_status(\"complete\") == []\n\n\ndef test_returns_new_list():\n    tl = make()\n    tl.filter_by_status(\"open\").clear()\n    assert len(tl.filter_by_status(\"open\")) == 2\n\n\n@pytest.mark.parametrize(\"bad\", [\"done\", None, \"\", \"OPEN\", 1, True])\ndef test_invalid(bad):\n    with pytest.raises(ValidationError):\n        make().filter_by_status(bad)\n",
+          "tests/test_search.py": "import pytest\nfrom todo import TodoList, ValidationError\n\n\ndef make():\n    tl = TodoList()\n    tl.add(\"Buy Milk\")\n    tl.add(\"walk dog\")\n    tl.add(\"buy bread\")\n    return tl\n\n\ndef test_case_insensitive_id_order():\n    assert [i.id for i in make().search(\"BUY\")] == [1, 3]\n\n\ndef test_substring():\n    assert [i.id for i in make().search(\"al\")] == [2]\n\n\ndef test_no_match():\n    assert make().search(\"zzz\") == []\n\n\ndef test_empty_store():\n    assert TodoList().search(\"a\") == []\n\n\ndef test_includes_completed():\n    tl = make()\n    tl.complete(1)\n    assert [i.id for i in tl.search(\"buy\")] == [1, 3]\n\n\n@pytest.mark.parametrize(\"bad\", [\"\", \"   \", None, 5, b\"a\", [\"a\"]])\ndef test_invalid(bad):\n    with pytest.raises(ValidationError):\n        make().search(bad)\n",
+          "todo/__init__.py": "\"\"\"todo: a tiny in-memory to-do library.\"\"\"\nfrom __future__ import annotations\n\nimport datetime\nfrom dataclasses import dataclass\nfrom typing import Dict, Optional\n\n__all__ = [\"TodoItem\", \"TodoList\", \"TodoError\", \"ItemNotFoundError\", \"ValidationError\"]\n\nPRIORITIES = (\"high\", \"medium\", \"low\")\n\n\nclass TodoError(Exception):\n    \"\"\"Base class for all todo errors.\"\"\"\n\n\nclass ItemNotFoundError(TodoError):\n    \"\"\"Raised when an item id is unknown.\"\"\"\n\n    def __init__(self, item_id):\n        self.item_id = item_id\n        super().__init__(f\"Item not found: {item_id!r}\")\n\n\nclass ValidationError(TodoError, ValueError):\n    \"\"\"Raised on invalid input.\"\"\"\n\n\n@dataclass\nclass TodoItem:\n    id: int\n    text: str\n    complete: bool = False\n    due_date: Optional[datetime.date] = None\n    priority: str = \"medium\"\n\n\nclass TodoList:\n    def __init__(self) -> None:\n        self._items: Dict[int, TodoItem] = {}\n        self._next_id: int = 1\n\n    def _get(self, item_id) -> TodoItem:\n        if not isinstance(item_id, int) or isinstance(item_id, bool):\n            raise ValidationError(f\"item id must be an int, got {type(item_id).__name__}\")\n        try:\n            return self._items[item_id]\n        except KeyError:\n            raise ItemNotFoundError(item_id) from None\n\n    def add(self, text, due_date=None, priority: str = \"medium\") -> TodoItem:\n        if not isinstance(text, str):\n            raise ValidationError(\"text must be a string\")\n        text = text.strip()\n        if not text:\n            raise ValidationError(\"text must not be empty\")\n        if due_date is not None and (\n            not isinstance(due_date, datetime.date) or isinstance(due_date, datetime.datetime)\n        ):\n            raise ValidationError(\"due_date must be a datetime.date or None\")\n        if priority not in PRIORITIES:\n            raise ValidationError(f\"priority must be one of {PRIORITIES}\")\n        item = TodoItem(id=self._next_id, text=text, due_date=due_date, priority=priority)\n        self._items[item.id] = item\n        self._next_id += 1\n        return item\n\n    def list_items(self) -> list:\n        \"\"\"Return a new list of items in insertion order.\"\"\"\n        return list(self._items.values())\n\n    def complete(self, item_id) -> TodoItem:\n        item = self._get(item_id)\n        item.complete = True\n        return item\n\n    def delete(self, item_id) -> TodoItem:\n        item = self._get(item_id)\n        del self._items[item.id]\n        return item\n\n    def rename(self, item_id, new_text) -> TodoItem:\n        item = self._get(item_id)\n        if not isinstance(new_text, str):\n            raise ValidationError(\"text must be a string\")\n        new_text = new_text.strip()\n        if not new_text:\n            raise ValidationError(\"text must not be empty\")\n        item.text = new_text\n        return item\n\n    def set_due_date(self, item_id, due) -> TodoItem:\n        item = self._get(item_id)\n        if due is None:\n            value = None\n        elif isinstance(due, datetime.datetime):\n            raise ValidationError(\"due must be a date, ISO date string or None\")\n        elif isinstance(due, datetime.date):\n            value = due\n        elif isinstance(due, str):\n            try:\n                value = datetime.date.fromisoformat(due.strip())\n            except ValueError:\n                raise ValidationError(f\"invalid ISO date string: {due!r}\") from None\n        else:\n            raise ValidationError(\"due must be a date, ISO date string or None\")\n        item.due_date = value\n        return item\n\n    def set_priority(self, item_id, priority) -> TodoItem:\n        item = self._get(item_id)\n        if not isinstance(priority, str) or priority not in PRIORITIES:\n            raise ValidationError(f\"priority must be one of {PRIORITIES}\")\n        item.priority = priority\n        return item\n\n    def filter_by_status(self, status) -> list:\n        \"\"\"Return items by status: 'open' (incomplete) or 'complete', in id order.\"\"\"\n        if not isinstance(status, str) or status not in (\"open\", \"complete\"):\n            raise ValidationError(\"status must be 'open' or 'complete'\")\n        want = status == \"complete\"\n        return [i for i in sorted(self._items.values(), key=lambda i: i.id) if i.complete == want]\n\n    def search(self, query) -> list:\n        \"\"\"Case-insensitive substring search on item text, in id order.\"\"\"\n        if not isinstance(query, str):\n            raise ValidationError(\"query must be a string\")\n        q = query.strip().casefold()\n        if not q:\n            raise ValidationError(\"query must not be empty\")\n        return [i for i in sorted(self._items.values(), key=lambda i: i.id) if q in i.text.casefold()]\n"
+        },
+        "memories_used": [
+          {
+            "id": "0c9c4ef2b60d417f865246924a472d9d",
+            "text": "Task: Project: todo-lib\nA tiny in-memory to-do library in Python (package `todo`, class `TodoList` in todo/__init__.py or todo.py) with custom exceptions `TodoError` (base, subclass of Exception), `ItemNotFoundError` (subclass of TodoError and KeyError-free; message includes the unknown id) and `ValidationError` (subclass of TodoError and ValueError). Items are represented by a dataclass `TodoItem` with fields: id (int, auto-incremented from 1, never reused), text (str), complete (bool, default False), due_date (datetime.date or None), priority ('high'|'medium'|'low', default 'medium'). All features are methods on `TodoList`, each covered by pytest tests in tests/.\n\nTask M2 (2 of 6, high priority): Read and lifecycle operations\nlist_items(), complete() and delete().\n\n[T2] Implement list_items() returning a copy list of items in insertion order. Tests in tests/test_list.py.\n[T3] Implement complete(item_id). Tests in tests/test_complete.py.\n[T4] Implement delete(item_id). Tests in tests/test_delete.py.\n\nAcceptance criteria:\n- [ ] empty list for new TodoList\n- [ ] items returned in insertion order\n- [ ] mutating returned list does not affect the store\n- [ ] pytest passes\n- [ ] marks item complete and returns it\n- [ ] idempotent when called twice\n- [ ] unknown id raises ItemNotFoundError mentioning the id\n- [ ] non-int/bool id raises ValidationError\n- [ ] pytest passes\n- [ ] deleted item absent from list_items\n- [ ] second delete raises ItemNotFoundError\n- [ ] unknown id raises ItemNotFoundError\n- [ ] new add after delete gets a fresh, never-reused id\n- [ ] pytest passes\n\nFiles from earlier tasks:\n- conftest.py\n- tests/test_add.py\n- todo/__init__.py\n\nBuild on the files from earlier tasks rather than replacing them, keep their tests passing, and run all tests before finishing: run each test file by its path with exec_python, one call per file. Tests run any other way (for example through subprocess) are not verified, so the task fails.\nOutcome: success\nFiles: tests/test_complete.py, tests/test_delete.py, tests/test_list.py, todo/__init__.py\nPlan: Add list_items, complete, delete to TodoList | Write tests/test_list.py, test_complete.py, test_delete.py | Run every test file by path\nSummary: I added `list_items()`, `complete()` and `delete()` to `TodoList` in `todo/__init__.py`. I added one test file for each: `tests/test_list.py`, `tests/test_complete.py` and `tests/test_delete.py`. I ran all four test files, including the earlier `tests/test_add.py`, by path with exec_python. All pass (24, 3, 9 and 7 tests).\n\n- **`list_items()`:** it returns a new list each call, in insertion order. Clearing the returned list doesn't change the store. The `TodoItem` objects inside it are the store\nDefines: tests/test_complete.py:test_complete_marks_and_returns, tests/test_complete.py:test_idempotent, tests/test_complete.py:test_unknown_id, tests/test_complete.py:test_bad_id_type, tests/test_delete.py:test_deleted_absent, tests/test_delete.py:test_second_delete_raises, tests/test_delete.py:test_unknown_id, tests/test_delete.py:test_bad_id_type, tests/test_delete.py:test_ids_never_reused, tests/test_list.py:test_empty, tests/test_list.py:test_insertion_order, tests/test_list.py:test_mutating_returned_list_does_not_affect_store, todo/__init__.py:TodoError, todo/__init__.py:ItemNotFoundError, todo/__init__.py:ValidationError, todo/__init__.py:TodoItem, todo/__init__.py:TodoList",
+            "distance": 0.13474029302597046
+          },
+          {
+            "id": "ed3f36c01dc844f09638f84b67105c97",
+            "text": "Task: Project: todo-lib\nA tiny in-memory to-do library in Python (package `todo`, class `TodoList` in todo/__init__.py or todo.py) with custom exceptions `TodoError` (base, subclass of Exception), `ItemNotFoundError` (subclass of TodoError and KeyError-free; message includes the unknown id) and `ValidationError` (subclass of TodoError and ValueError). Items are represented by a dataclass `TodoItem` with fields: id (int, auto-incremented from 1, never reused), text (str), complete (bool, default False), due_date (datetime.date or None), priority ('high'|'medium'|'low', default 'medium'). All features are methods on `TodoList`, each covered by pytest tests in tests/.\n\nTask M1 (1 of 6, high priority): Scaffold, models and add()\nPackage, errors, TodoItem, TodoList, add() and id-validation helper.\n\n[T1] Create package `todo` with TodoItem dataclass, TodoError/ItemNotFoundError/ValidationError, TodoList with internal store and id counter, add(), and an internal _get(item_id) helper that validates id type (non-int/bool -> ValidationError) and raises ItemNotFoundError with the id in the message. Add tests/test_add.py and tests for _get behaviour via public API where possible.\n\nAcceptance criteria:\n- [ ] add returns TodoItem with defaults and stripped text\n- [ ] ids start at 1, increment, and are not reused after deletion (tested once delete exists, or via counter)\n- [ ] add with '', '   ', or non-str raises ValidationError and creates nothing\n- [ ] ItemNotFoundError and ValidationError importable from todo; hierarchy as described\n- [ ] pytest passes\n\nFiles from earlier tasks:\nnone yet\n\nBuild on the files from earlier tasks rather than replacing them, keep their tests passing, and run all tests before finishing: run each test file by its path with exec_python, one call per file. Tests run any other way (for example through subprocess) are not verified, so the task fails.\nOutcome: success\nFiles: conftest.py, tests/test_add.py, todo/__init__.py\nPlan: Create todo/__init__.py with errors, TodoItem, TodoList, add(), _get() | Add root conftest.py so todo is importable under pytest | Write tests/test_add.py covering add, ids, validation, hierarchy, _get | Run tests/test_add.py\nSummary: I created the `todo` package with the three exceptions, the `TodoItem` dataclass and `TodoList`. `TodoList` has `add()` and the `_get()` id helper. `tests/test_add.py` has 24 tests and all pass.\n\n- **Exceptions:** `ItemNotFoundError` subclasses `TodoError` and not `KeyError`, and its message includes the unknown id. `ValidationError` subclasses both `TodoError` and `ValueError`.\n- **`add()`:** it strips the text and returns a `TodoItem` with the defaults (`complete=False`, `due_date=None`, `prio\nDefines: tests/test_add.py:test_add_defaults_and_strip, tests/test_add.py:test_add_with_options, tests/test_add.py:test_ids_increment, tests/test_add.py:test_ids_not_reused_after_removal, tests/test_add.py:test_add_invalid_text, tests/test_add.py:test_add_invalid_options_creates_nothing, tests/test_add.py:test_hierarchy, tests/test_add.py:test_get_found, tests/test_add.py:test_get_unknown_message_contains_id, tests/test_add.py:test_get_bad_type, todo/__init__.py:TodoError, todo/__init__.py:ItemNotFoundError, todo/__init__.py:ValidationError, todo/__init__.py:TodoItem, todo/__init__.py:TodoList",
+            "distance": 0.14425063133239746
+          },
+          {
+            "id": "7371dae5026a4cfd9917521900822e8b",
+            "text": "Task: Project: todo-lib\nA tiny in-memory to-do library in Python (package `todo`, class `TodoList` in todo/__init__.py or todo.py) with custom exceptions `TodoError` (base, subclass of Exception), `ItemNotFoundError` (subclass of TodoError and KeyError-free; message includes the unknown id) and `ValidationError` (subclass of TodoError and ValueError). Items are represented by a dataclass `TodoItem` with fields: id (int, auto-incremented from 1, never reused), text (str), complete (bool, default False), due_date (datetime.date or None), priority ('high'|'medium'|'low', default 'medium'). All features are methods on `TodoList`, each covered by pytest tests in tests/.\n\nTask M3 (3 of 6, medium priority): Item attribute updates\nrename(), set_due_date() and set_priority().\n\n[T5] Implement rename(item_id, new_text). Tests in tests/test_rename.py.\n[T6] Implement set_due_date(item_id, due) accepting date, ISO string, or None. Tests in tests/test_due_date.py.\n[T7] Implement set_priority(item_id, priority). Tests in tests/test_priority.py.\n\nAcceptance criteria:\n- [ ] text updated and stripped, item returned\n- [ ] empty/whitespace/non-str raises ValidationError and text unchanged\n- [ ] unknown id raises ItemNotFoundError\n- [ ] pytest passes\n- [ ] date object stored\n- [ ] '2024-05-01' string stored as date(2024,5,1)\n- [ ] None clears the due date\n- [ ] '2024-13-01', 'tomorrow', 123 raise ValidationError\n- [ ] unknown id raises ItemNotFoundError\n- [ ] pytest passes\n- [ ] 'high','medium','low' accepted and item returned\n- [ ] 'urgent', '', None, 'HIGH' raise ValidationError and priority unchanged\n- [ ] unknown id raises ItemNotFoundError\n- [ ] pytest passes\n\nFiles from earlier tasks:\n- conftest.py\n- tests/test_add.py\n- tests/test_complete.py\n- tests/test_delete.py\n- tests/test_list.py\n- todo/__init__.py\n\nBuild on the files from earlier tasks rather than replacing them, keep their tests passing, and run all tests before finishing: run each test file by its path with exec_python, one call per file. Tests run any other way (for example through subprocess) are not verified, so the task fails.\nOutcome: success\nFiles: tests/test_due_date.py, tests/test_priority.py, tests/test_rename.py, todo/__init__.py\nPlan: Read existing todo/__init__.py | Add rename, set_due_date, set_priority | Write three test files | Run every test file by path\nSummary: I added `rename()`, `set_due_date()` and `set_priority()` to `TodoList` in `todo/__init__.py`. Each has its own test file: `tests/test_rename.py`, `tests/test_due_date.py` and `tests/test_priority.py`. I ran all seven test files by path with exec_python and every one passes.\n\n- **Id check first:** each method looks up the item with `_get()` before validating the new value. A bad id type raises `ValidationError` and an unknown id raises `ItemNotFoundError`, whatever the value passed. If the value\nDefines: tests/test_due_date.py:test_date_object, tests/test_due_date.py:test_iso_string, tests/test_due_date.py:test_none_clears, tests/test_due_date.py:test_invalid, tests/test_due_date.py:test_unknown_id, tests/test_due_date.py:test_bad_id_type, tests/test_priority.py:test_valid, tests/test_priority.py:test_invalid, tests/test_priority.py:test_unknown_id, tests/test_priority.py:test_bad_id_type, tests/test_rename.py:test_rename_strips_and_returns, tests/test_rename.py:test_rename_invalid, tests/test_rename.py:test_rename_unknown, tests/test_rename.py:test_rename_bad_id, todo/__init__.py:TodoError, todo/__init__.py:ItemNotFoundError, todo/__init__.py:ValidationError, todo/__init__.py:TodoItem, todo/__init__.py:TodoList",
+            "distance": 0.16074800491333008
+          }
+        ],
+        "run_id": "90cd5f1f1cf5",
+        "verified": true,
+        "verification_notes": [],
+        "error": null
+      }
+    }
+  ],
+  "code_output": {
+    "conftest.py": "# Presence of this file puts the project root on sys.path for pytest.\n",
+    "tests/test_add.py": "import datetime\n\nimport pytest\n\nfrom todo import (ItemNotFoundError, TodoError, TodoItem, TodoList,\n                  ValidationError)\n\n\ndef test_add_defaults_and_strip():\n    t = TodoList()\n    item = t.add(\"  buy milk  \")\n    assert isinstance(item, TodoItem)\n    assert item == TodoItem(id=1, text=\"buy milk\", complete=False, due_date=None, priority=\"medium\")\n\n\ndef test_add_with_options():\n    d = datetime.date(2030, 1, 2)\n    item = TodoList().add(\"x\", due_date=d, priority=\"high\")\n    assert item.due_date == d and item.priority == \"high\"\n\n\ndef test_ids_increment():\n    t = TodoList()\n    assert [t.add(\"a\").id, t.add(\"b\").id, t.add(\"c\").id] == [1, 2, 3]\n\n\ndef test_ids_not_reused_after_removal():\n    t = TodoList()\n    t.add(\"a\")\n    t.add(\"b\")\n    del t._items[2]  # simulate deletion\n    assert t.add(\"c\").id == 3\n\n\n@pytest.mark.parametrize(\"bad\", [\"\", \"   \", \"\\t\\n\", None, 5, b\"x\", [\"a\"]])\ndef test_add_invalid_text(bad):\n    t = TodoList()\n    with pytest.raises(ValidationError):\n        t.add(bad)\n    assert t._items == {}\n    assert t.add(\"ok\").id == 1  # counter not consumed\n\n\n@pytest.mark.parametrize(\"kwargs\", [\n    {\"priority\": \"urgent\"}, {\"priority\": None},\n    {\"due_date\": \"2030-01-01\"}, {\"due_date\": datetime.datetime(2030, 1, 1)},\n])\ndef test_add_invalid_options_creates_nothing(kwargs):\n    t = TodoList()\n    with pytest.raises(ValidationError):\n        t.add(\"x\", **kwargs)\n    assert t._items == {}\n\n\ndef test_hierarchy():\n    assert issubclass(TodoError, Exception)\n    assert issubclass(ItemNotFoundError, TodoError)\n    assert not issubclass(ItemNotFoundError, KeyError)\n    assert issubclass(ValidationError, TodoError)\n    assert issubclass(ValidationError, ValueError)\n\n\ndef test_get_found():\n    t = TodoList()\n    item = t.add(\"a\")\n    assert t._get(1) is item\n\n\ndef test_get_unknown_message_contains_id():\n    t = TodoList()\n    with pytest.raises(ItemNotFoundError, match=\"42\"):\n        t._get(42)\n\n\n@pytest.mark.parametrize(\"bad\", [\"1\", 1.0, None, True, False, [1]])\ndef test_get_bad_type(bad):\n    t = TodoList()\n    t.add(\"a\")\n    with pytest.raises(ValidationError):\n        t._get(bad)\n",
+    "todo/__init__.py": "\"\"\"todo: a tiny in-memory to-do library.\"\"\"\nfrom __future__ import annotations\n\nimport datetime\nfrom dataclasses import dataclass\nfrom typing import Dict, Optional\n\n__all__ = [\"TodoItem\", \"TodoList\", \"TodoError\", \"ItemNotFoundError\", \"ValidationError\"]\n\nPRIORITIES = (\"high\", \"medium\", \"low\")\n\n\nclass TodoError(Exception):\n    \"\"\"Base class for all todo errors.\"\"\"\n\n\nclass ItemNotFoundError(TodoError):\n    \"\"\"Raised when an item id is unknown.\"\"\"\n\n    def __init__(self, item_id):\n        self.item_id = item_id\n        super().__init__(f\"Item not found: {item_id!r}\")\n\n\nclass ValidationError(TodoError, ValueError):\n    \"\"\"Raised on invalid input.\"\"\"\n\n\n@dataclass\nclass TodoItem:\n    id: int\n    text: str\n    complete: bool = False\n    due_date: Optional[datetime.date] = None\n    priority: str = \"medium\"\n\n\nclass TodoList:\n    def __init__(self) -> None:\n        self._items: Dict[int, TodoItem] = {}\n        self._next_id: int = 1\n\n    def _get(self, item_id) -> TodoItem:\n        if not isinstance(item_id, int) or isinstance(item_id, bool):\n            raise ValidationError(f\"item id must be an int, got {type(item_id).__name__}\")\n        try:\n            return self._items[item_id]\n        except KeyError:\n            raise ItemNotFoundError(item_id) from None\n\n    def add(self, text, due_date=None, priority: str = \"medium\") -> TodoItem:\n        if not isinstance(text, str):\n            raise ValidationError(\"text must be a string\")\n        text = text.strip()\n        if not text:\n            raise ValidationError(\"text must not be empty\")\n        if due_date is not None and (\n            not isinstance(due_date, datetime.date) or isinstance(due_date, datetime.datetime)\n        ):\n            raise ValidationError(\"due_date must be a datetime.date or None\")\n        if priority not in PRIORITIES:\n            raise ValidationError(f\"priority must be one of {PRIORITIES}\")\n        item = TodoItem(id=self._next_id, text=text, due_date=due_date, priority=priority)\n        self._items[item.id] = item\n        self._next_id += 1\n        return item\n\n    def list_items(self) -> list:\n        \"\"\"Return a new list of items in insertion order.\"\"\"\n        return list(self._items.values())\n\n    def complete(self, item_id) -> TodoItem:\n        item = self._get(item_id)\n        item.complete = True\n        return item\n\n    def delete(self, item_id) -> TodoItem:\n        item = self._get(item_id)\n        del self._items[item.id]\n        return item\n\n    def rename(self, item_id, new_text) -> TodoItem:\n        item = self._get(item_id)\n        if not isinstance(new_text, str):\n            raise ValidationError(\"text must be a string\")\n        new_text = new_text.strip()\n        if not new_text:\n            raise ValidationError(\"text must not be empty\")\n        item.text = new_text\n        return item\n\n    def set_due_date(self, item_id, due) -> TodoItem:\n        item = self._get(item_id)\n        if due is None:\n            value = None\n        elif isinstance(due, datetime.datetime):\n            raise ValidationError(\"due must be a date, ISO date string or None\")\n        elif isinstance(due, datetime.date):\n            value = due\n        elif isinstance(due, str):\n            try:\n                value = datetime.date.fromisoformat(due.strip())\n            except ValueError:\n                raise ValidationError(f\"invalid ISO date string: {due!r}\") from None\n        else:\n            raise ValidationError(\"due must be a date, ISO date string or None\")\n        item.due_date = value\n        return item\n\n    def set_priority(self, item_id, priority) -> TodoItem:\n        item = self._get(item_id)\n        if not isinstance(priority, str) or priority not in PRIORITIES:\n            raise ValidationError(f\"priority must be one of {PRIORITIES}\")\n        item.priority = priority\n        return item\n\n    def filter_by_status(self, status) -> list:\n        \"\"\"Return items by status: 'open' (incomplete) or 'complete', in id order.\"\"\"\n        if not isinstance(status, str) or status not in (\"open\", \"complete\"):\n            raise ValidationError(\"status must be 'open' or 'complete'\")\n        want = status == \"complete\"\n        return [i for i in sorted(self._items.values(), key=lambda i: i.id) if i.complete == want]\n\n    def search(self, query) -> list:\n        \"\"\"Case-insensitive substring search on item text, in id order.\"\"\"\n        if not isinstance(query, str):\n            raise ValidationError(\"query must be a string\")\n        q = query.strip().casefold()\n        if not q:\n            raise ValidationError(\"query must not be empty\")\n        return [i for i in sorted(self._items.values(), key=lambda i: i.id) if q in i.text.casefold()]\n",
+    "tests/test_complete.py": "import pytest\nfrom todo import TodoList, ItemNotFoundError, ValidationError\n\n\ndef test_complete_marks_and_returns():\n    t = TodoList()\n    i = t.add(\"a\")\n    r = t.complete(i.id)\n    assert r.complete is True and r.id == i.id\n    assert t.list_items()[0].complete is True\n\n\ndef test_idempotent():\n    t = TodoList()\n    i = t.add(\"a\")\n    t.complete(i.id)\n    assert t.complete(i.id).complete is True\n\n\ndef test_unknown_id():\n    t = TodoList()\n    with pytest.raises(ItemNotFoundError, match=\"42\"):\n        t.complete(42)\n\n\n@pytest.mark.parametrize(\"bad\", [\"1\", None, 1.0, True, False, [1]])\ndef test_bad_id_type(bad):\n    t = TodoList()\n    t.add(\"a\")\n    with pytest.raises(ValidationError):\n        t.complete(bad)\n",
+    "tests/test_delete.py": "import pytest\nfrom todo import TodoList, ItemNotFoundError, ValidationError\n\n\ndef test_deleted_absent():\n    t = TodoList()\n    a, b = t.add(\"a\"), t.add(\"b\")\n    r = t.delete(a.id)\n    assert r == a\n    assert t.list_items() == [b]\n\n\ndef test_second_delete_raises():\n    t = TodoList()\n    a = t.add(\"a\")\n    t.delete(a.id)\n    with pytest.raises(ItemNotFoundError, match=str(a.id)):\n        t.delete(a.id)\n\n\ndef test_unknown_id():\n    with pytest.raises(ItemNotFoundError, match=\"99\"):\n        TodoList().delete(99)\n\n\n@pytest.mark.parametrize(\"bad\", [\"1\", None, True])\ndef test_bad_id_type(bad):\n    with pytest.raises(ValidationError):\n        TodoList().delete(bad)\n\n\ndef test_ids_never_reused():\n    t = TodoList()\n    a, b = t.add(\"a\"), t.add(\"b\")\n    t.delete(b.id)\n    c = t.add(\"c\")\n    assert c.id == 3\n    t.delete(a.id)\n    t.delete(c.id)\n    assert t.add(\"d\").id == 4\n",
+    "tests/test_list.py": "import pytest\nfrom todo import TodoList\n\n\ndef test_empty():\n    assert TodoList().list_items() == []\n\n\ndef test_insertion_order():\n    t = TodoList()\n    a, b, c = t.add(\"a\"), t.add(\"b\"), t.add(\"c\")\n    assert t.list_items() == [a, b, c]\n\n\ndef test_mutating_returned_list_does_not_affect_store():\n    t = TodoList()\n    t.add(\"a\")\n    t.add(\"b\")\n    lst = t.list_items()\n    lst.clear()\n    assert len(t.list_items()) == 2\n    assert t.list_items() is not t.list_items()\n",
+    "tests/test_due_date.py": "import datetime\nimport pytest\nfrom todo import TodoList, ItemNotFoundError, ValidationError\n\n\ndef test_date_object():\n    t = TodoList()\n    i = t.add(\"a\")\n    d = datetime.date(2024, 5, 1)\n    assert t.set_due_date(i.id, d) is i\n    assert i.due_date == d\n\n\ndef test_iso_string():\n    t = TodoList()\n    i = t.add(\"a\")\n    t.set_due_date(i.id, \"2024-05-01\")\n    assert i.due_date == datetime.date(2024, 5, 1)\n    assert type(i.due_date) is datetime.date\n\n\ndef test_none_clears():\n    t = TodoList()\n    i = t.add(\"a\", due_date=datetime.date(2024, 1, 1))\n    t.set_due_date(i.id, None)\n    assert i.due_date is None\n\n\n@pytest.mark.parametrize(\"bad\", [\"2024-13-01\", \"tomorrow\", 123, \"\", 1.5,\n                                 datetime.datetime(2024, 1, 1)])\ndef test_invalid(bad):\n    t = TodoList()\n    d = datetime.date(2024, 1, 1)\n    i = t.add(\"a\", due_date=d)\n    with pytest.raises(ValidationError):\n        t.set_due_date(i.id, bad)\n    assert i.due_date == d\n\n\ndef test_unknown_id():\n    with pytest.raises(ItemNotFoundError, match=\"9\"):\n        TodoList().set_due_date(9, None)\n\n\ndef test_bad_id_type():\n    with pytest.raises(ValidationError):\n        TodoList().set_due_date(True, None)\n",
+    "tests/test_priority.py": "import pytest\nfrom todo import TodoList, ItemNotFoundError, ValidationError\n\n\n@pytest.mark.parametrize(\"p\", [\"high\", \"medium\", \"low\"])\ndef test_valid(p):\n    t = TodoList()\n    i = t.add(\"a\")\n    assert t.set_priority(i.id, p) is i\n    assert i.priority == p\n\n\n@pytest.mark.parametrize(\"bad\", [\"urgent\", \"\", None, \"HIGH\", 1, [\"high\"]])\ndef test_invalid(bad):\n    t = TodoList()\n    i = t.add(\"a\", priority=\"low\")\n    with pytest.raises(ValidationError):\n        t.set_priority(i.id, bad)\n    assert i.priority == \"low\"\n\n\ndef test_unknown_id():\n    with pytest.raises(ItemNotFoundError, match=\"7\"):\n        TodoList().set_priority(7, \"high\")\n\n\ndef test_bad_id_type():\n    with pytest.raises(ValidationError):\n        TodoList().set_priority(None, \"high\")\n",
+    "tests/test_rename.py": "import pytest\nfrom todo import TodoList, ItemNotFoundError, ValidationError\n\n\ndef test_rename_strips_and_returns():\n    t = TodoList()\n    i = t.add(\"a\")\n    r = t.rename(i.id, \"  new  \")\n    assert r is i and r.text == \"new\"\n    assert t.list_items()[0].text == \"new\"\n\n\n@pytest.mark.parametrize(\"bad\", [\"\", \"   \", None, 5, b\"x\"])\ndef test_rename_invalid(bad):\n    t = TodoList()\n    i = t.add(\"a\")\n    with pytest.raises(ValidationError):\n        t.rename(i.id, bad)\n    assert i.text == \"a\"\n\n\ndef test_rename_unknown():\n    with pytest.raises(ItemNotFoundError, match=\"42\"):\n        TodoList().rename(42, \"x\")\n\n\ndef test_rename_bad_id():\n    with pytest.raises(ValidationError):\n        TodoList().rename(\"1\", \"x\")\n",
+    "tests/test_filter.py": "import pytest\nfrom todo import TodoList, ValidationError\n\n\ndef make():\n    tl = TodoList()\n    for t in \"abc\":\n        tl.add(t)\n    tl.complete(2)\n    return tl\n\n\ndef test_open():\n    assert [i.id for i in make().filter_by_status(\"open\")] == [1, 3]\n\n\ndef test_complete():\n    assert [i.id for i in make().filter_by_status(\"complete\")] == [2]\n\n\ndef test_empty_results():\n    tl = TodoList()\n    assert tl.filter_by_status(\"open\") == []\n    assert tl.filter_by_status(\"complete\") == []\n    tl.add(\"x\")\n    assert tl.filter_by_status(\"complete\") == []\n\n\ndef test_returns_new_list():\n    tl = make()\n    tl.filter_by_status(\"open\").clear()\n    assert len(tl.filter_by_status(\"open\")) == 2\n\n\n@pytest.mark.parametrize(\"bad\", [\"done\", None, \"\", \"OPEN\", 1, True])\ndef test_invalid(bad):\n    with pytest.raises(ValidationError):\n        make().filter_by_status(bad)\n",
+    "tests/test_search.py": "import pytest\nfrom todo import TodoList, ValidationError\n\n\ndef make():\n    tl = TodoList()\n    tl.add(\"Buy Milk\")\n    tl.add(\"walk dog\")\n    tl.add(\"buy bread\")\n    return tl\n\n\ndef test_case_insensitive_id_order():\n    assert [i.id for i in make().search(\"BUY\")] == [1, 3]\n\n\ndef test_substring():\n    assert [i.id for i in make().search(\"al\")] == [2]\n\n\ndef test_no_match():\n    assert make().search(\"zzz\") == []\n\n\ndef test_empty_store():\n    assert TodoList().search(\"a\") == []\n\n\ndef test_includes_completed():\n    tl = make()\n    tl.complete(1)\n    assert [i.id for i in tl.search(\"buy\")] == [1, 3]\n\n\n@pytest.mark.parametrize(\"bad\", [\"\", \"   \", None, 5, b\"a\", [\"a\"]])\ndef test_invalid(bad):\n    with pytest.raises(ValidationError):\n        make().search(bad)\n"
+  },
+  "work_in_progress": [
+    "PM drafted spec 'todo-lib' with 12 task(s)",
+    "Consolidated 12 tasks into 6 (llm)",
+    "Handed M1 (1 of 6) to the Coder: Scaffold, models and add()",
+    "M1 done (Coder: success, 3 iteration(s))",
+    "Handed M2 (2 of 6) to the Coder: Read and lifecycle operations",
+    "M2 done (Coder: success, 3 iteration(s))",
+    "Handed M3 (3 of 6) to the Coder: Item attribute updates",
+    "M3 done (Coder: success, 3 iteration(s))",
+    "Handed M4 (4 of 6) to the Coder: Querying: filter and search",
+    "M4 done (Coder: success, 4 iteration(s))"
+  ],
+  "error": null,
+  "status": "running"
+}

@@ -1,0 +1,34 @@
+{
+  "task_id": "M3",
+  "title": "Item attribute updates",
+  "description": "rename(), set_due_date() and set_priority().\n\n[T5] Implement rename(item_id, new_text). Tests in tests/test_rename.py.\n[T6] Implement set_due_date(item_id, due) accepting date, ISO string, or None. Tests in tests/test_due_date.py.\n[T7] Implement set_priority(item_id, priority). Tests in tests/test_priority.py.",
+  "acceptance_criteria": [
+    "text updated and stripped, item returned",
+    "empty/whitespace/non-str raises ValidationError and text unchanged",
+    "unknown id raises ItemNotFoundError",
+    "pytest passes",
+    "date object stored",
+    "'2024-05-01' string stored as date(2024,5,1)",
+    "None clears the due date",
+    "'2024-13-01', 'tomorrow', 123 raise ValidationError",
+    "unknown id raises ItemNotFoundError",
+    "pytest passes",
+    "'high','medium','low' accepted and item returned",
+    "'urgent', '', None, 'HIGH' raise ValidationError and priority unchanged",
+    "unknown id raises ItemNotFoundError",
+    "pytest passes"
+  ],
+  "priority": "medium",
+  "position": 3,
+  "total": 6,
+  "spec_name": "todo-lib",
+  "spec_description": "A tiny in-memory to-do library in Python (package `todo`, class `TodoList` in todo/__init__.py or todo.py) with custom exceptions `TodoError` (base, subclass of Exception), `ItemNotFoundError` (subclass of TodoError and KeyError-free; message includes the unknown id) and `ValidationError` (subclass of TodoError and ValueError). Items are represented by a dataclass `TodoItem` with fields: id (int, auto-incremented from 1, never reused), text (str), complete (bool, default False), due_date (datetime.date or None), priority ('high'|'medium'|'low', default 'medium'). All features are methods on `TodoList`, each covered by pytest tests in tests/.",
+  "prior_files": [
+    "conftest.py",
+    "tests/test_add.py",
+    "tests/test_complete.py",
+    "tests/test_delete.py",
+    "tests/test_list.py",
+    "todo/__init__.py"
+  ]
+}
