@@ -1,0 +1,48 @@
+{
+  "task_id": "T1",
+  "round": 2,
+  "test_file": "test_qa_t1.py",
+  "suite_sha": "c73e03c652535600db5aec32b21927d1b4fc4047c28a97dc67fc4914e63f2aae",
+  "suites_run": {
+    "T1": "c73e03c652535600db5aec32b21927d1b4fc4047c28a97dc67fc4914e63f2aae"
+  },
+  "tested_files": {
+    "linked_list.py": "2beb2c3605b14cf7130f4e75ed9ef5ea073fd01195e0bd5702525b9056642ac1",
+    "test_linked_list.py": "6ba303d63be2d72d02d080e8c504443e0eed26e5b13fd42ed9bcb924ba20b110"
+  },
+  "tests_run": 4,
+  "passed": 4,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [],
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_s": 0.663,
+  "results": [
+    {
+      "name": "test_qa_t1::test_insert",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_delete",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_search",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_reverse",
+      "outcome": "passed",
+      "message": ""
+    }
+  ],
+  "issues": [],
+  "tampered": false,
+  "qa_error": null,
+  "approved": true
+}

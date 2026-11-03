@@ -1,0 +1,27 @@
+{
+  "task_id": "T1",
+  "critique": {
+    "items": [
+      {
+        "kind": "edge_case",
+        "location": "linked_list.py:LinkedList",
+        "concern": "the class has no documentation",
+        "change": "add a module docstring"
+      }
+    ]
+  },
+  "before": {
+    "linked_list.py": "f3b97a25b419594509b35804042202683294764dd58081561fba848e4b1d2879",
+    "test_linked_list.py": "6ba303d63be2d72d02d080e8c504443e0eed26e5b13fd42ed9bcb924ba20b110"
+  },
+  "after": {
+    "linked_list.py": "e7167beb3f57cbfd9fb681ff2f72a05f3d8a034700a0d845ab252375469c8649",
+    "test_linked_list.py": "6ba303d63be2d72d02d080e8c504443e0eed26e5b13fd42ed9bcb924ba20b110"
+  },
+  "changed": [
+    "linked_list.py"
+  ],
+  "revision_status": "success",
+  "error": null,
+  "dropped": []
+}

@@ -1,0 +1,57 @@
+{
+  "task_id": "T1",
+  "round": 1,
+  "test_file": "test_qa_t1.py",
+  "suite_sha": "c73e03c652535600db5aec32b21927d1b4fc4047c28a97dc67fc4914e63f2aae",
+  "suites_run": {
+    "T1": "c73e03c652535600db5aec32b21927d1b4fc4047c28a97dc67fc4914e63f2aae"
+  },
+  "tested_files": {
+    "linked_list.py": "e7167beb3f57cbfd9fb681ff2f72a05f3d8a034700a0d845ab252375469c8649",
+    "test_linked_list.py": "6ba303d63be2d72d02d080e8c504443e0eed26e5b13fd42ed9bcb924ba20b110"
+  },
+  "tests_run": 4,
+  "passed": 3,
+  "failed": 1,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [],
+  "exit_code": 1,
+  "timed_out": false,
+  "duration_s": 1.897,
+  "results": [
+    {
+      "name": "test_qa_t1::test_insert",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_delete",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_search",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_reverse",
+      "outcome": "failed",
+      "message": "assert [1, 2, 3] == [3, 2, 1]\n  \n  At index 0 diff: 1 != 3\n  Use -v to get more diff"
+    }
+  ],
+  "issues": [
+    {
+      "severity": "High",
+      "test": "test_reverse",
+      "criterion": "reverse() reverses the list in place",
+      "location": "test_reverse",
+      "assertion": "assert ll.to_list() == [3, 2, 1]\nassert [1, 2, 3] == [3, 2, 1]\n\nAt index 0 diff: 1 != 3\nUse -v to get more diff",
+      "fix": "relink each node to its predecessor and point head at the old tail"
+    }
+  ],
+  "tampered": false,
+  "qa_error": null,
+  "approved": false
+}
