@@ -1,9 +1,13 @@
-"""Live team demos: the real PM and Coder on the published API task and on a requirement that forces consolidation."""
+"""Live team demos: the real PM, Coder and QA on the published API task, a requirement that forces
+consolidation, and the linked-list grading task."""
+
+import json
 
 import pytest
 
 from app.api_check import check_api, find_app
-from app.team_cli import DEMO_API, DEMO_LARGE
+from app.demo_check import check_linked_list
+from app.team_cli import DEMO_API, DEMO_LARGE, DEMO_LINKED_LIST
 from orchestration.project_state import MAX_TASKS
 from orchestration.team_runner import TeamRunner
 
@@ -32,3 +36,26 @@ def test_demo_large_consolidates(live_settings):
     covered = {c for t in state["tasks"] for c in t["covers"]}
     missing = [c["id"] for c in state["spec"]["acceptance_criteria"] if c["id"] not in covered]
     assert not missing, f"criteria not covered by any executed task: {missing}"
+
+
+def test_demo_linked_list_end_to_end(live_settings):
+    runner = TeamRunner(live_settings)
+    runner.reset_memory()
+    final = None
+    for event in runner.stream(DEMO_LINKED_LIST, demo_check=check_linked_list):
+        if event.kind == "final":
+            final = event.data
+    assert final is not None, "the run never produced a final event"
+    state = final["state"]
+    assert state["status"] == "completed", state.get("error") or state["task_status"]
+    demo = final["demo_check"]
+    assert demo is not None and demo["passed"], demo and demo["report"]
+
+    log = [json.loads(line) for line in (runner.run_dir / "a2a-log.jsonl").read_text().splitlines()]
+    sent = [r["message"] for r in log if r["event"] == "sent"]
+    requests = {m["correlation_id"] for m in sent if m["intent"] == "review_request"}
+    approvals = {m["correlation_id"] for m in sent if m["intent"] == "approved"}
+    assert requests & approvals, f"no review_request/approved pair shares a correlation_id: {requests} vs {approvals}"
+
+    unreflected = [t for t, rec in state["task_status"].items() if not rec["reflected"]]
+    assert state["task_status"] and not unreflected, f"tasks without a reflection: {unreflected}"
