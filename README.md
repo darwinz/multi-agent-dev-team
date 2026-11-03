@@ -126,15 +126,13 @@ flowchart TD
     pm_node -->|"8 tasks or fewer"| dispatch_node
     consolidate_node --> dispatch_node
     dispatch_node -->|"TaskHandoff"| coder_node
-    coder_node -->|"more tasks"| dispatch_node
-    coder_node -->|"all tasks run"| finalize
+    coder_node -->|"first delivery"| reflect_node
+    reflect_node -->|"A2A review_request"| qa_node
+    coder_node -->|"revised after fix_instruction<br/>A2A review_request"| qa_node
+    qa_node -->|"A2A fix_instruction / approved / final_report"| coder_node
+    coder_node -->|"task closed, more tasks"| dispatch_node
+    coder_node -->|"task closed, none left"| finalize
     finalize --> END((end))
-    PS[("ProjectState<br/>shared by both agents")]
-    pm_node -.- PS
-    consolidate_node -.- PS
-    dispatch_node -.- PS
-    coder_node -.- PS
-    finalize -.- PS
 ```
 
 The same flow as text:

@@ -96,11 +96,11 @@ class Broker:
 
     def __init__(self, on_event: Callable[[dict], None] | None = None) -> None:
         self._queues: dict[str, deque[Message]] = {a: deque() for a in AGENTS}
-        self._on_event = on_event
+        self.on_event = on_event
 
     def _emit(self, event: str, msg: Message, reason: str | None = None) -> None:
-        if self._on_event:
-            self._on_event({
+        if self.on_event:
+            self.on_event({
                 "event": event,
                 "message": msg.model_dump(mode="json"),
                 "reason": reason,

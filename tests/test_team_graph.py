@@ -1,4 +1,4 @@
-"""The PM → Coder team graph: PM output, handoff, per-task progress, failures and consolidation."""
+"""The PM → Coder ↔ QA team graph: PM output, handoff, per-task progress, failures and consolidation."""
 
 from __future__ import annotations
 
@@ -7,33 +7,54 @@ from langchain_core.messages import HumanMessage
 from agents.pm_agent import PMAgent
 from orchestration.handoff import render_task
 from orchestration.project_state import Task, TaskHandoff, initial_project_state
-from orchestration.team_graph import TeamDeps, build_team_graph
+from orchestration.team_graph import TeamDeps, build_team_graph, team_recursion_limit
 from tests.fakes import (
-    PAL,
+    PAL_REVISED,
     ScriptedChatModel,
     agent,
     ai,
-    happy,
+    critique_response,
     make_spec,
+    qa_agent,
+    qa_suite_response,
     spec_response,
     structured,
+    task_scripts,
     tool_call,
 )
+from tests.scenarios import coder_run
 
 REQ = "Build a small demo API"
 
 
-def run(pm_responses, coder, requirement=REQ):
-    """Run the team graph to completion; return (all chunks, the PM model)."""
+def run(pm_responses, coder, qa_responses=(), requirement=REQ):
+    """Run the team graph to completion; return (all chunks, the PM model, the QA agent)."""
     pm_model = ScriptedChatModel(responses=list(pm_responses))
-    graph = build_team_graph(TeamDeps(pm=PMAgent(coder.settings, model=pm_model), coder=coder))
+    qa = qa_agent(coder.settings, *qa_responses)
+    graph = build_team_graph(TeamDeps(pm=PMAgent(coder.settings, model=pm_model), coder=coder, qa=qa))
     chunks = list(graph.stream(
         initial_project_state(requirement),
         stream_mode=["updates", "custom", "values"],
         version="v2",
-        config={"recursion_limit": 100},
+        config={"recursion_limit": team_recursion_limit(5)},
     ))
-    return chunks, pm_model
+    return chunks, pm_model, qa
+
+
+def passing_tasks(n: int = 2) -> tuple[list, list]:
+    """(coder script, QA script) for n tasks that each pass QA in round 1."""
+    coder: list = []
+    qa: list = []
+    for _ in range(n):
+        c, q = task_scripts()
+        coder += c
+        qa += q
+    return coder, qa
+
+
+def closing(chunks):
+    """coder_node updates that closed a task."""
+    return [u for u in updates(chunks, "coder_node") if u.get("coder_step") == "close"]
 
 
 def updates(chunks, node):
@@ -44,23 +65,41 @@ def final(chunks):
     return [c["data"] for c in chunks if c["type"] == "values"][-1]
 
 
-def extra() -> list:
-    """A second-task script: writes extra.py plus a test, runs it, finishes."""
-    return [
+def extra() -> tuple[list, list]:
+    """(coder script, QA script) for a second task: writes extra.py plus a test, revises it, passes QA."""
+    coder = [
         ai("1. write extra\n2. run",
            tool_call("write_file", path="extra.py", content="X = 1\n"),
            tool_call("write_file", path="test_extra.py", content="from extra import X\n\ndef test_x():\n    assert X == 1\n"),
            tool_call("exec_python", path="test_extra.py")),
         ai("done", tool_call("finish", explanation="Adds extra", plan=["write", "run"], entry_point="test_extra.py")),
+        critique_response(),
+        *coder_run({"extra.py": '"""Extra."""\nX = 1\n'}, "test_extra.py", "Documented extra"),
     ]
+    qa = [qa_suite_response("from extra import X\n\n\ndef test_x_qa():\n    assert X == 1\n", (("test_x_qa", 1),))]
+    return coder, qa
 
 
-def finish_only() -> list:
-    return [ai("done", tool_call("finish", explanation="nothing", plan=["finish"], entry_point="x.py"))]
+def finish_only() -> tuple[list, list]:
+    """(coder script, QA script) for a task that delivers nothing, can't reflect and gets a QA error: fast."""
+    coder = [ai("done", tool_call("finish", explanation="nothing", plan=["finish"], entry_point="x.py")),
+             RuntimeError("no critique"), RuntimeError("no critique")]
+    return coder, [RuntimeError("no suite")]
+
+
+def finish_only_tasks(n: int) -> tuple[list, list]:
+    coder: list = []
+    qa: list = []
+    for _ in range(n):
+        c, q = finish_only()
+        coder += c
+        qa += q
+    return coder, qa
 
 
 def test_state_after_pm_holds_valid_task_list(settings):
-    chunks, _ = run([spec_response(make_spec())], agent(settings, *happy(), *happy()))
+    coder, qa = passing_tasks()
+    chunks, _, _ = run([spec_response(make_spec())], agent(settings, *coder), qa)
     pm_update = updates(chunks, "pm_node")[0]
     tasks = pm_update["tasks"]
     assert tasks
@@ -73,7 +112,8 @@ def test_state_after_pm_holds_valid_task_list(settings):
 
 
 def test_handoff_precedes_coder(settings):
-    chunks, _ = run([spec_response(make_spec())], agent(settings, *happy(), *happy()))
+    coder, qa = passing_tasks()
+    chunks, _, _ = run([spec_response(make_spec())], agent(settings, *coder), qa)
     dispatch_at = next(i for i, c in enumerate(chunks) if c["type"] == "updates" and "dispatch_node" in c["data"])
     first = chunks[dispatch_at]["data"]["dispatch_node"]
     assert first["handoff"].task_id == "T1"
@@ -83,8 +123,9 @@ def test_handoff_precedes_coder(settings):
 
 
 def test_coder_consumes_handoff_fields(settings):
-    coder = agent(settings, *happy(), *happy())
-    run([spec_response(make_spec())], coder, requirement="Build a quokkafied demo API")
+    script, qa = passing_tasks()
+    coder = agent(settings, *script)
+    run([spec_response(make_spec())], coder, qa, requirement="Build a quokkafied demo API")
     first_call = coder.model.calls[0]
     human = "\n".join(m.content for m in first_call if isinstance(m, HumanMessage))
     t1 = make_spec().tasks[0]
@@ -120,29 +161,35 @@ def test_render_task_contains_fields():
 
 
 def test_progress_after_each_task_in_order(settings):
-    chunks, _ = run([spec_response(make_spec())], agent(settings, *happy(), *happy()))
-    coder_updates = updates(chunks, "coder_node")
+    coder, qa = passing_tasks()
+    chunks, _, _ = run([spec_response(make_spec())], agent(settings, *coder), qa)
+    coder_updates = closing(chunks)
     ids = [next(iter(u["task_status"])) for u in coder_updates]
     assert ids == ["T1", "T2"]
     assert [u["task_status"][i].status for u, i in zip(coder_updates, ids)] == ["done", "done"]
     assert [u["current_task_index"] for u in coder_updates] == [1, 2]
     assert all(u["handoff"] is None for u in coder_updates)
+    assert [u["task_status"][i].qa_outcome for u, i in zip(coder_updates, ids)] == ["approved", "approved"]
     assert final(chunks)["status"] == "completed"
 
 
 def test_code_output_accumulates(settings):
-    chunks, _ = run([spec_response(make_spec())], agent(settings, *happy(), *extra()))
+    c1, q1 = task_scripts()
+    c2, q2 = extra()
+    chunks, _, _ = run([spec_response(make_spec())], agent(settings, *c1, *c2), q1 + q2)
     end = final(chunks)
     assert {"palindrome.py", "test_palindrome.py", "extra.py", "test_extra.py"} <= set(end["code_output"])
-    assert end["code_output"]["palindrome.py"] == PAL
-    assert len(end["artifacts"]) == 2
+    assert end["code_output"]["palindrome.py"] == PAL_REVISED
+    # one artifact per Coder run: delivery and reflection revision for each task
+    assert [a.task_id for a in end["artifacts"]] == ["T1", "T1", "T2", "T2"]
     # the second task was told about the first task's files
     second = updates(chunks, "dispatch_node")[1]["handoff"]
     assert "palindrome.py" in second.prior_files
 
 
 def test_coder_events_forwarded_once(settings):
-    coder = agent(settings, *happy(), *happy())
+    script, qa = passing_tasks()
+    coder = agent(settings, *script)
     recorded: list[list] = []
     original = coder.stream
 
@@ -154,51 +201,59 @@ def test_coder_events_forwarded_once(settings):
             yield e
 
     coder.stream = recording_stream
-    chunks, _ = run([spec_response(make_spec())], coder)
-    inner_t1 = [(e.kind, e.iteration) for e in recorded[0]]
-    forwarded = [c["data"] for c in chunks if c["type"] == "custom" and c["data"]["task_id"] == "T1"]
-    assert all(f["kind"] == "coder" for f in forwarded)
+    chunks, _, _ = run([spec_response(make_spec())], coder, qa)
+    assert len(recorded) == 4  # two runs per task: delivery and reflection revision
+    inner_t1 = [(e.kind, e.iteration) for e in recorded[0] + recorded[1]]
+    forwarded = [c["data"] for c in chunks if c["type"] == "custom" and c["data"]["task_id"] == "T1"
+                 and c["data"]["kind"] == "coder"]
     assert [(f["data"]["kind"], f["data"]["iteration"]) for f in forwarded] == inner_t1
     assert inner_t1[-1][0] == "result"
 
 
 def test_failed_task_does_not_stop_run(settings):
-    chunks, _ = run([spec_response(make_spec())], agent(settings, RuntimeError("boom"), *happy()))
+    # T1: the delivery run errors, reflection can't critique, QA errors; T2 passes
+    c2, q2 = task_scripts()
+    coder = [RuntimeError("boom"), RuntimeError("no critique"), RuntimeError("no critique"), *c2]
+    chunks, _, _ = run([spec_response(make_spec())], agent(settings, *coder), [RuntimeError("no suite"), *q2])
     status = final(chunks)["task_status"]
     assert status["T1"].status == "failed" and status["T1"].coder_status == "error"
+    assert status["T1"].qa_outcome == "no_revision"
     assert status["T2"].status == "done"
     assert final(chunks)["status"] == "partial"
 
 
-def test_pm_failure_skips_coder(settings):
+def test_pm_failure_skips_coder_and_qa(settings):
     bad = make_spec().model_dump()
     for task in bad["tasks"]:
         task["covers"] = ["AC1"]
-    coder = agent(settings, *happy())
-    chunks, _ = run([structured("Spec", bad), structured("Spec", bad)], coder)
+    script, qa_script = task_scripts()
+    coder = agent(settings, *script)
+    chunks, _, qa = run([structured("Spec", bad), structured("Spec", bad)], coder, qa_script)
     end = final(chunks)
     assert end["status"] == "failed"
     assert "AC" in end["error"]
-    assert not updates(chunks, "dispatch_node") and not updates(chunks, "coder_node")
-    assert len(coder.model.calls) == 0
+    for node in ("dispatch_node", "coder_node", "reflect_node", "qa_node"):
+        assert not updates(chunks, node)
+    assert len(coder.model.calls) == 0 and len(qa.model.calls) == 0
+    assert end["regression"] is None
 
 
 def test_more_than_8_tasks_consolidated(settings):
     s = settings.model_copy(update={"max_iterations": 2})
-    scripts = [r for _ in range(8) for r in finish_only()]
-    chunks, _ = run([spec_response(make_spec(11)), RuntimeError("no merge")], agent(s, *scripts))
+    coder, qa = finish_only_tasks(8)
+    chunks, _, _ = run([spec_response(make_spec(11)), RuntimeError("no merge")], agent(s, *coder), qa)
     consolidation = updates(chunks, "consolidate_node")
     assert len(consolidation) == 1
     assert len(consolidation[0]["tasks"]) == 8
     assert consolidation[0]["consolidation"].method == "deterministic"
-    assert len(updates(chunks, "coder_node")) == 8
+    assert len(closing(chunks)) == 8
     assert [h["handoff"].task_id for h in updates(chunks, "dispatch_node")] == [f"M{i}" for i in range(1, 9)]
 
 
 def test_consolidated_run_leaves_no_stale_pending_records(settings):
     s = settings.model_copy(update={"max_iterations": 2})
-    scripts = [r for _ in range(8) for r in finish_only()]
-    chunks, _ = run([spec_response(make_spec(11)), RuntimeError("no merge")], agent(s, *scripts))
+    coder, qa = finish_only_tasks(8)
+    chunks, _, _ = run([spec_response(make_spec(11)), RuntimeError("no merge")], agent(s, *coder), qa)
     state = final(chunks)
     task_ids = {t.task_id for t in state["tasks"]}
     assert task_ids == {f"M{i}" for i in range(1, 9)}
@@ -209,7 +264,7 @@ def test_consolidated_run_leaves_no_stale_pending_records(settings):
 
 def test_eight_tasks_skip_consolidation(settings):
     s = settings.model_copy(update={"max_iterations": 2})
-    scripts = [r for _ in range(8) for r in finish_only()]
-    chunks, _ = run([spec_response(make_spec(8))], agent(s, *scripts))
+    coder, qa = finish_only_tasks(8)
+    chunks, _, _ = run([spec_response(make_spec(8))], agent(s, *coder), qa)
     assert not updates(chunks, "consolidate_node")
-    assert len(updates(chunks, "coder_node")) == 8
+    assert len(closing(chunks)) == 8
