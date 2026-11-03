@@ -268,3 +268,16 @@ def test_eight_tasks_skip_consolidation(settings):
     chunks, _, _ = run([spec_response(make_spec(8))], agent(s, *coder), qa)
     assert not updates(chunks, "consolidate_node")
     assert len(closing(chunks)) == 8
+
+
+def test_qa_sees_later_tasks_but_coder_does_not(settings):
+    script, qa_script = passing_tasks()
+    coder = agent(settings, *script)
+    _, _, qa = run([spec_response(make_spec())], coder, qa_script)
+    t2 = make_spec().tasks[1]
+    suite_prompts = ["\n".join(m.content for m in call if isinstance(m, HumanMessage)) for call in qa.model.calls]
+    t1_prompt, t2_prompt = suite_prompts
+    assert "Task T1" in t1_prompt and t2.acceptance_criteria[0] in t1_prompt
+    assert "Later tasks" not in t2_prompt
+    coder_t1 = "\n".join(str(m.content) for m in coder.model.calls[0])
+    assert t2.acceptance_criteria[0] not in coder_t1

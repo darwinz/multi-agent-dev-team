@@ -5,11 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from langchain_core.messages import HumanMessage
 
 from agents.config import Settings
+from agents.prompts import QA_TESTS_PROMPT
 from agents.qa_agent import QAAgent, QAError, canonical_suite_path
 from orchestration.a2a import ReviewRequest
-from orchestration.project_state import TaskHandoff
+from orchestration.project_state import Task, TaskHandoff
 from orchestration.review import QAReport, QATestSuite
 from tests.fakes import ScriptedChatModel, fix_plan_response, qa_agent, qa_suite_response
 from tools.workspace import sha256_file
@@ -358,3 +360,36 @@ def test_workspace_addopts_ignored(settings):
         handoff(), request(files), 1, None, {})
     assert (report.tests_run, report.passed, report.missing) == (2, 2, [])
     assert report.approved is True, report.issues
+
+
+def later_task(task_id: str = "T2") -> Task:
+    return Task(task_id=task_id, title="Insert at index", description="insert(value, index).",
+                acceptance_criteria=["insert(x, 0) on a non-empty list puts x first"], priority="high",
+                covers=["AC1"])
+
+
+def suite_prompt(agent: QAAgent) -> str:
+    return "\n".join(m.content for m in agent.model.calls[0] if isinstance(m, HumanMessage))
+
+
+def test_suite_prompt_lists_later_tasks(settings):
+    files = put(settings, **{"stack.py": FIXED_STACK})
+    agent = qa_agent(settings, qa_suite_response(STACK_TESTS, STACK_MAP))
+    agent.review(handoff(), request(files), 1, None, {}, later=[later_task()])
+    prompt = suite_prompt(agent)
+    assert "Later tasks" in prompt
+    assert "T2: Insert at index" in prompt
+    assert "insert(x, 0) on a non-empty list puts x first" in prompt
+
+
+def test_suite_prompt_without_later_tasks(settings):
+    files = put(settings, **{"stack.py": FIXED_STACK})
+    agent = qa_agent(settings, qa_suite_response(STACK_TESTS, STACK_MAP))
+    agent.review(handoff(), request(files), 1, None, {})
+    assert "Later tasks" not in suite_prompt(agent)
+
+
+def test_tests_prompt_scopes_suite_to_task():
+    assert "later task" in QA_TESTS_PROMPT
+    assert "NotImplementedError" in QA_TESTS_PROMPT
+    assert "standard library" in QA_TESTS_PROMPT

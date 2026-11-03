@@ -289,7 +289,8 @@ def build_team_graph(deps: TeamDeps) -> CompiledStateGraph:
         rnd = state["qa_round"] + 1
         try:
             report, suite = deps.qa.review(h, ReviewRequest(**req.payload), round=rnd, suite=state["qa_suite"],
-                                           prior=state["approved_suites"])
+                                           prior=state["approved_suites"],
+                                           later=state["tasks"][state["current_task_index"] + 1:])
         except Exception as e:  # any QA crash ends the task as qa_error instead of crashing the run
             report, suite = _qa_crash(h.task_id, rnd, e), state["qa_suite"]
         _emit("qa_report", h.task_id, report.model_dump(mode="json"))

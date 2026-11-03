@@ -10,6 +10,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from collections.abc import Sequence
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
@@ -21,7 +22,7 @@ from agents.model import make_model
 from agents.prompts import QA_FIX_PROMPT, QA_TESTS_PROMPT
 from orchestration.a2a import ReviewRequest
 from orchestration.handoff import qa_test_file
-from orchestration.project_state import TaskHandoff
+from orchestration.project_state import Task, TaskHandoff
 from orchestration.review import Issue, QAReport, QATestSuite, TestOutcome
 from tools.exec_python import ExecOutcome, exec_python
 from tools.file_tools import write_file
@@ -100,6 +101,16 @@ class _Run:
     missing: list[str] = field(default_factory=list)
 
 
+def _later_tasks(later: Sequence[Task]) -> str:
+    """The suite prompt's later-tasks section, or nothing for the last task."""
+    if not later:
+        return ""
+    lines = ["Later tasks (built after this one; do not test behaviour they define or change):"]
+    for t in later:
+        lines += [f"{t.task_id}: {t.title}", *(f"  - {c}" for c in t.acceptance_criteria)]
+    return "\n".join(lines) + "\n\n"
+
+
 class QAAgent:
     def __init__(self, settings: Settings | None = None, *, model: BaseChatModel | None = None) -> None:
         self.settings = settings or Settings.from_env()
@@ -120,8 +131,9 @@ class QAAgent:
 
     # --- suite generation -------------------------------------------------------------
 
-    def generate_suite(self, handoff: TaskHandoff, files: dict[str, str]) -> QATestSuite:
-        """Ask for a suite; on an invalid one retry once with the problems appended."""
+    def generate_suite(self, handoff: TaskHandoff, files: dict[str, str], later: Sequence[Task] = ()) -> QATestSuite:
+        """Ask for a suite; on an invalid one retry once with the problems appended. `later` are the
+        tasks built after this one: QA sees them so its frozen suite does not pin behaviour they change."""
         try:
             structured = self._structured(QATestSuite)
         except Exception as e:  # missing provider package, bad model id
@@ -131,7 +143,7 @@ class QAAgent:
         messages: list[Any] = [
             SystemMessage(QA_TESTS_PROMPT),
             HumanMessage(f"Task {handoff.task_id}: {handoff.title}\n{handoff.description}\n\n"
-                         f"Acceptance criteria:\n{criteria}\n\nDelivered files:\n{code}"),
+                         f"Acceptance criteria:\n{criteria}\n\n{_later_tasks(later)}Delivered files:\n{code}"),
         ]
         problems: list[str] = []
         for attempt in range(2):
@@ -306,13 +318,13 @@ class QAAgent:
         return [i.model_copy(update={"fix": by_test[i.test]}) if i.test in by_test else i for i in issues]
 
     def review(self, handoff: TaskHandoff, request: ReviewRequest, round: int, suite: QATestSuite | None,
-               prior: dict[str, QATestSuite]) -> tuple[QAReport, QATestSuite | None]:
+               prior: dict[str, QATestSuite], later: Sequence[Task] = ()) -> tuple[QAReport, QATestSuite | None]:
         """Spec §7 steps 1–7. Never raises for model or test failures."""
         task_id = handoff.task_id
         shas, contents, stale = self._fresh(request)
         if suite is None:
             try:
-                suite = self.generate_suite(handoff, contents)
+                suite = self.generate_suite(handoff, contents, later)
             except QAError as e:
                 return _report(
                     task_id=task_id, round=round, test_file=qa_test_file(task_id), suite_sha="", suites_run={},

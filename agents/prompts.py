@@ -38,6 +38,8 @@ Coder can finish it in at most 10 turns, ending with its own tests passing.
 - Give every task its own acceptance criteria (short, checkable statements), a priority (high, \
 medium or low), and `covers`: the ids of the spec criteria it satisfies. Every spec criterion must \
 be covered by at least one task, and `covers` may only name criteria that exist.
+- Every criterion must be checkable with the Python standard library and pytest alone. Never \
+require coverage measurement, linters, type checkers or other tools.
 - For web APIs, specify FastAPI, a module-level ASGI object named `app`, and tests that use \
 `fastapi.testclient.TestClient`.
 """
@@ -71,6 +73,11 @@ exceptions (use pytest.raises).
 - Cover the edge cases the criteria imply: empty input, boundaries, invalid values.
 - Write the tests from the criteria. Use the code only for module, function and class names and \
 signatures; never copy its logic into an expected value.
+- Test only what this task's criteria require. These tests are rerun after every later task, so \
+never test behaviour a later task defines or changes, and never assert that a feature is missing, \
+unsupported or raises NotImplementedError.
+- Use only the Python standard library, pytest and the delivered modules: no other packages or \
+pytest plugins, and no coverage measurement.
 - No network access. Write files only under pytest's tmp_path fixture.
 """
 
