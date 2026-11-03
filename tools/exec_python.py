@@ -99,6 +99,7 @@ def exec_python(
     code: str | None = None,
     timeout: float = DEFAULT_TIMEOUT_S,
     mode: Literal["auto", "script", "pytest"] = "auto",
+    junit_xml: Path | None = None,
 ) -> ExecOutcome:
     if (path is None) == (code is None):
         raise ToolError("exec_python needs exactly one of `path` or `code`")
@@ -117,6 +118,8 @@ def exec_python(
     record_dir.mkdir(parents=True, exist_ok=True)
     record = record_dir / f"{uuid.uuid4().hex}.json"
     cmd = [sys.executable, "-s", str(_RUNNER), mode, str(target), str(ws.root), str(record)]
+    if junit_xml is not None and mode == "pytest":
+        cmd.append(str(junit_xml))
     group = (
         {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
         if os.name == "nt"

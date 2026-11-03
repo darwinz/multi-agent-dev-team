@@ -152,3 +152,25 @@ def test_exec_record_removed_after_reading(tmp_path):  # review M8
     write_file(ws, "hello.py", "print('hi')")
     assert run(ws, tmp_path, path="hello.py").loaded
     assert list((tmp_path / "rec").glob("*.json")) == []
+
+
+def test_pytest_junit_written(tmp_path):
+    ws = Workspace(tmp_path / "ws")
+    write_file(ws, "test_two.py", "def test_ok(): assert True\ndef test_bad(): assert 1 == 2\n")
+    j = tmp_path / "j.xml"
+    out = run(ws, tmp_path, path="test_two.py", junit_xml=j)
+    assert j.is_file() and out.exit_code == 1
+
+
+def test_no_junit_by_default(tmp_path):
+    ws = Workspace(tmp_path / "ws")
+    write_file(ws, "test_ok.py", "def test_ok(): assert True\n")
+    out = run(ws, tmp_path, path="test_ok.py")
+    assert out.ok and not list(tmp_path.glob("*.xml")) and not list(ws.root.glob("*.xml"))
+
+
+def test_script_mode_ignores_junit(tmp_path):
+    ws = Workspace(tmp_path / "ws")
+    write_file(ws, "hello.py", "print('hi')")
+    j = tmp_path / "j.xml"
+    assert run(ws, tmp_path, path="hello.py", junit_xml=j).ok and not j.exists()
