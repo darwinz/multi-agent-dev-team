@@ -109,6 +109,16 @@ def _dropped_note(task_id: str, dropped: list[str]) -> list[str]:
     return [f"{task_id}: dropped from review (no longer on disk): {', '.join(dropped)}"] if dropped else []
 
 
+def _qa_crash(task_id: str, rnd: int, error: Exception) -> QAReport:
+    """The report for a QA review that raised: no tests counted, never approved."""
+    return QAReport(
+        task_id=task_id, round=rnd, test_file=qa_test_file(task_id), suite_sha="", suites_run={}, tested_files={},
+        tests_run=0, passed=0, failed=0, errors=0, skipped=0, missing=[], exit_code=None, timed_out=False,
+        duration_s=0.0, results=[], issues=[], tampered=False,
+        qa_error=f"QA crashed: {type(error).__name__}: {error}", approved=False,
+    )
+
+
 def build_team_graph(deps: TeamDeps) -> CompiledStateGraph:
     broker = deps.broker
     coder_ep = Endpoint("coder", CODER_ACCEPTS, broker)
@@ -204,7 +214,11 @@ def build_team_graph(deps: TeamDeps) -> CompiledStateGraph:
 
         # approved or final_report: the only intents that close a task (course rule)
         update: dict = {}
-        if msg.intent == "approved":
+        if msg.intent == "approved" and not state["reflection_ok"]:
+            # QA never approves without a recorded revision; this guard keeps `done` honest regardless
+            status, outcome = "failed", "no_revision"
+            unresolved = ["QA approved, but self-reflection recorded no revision, so the task cannot be done"]
+        elif msg.intent == "approved":
             status, outcome, unresolved = "done", "approved", []
             update["approved_suites"] = {h.task_id: state["qa_suite"]}
         else:
@@ -273,8 +287,11 @@ def build_team_graph(deps: TeamDeps) -> CompiledStateGraph:
         h = state["handoff"]
         req = qa_ep.receive(task_id=h.task_id)
         rnd = state["qa_round"] + 1
-        report, suite = deps.qa.review(h, ReviewRequest(**req.payload), round=rnd, suite=state["qa_suite"],
-                                       prior=state["approved_suites"])
+        try:
+            report, suite = deps.qa.review(h, ReviewRequest(**req.payload), round=rnd, suite=state["qa_suite"],
+                                           prior=state["approved_suites"])
+        except Exception as e:  # any QA crash ends the task as qa_error instead of crashing the run
+            report, suite = _qa_crash(h.task_id, rnd, e), state["qa_suite"]
         _emit("qa_report", h.task_id, report.model_dump(mode="json"))
         intent, payload = _reply(state, report, rnd)
         qa_ep.send("coder", intent, payload, correlation_id=req.correlation_id)

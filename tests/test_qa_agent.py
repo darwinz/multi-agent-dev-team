@@ -137,7 +137,9 @@ def test_hanging_code_times_out(tmp_path):
     report, _ = qa_agent(settings, qa_suite_response(suite, (("test_push", 1),))).review(
         handoff(criteria=CRITERIA[:1]), request(files), 1, None, {})
     assert report.timed_out is True and report.approved is False
-    assert any(i.severity == "High" and "timed out" in i.assertion for i in report.issues)
+    (high,) = [i for i in report.issues if i.severity == "High"]  # no per-test "did not run" noise
+    assert "timed out" in high.assertion
+    assert report.missing == ["test_push"]  # still recorded, so approval stays blocked
     assert report.duration_s < 6
 
 
@@ -315,3 +317,44 @@ def test_long_stale_path_does_not_raise(settings):
         1, None, {})
     stale = [i for i in report.issues if i.location == long_path]
     assert stale and len(stale[0].assertion) <= 500 and report.approved is False
+
+
+def test_collection_error_does_not_hide_prior_suites(settings):
+    t1 = approved_t1(settings)
+    files = put(settings, **{"counter.py": COUNTER})
+    broken = "from counter import count, MissingThing\n\n\ndef test_count():\n    assert count([1]) == 1\n"
+    agent = qa_agent(settings, qa_suite_response(broken, (("test_count", 1),)))
+    report, _ = agent.review(handoff("T2", ["count returns the length"]), request(files, "T2"), 1, None, {"T1": t1})
+    t1_results = {r.name: r.outcome for r in report.results if r.name.startswith("test_qa_t1::")}
+    assert t1_results == {"test_qa_t1::test_push_then_pop": "passed", "test_qa_t1::test_pop_returns_last": "passed"}
+    assert not [i for i in report.issues if i.assertion.startswith("regression in T1")]
+    assert any(i.severity == "High" and "MissingThing" in i.assertion for i in report.issues)
+    assert report.missing == ["test_count"] and report.approved is False
+
+
+def test_canonical_suite_tampering_detected(settings):
+    suite = approved_t1(settings)
+    canonical = canonical_suite_path(settings, "T1")
+    canonical.write_text("def test_push_then_pop():\n    pass\n\n\ndef test_pop_returns_last():\n    pass\n")
+    files = put(settings, **{"stack.py": BUGGY_STACK})
+    report, _ = qa_agent(settings).review(handoff(), request(files, round=2), 2, suite, {})
+    assert report.tampered is True
+    assert report.failed == 1 and report.approved is False  # the state-held suite ran, not the rewrite
+    assert canonical.read_text() == suite.content
+    assert (settings.workspace_dir / "test_qa_t1.py").read_text() == suite.content
+
+
+def test_canonical_suite_deleted_is_tampering(settings):
+    suite = approved_t1(settings)
+    canonical_suite_path(settings, "T1").unlink()
+    report = qa_agent(settings).run_suites({"T1": suite}, task_id="regression", round=0)
+    assert report.tampered is True and report.approved is True
+    assert canonical_suite_path(settings, "T1").read_text() == suite.content
+
+
+def test_workspace_addopts_ignored(settings):
+    files = put(settings, **{"stack.py": FIXED_STACK, "pytest.ini": "[pytest]\naddopts = -k nothing\n"})
+    report, _ = qa_agent(settings, qa_suite_response(STACK_TESTS, STACK_MAP)).review(
+        handoff(), request(files), 1, None, {})
+    assert (report.tests_run, report.passed, report.missing) == (2, 2, [])
+    assert report.approved is True, report.issues

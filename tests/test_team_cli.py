@@ -101,9 +101,11 @@ def test_reset_memory_only(settings):
 @pytest.mark.parametrize(("argv", "env"), [
     (["--qa-max-iterations", "0"], None),
     (["--qa-max-iterations", "6"], None),
+    (["--qa-max-iterations", "abc"], None),
+    ([], "0"),
     ([], "6"),
     ([], "abc"),
-], ids=["flag-0", "flag-6", "env-6", "env-abc"])
+], ids=["flag-0", "flag-6", "flag-abc", "env-0", "env-6", "env-abc"])
 def test_bad_qa_max_iterations_exits_2(tmp_path, monkeypatch, capsys, argv, env):
     monkeypatch.setenv("CODER_PROJECT_DIR", str(tmp_path))
     if env is None:

@@ -155,14 +155,16 @@ class QAAgent:
     # --- running suites ---------------------------------------------------------------
 
     def _restore(self, suites: dict[str, QATestSuite]) -> tuple[dict[str, str], bool]:
-        """Write each suite's canonical content to the workspace root. Returns ({id: sha}, tampered)."""
+        """Write each suite's state-held content to its canonical file and the workspace root.
+        Returns ({id: sha}, tampered): code the Coder runs could rewrite either copy on disk."""
         ws, shas, tampered = self._ws, {}, False
         for task_id, suite in suites.items():
+            content = suite.content
             canonical = canonical_suite_path(self.settings, task_id)
-            if not canonical.is_file():  # QA writes it once; a suite handed in without one gets it now
+            if not canonical.is_file() or canonical.read_text(encoding="utf-8", errors="replace") != content:
+                tampered = True
                 canonical.parent.mkdir(parents=True, exist_ok=True)
-                canonical.write_text(suite.content, encoding="utf-8")
-            content = canonical.read_text(encoding="utf-8")
+                canonical.write_text(content, encoding="utf-8")
             target = ws.root / qa_test_file(task_id)
             if not target.is_file() or target.read_text(encoding="utf-8", errors="replace") != content:
                 tampered = True
@@ -173,7 +175,12 @@ class QAAgent:
     def _pytest(self, files: list[str], junit: Path) -> ExecOutcome:
         """One sandboxed pytest call over every suite file. exec_python's pytest mode takes a single
         target, so a script snippet calls pytest.main with all of them under the same timeout."""
-        args = ["-q", "-p", "no:cacheprovider", f"--rootdir={self._ws.root}", f"--junitxml={junit}", *files]
+        # QA's own empty ini: the Coder's pytest.ini / pyproject addopts must not reshape QA's run
+        ini = self._qa_dir / "pytest.ini"
+        ini.parent.mkdir(parents=True, exist_ok=True)
+        ini.write_text("[pytest]\n", encoding="utf-8")
+        args = ["-q", "-p", "no:cacheprovider", "-c", str(ini), f"--rootdir={self._ws.root}",
+                "--continue-on-collection-errors", f"--junitxml={junit}", *files]
         code = f"import sys\nimport pytest\n\nsys.exit(int(pytest.main({json.dumps(args)})))\n"
         return exec_python(self._ws, record_dir=self._qa_dir / "exec", code=code, mode="script",
                            timeout=self.settings.exec_timeout_s)
@@ -253,9 +260,10 @@ class QAAgent:
         for owner, suite in suites.items():
             for t in suite.tests:
                 if (owner, t.name) not in seen:
-                    run.missing.append(t.name)
-                    issue(owner, t.name, criterion_of(owner, t.name), t.name,
-                          f"{t.name} did not run (no test result for it)")
+                    run.missing.append(t.name)  # still blocks approval
+                    if result is not None:  # a timeout or unreadable XML already has its one High issue
+                        issue(owner, t.name, criterion_of(owner, t.name), t.name,
+                              f"{t.name} did not run (no test result for it)")
 
         failing = any(r.outcome in ("failed", "error") for r in run.results)
         if result is not None and out.exit_code not in (0, None) and not failing:

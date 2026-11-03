@@ -9,9 +9,18 @@ from langchain_core.messages import HumanMessage
 
 from agents.config import Settings
 from agents.pm_agent import PMAgent
+from agents.qa_agent import QAAgent
 from orchestration.a2a import Approved, Broker, FixInstruction, Message
-from orchestration.project_state import MAX_TASKS, AcceptanceCriterion, Spec, Task, initial_project_state
-from orchestration.review import Issue
+from orchestration.handoff import make_handoff
+from orchestration.project_state import (
+    MAX_TASKS,
+    AcceptanceCriterion,
+    Spec,
+    Task,
+    TaskRecord,
+    initial_project_state,
+)
+from orchestration.review import Issue, QATestSuite
 from orchestration.team_graph import NOOP_RETRY, TeamDeps, build_team_graph, team_recursion_limit
 from tests.fakes import (
     PAL,
@@ -185,6 +194,54 @@ def test_qa_error_ends_task(settings):
     assert len(deps.coder.model.calls) == 5  # deliver 2 + critique 1 + revision 2; nothing after the report
     rec = end["task_status"]["T1"]
     assert rec.status == "failed" and rec.qa_outcome == "qa_error"
+
+
+def test_unexpected_qa_exception_is_qa_error(settings, monkeypatch):
+    def broken_review(self, *args, **kwargs):
+        raise ValueError("unreadable JUnit XML")
+
+    monkeypatch.setattr(QAAgent, "review", broken_review)
+    coder, _ = task_scripts()
+    chunks, _ = run(settings, one_task(), coder, [])
+    end = final(chunks)
+    (report,) = end["qa_reports"]
+    assert report.qa_error and "ValueError" in report.qa_error and "unreadable JUnit XML" in report.qa_error
+    assert report.approved is False
+    (msg,) = sent(chunks, "final_report")
+    assert msg["payload"]["reason"] == "qa_error"
+    rec = end["task_status"]["T1"]
+    assert rec.status == "failed" and rec.qa_outcome == "qa_error"
+    assert end["status"] == "partial"
+
+
+def node(deps, name):
+    """A team-graph node's function, to call on a hand-built state."""
+    graph = build_team_graph(deps)
+    deps.broker.on_event = None  # no stream writer outside a graph run
+    return graph.builder.nodes[name].runnable.func
+
+
+def bare_deps(settings, broker=None):
+    return TeamDeps(pm=PMAgent(settings, model=ScriptedChatModel(responses=[])), coder=agent(settings),
+                    qa=qa_agent(settings), broker=broker or Broker())
+
+
+def test_approved_without_reflection_is_not_done(settings):
+    spec = make_spec(1)
+    state = {**initial_project_state(REQ), "spec": spec, "tasks": spec.tasks}
+    h = make_handoff(state)
+    approved = Approved(task_id="T1", round=1, tests_run=1, test_file="test_qa_t1.py")
+    broker = Broker()
+    broker.send(Message(sender="qa", receiver="coder", intent="approved", payload=approved.model_dump(mode="json"),
+                        correlation_id="req-1"))
+    suite = QATestSuite.model_validate(qa_suite_response().tool_calls[0]["args"])
+    state.update(handoff=h, task_status={"T1": TaskRecord(task_id="T1", status="in_progress", qa_rounds=1)},
+                 qa_round=1, outstanding_request="req-1", qa_suite=suite, reflection_ok=False)
+    update = node(bare_deps(settings, broker), "coder_node")(state)
+    rec = update["task_status"]["T1"]
+    assert rec.status == "failed" and rec.qa_outcome == "no_revision" and rec.unresolved
+    assert "approved_suites" not in update
+    assert update["coder_step"] == "close"
 
 
 # --- trust boundary --------------------------------------------------------------------
@@ -399,3 +456,25 @@ def test_no_done_task_skips_regression(settings):
     chunks, _ = run(settings, pm, coder, qa, max_rounds=1)
     end = final(chunks)
     assert end["regression"] is None and end["status"] == "partial"
+
+
+GOOD_STACK_TESTS = ("from stack import Stack\n\n\ndef test_push_pop():\n    s = Stack()\n    s.push(1)\n"
+                    "    assert s.pop() == 1\n")
+BROKEN_IMPORT_TESTS = "from stack import Stack, Missing\n\n\ndef test_peek():\n    assert Stack()\n"
+
+
+def test_finalize_collection_error_regresses_only_its_task(settings):
+    settings.workspace_dir.mkdir(parents=True)
+    (settings.workspace_dir / "stack.py").write_text(STACK_V1)
+    spec = stack_spec()
+    suites = {"T1": QATestSuite(content=GOOD_STACK_TESTS, tests=[{"name": "test_push_pop", "criterion": 1}]),
+              "T2": QATestSuite(content=BROKEN_IMPORT_TESTS, tests=[{"name": "test_peek", "criterion": 1}])}
+    state = {**initial_project_state(REQ), "spec": spec, "tasks": spec.tasks, "approved_suites": suites,
+             "task_status": {t: TaskRecord(task_id=t, status="done", qa_outcome="approved") for t in suites}}
+    update = node(bare_deps(settings), "finalize")(state)
+    assert set(update["task_status"]) == {"T2"}  # T1's suite still ran and passed
+    t2 = update["task_status"]["T2"]
+    assert t2.qa_outcome == "regressed" and any("Missing" in line for line in t2.unresolved)
+    results = {r["name"]: r["outcome"] for r in update["regression"]["results"]}
+    assert results.get("test_qa_t1::test_push_pop") == "passed"
+    assert update["status"] == "partial"
