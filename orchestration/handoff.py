@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from orchestration.a2a import FixInstruction
 from orchestration.project_state import ProjectState, TaskHandoff
+from orchestration.review import Critique
 
 BUILD_ON = (
     "Build on the files from earlier tasks rather than replacing them, keep their tests passing, "
@@ -53,4 +55,24 @@ def render_task(h: TaskHandoff) -> str:
         files,
         "",
         BUILD_ON,
+    ])
+
+
+def render_revision(h: TaskHandoff, critique: Critique) -> str:
+    """The task text plus the Coder's own critique, to be addressed before QA sees the code."""
+    items = [f"- [{i.kind}] {i.location}: {i.concern} → {i.change}" for i in critique.items]
+    return "\n".join([
+        render_task(h), "", "Self-review:", *items, "",
+        "Address every item with a code change or a new test, keep all tests passing, "
+        "and run each test file with exec_python before finishing.",
+    ])
+
+
+def render_fix(h: TaskHandoff, fix: FixInstruction) -> str:
+    """The task text plus QA's failures; the QA suite file belongs to QA."""
+    qa_file = qa_test_file(h.task_id)
+    lines = [f"{i.test} ({i.criterion}): {i.assertion} → fix: {i.fix}" for i in fix.issues]
+    return "\n".join([
+        render_task(h), "", f"QA review round {fix.round} failed:", *lines, "",
+        f"QA owns {qa_file}; do not modify it. Fix the code, then run {qa_file} and your own tests with exec_python.",
     ])

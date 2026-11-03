@@ -11,18 +11,25 @@ from datetime import UTC, datetime
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from agents.config import Settings
 from agents.events import StepEvent
 from agents.model import make_model
+from agents.prompts import CRITIQUE_PROMPT
 from agents.result import CoderResult, ExecutionResult
 from memory.semantic import SemanticMemory
 from memory.window import SlidingWindow
 from orchestration.finalize import code_block
 from orchestration.graph import GraphDeps, build_graph, initial_state
+from orchestration.review import Critique
 from tools.dispatch import ToolContext
 from tools.specs import TOOL_SPECS
 from tools.workspace import ResetGeneration, RunLock, Workspace
+
+
+class ReflectionError(Exception):
+    """The Coder could not produce a valid self-critique."""
 
 
 def _defines(files: dict[str, str]) -> list[str]:
@@ -75,6 +82,31 @@ class CoderAgent:
         if self.model is None:
             self.model = make_model(self.settings)
         return self.model.bind_tools(TOOL_SPECS)
+
+    def critique(self, task_text: str, files: dict[str, str]) -> Critique:
+        """One structured call on the unbound model (no tools); one retry with the parse error appended."""
+        try:
+            if self.model is None:
+                self.model = make_model(self.settings)
+            structured = self.model.with_structured_output(Critique, include_raw=True)
+        except Exception as e:  # missing provider package, bad model id
+            raise ReflectionError(f"critique model setup failed: {type(e).__name__}: {e}") from e
+        code = "\n\n".join(f"--- {path} ---\n{text}" for path, text in sorted(files.items())) or "(no files)"
+        messages: list[Any] = [SystemMessage(CRITIQUE_PROMPT),
+                               HumanMessage(f"{task_text}\n\nYour files:\n{code}")]
+        error = ""
+        for attempt in range(2):
+            try:
+                out = structured.invoke(messages)
+            except Exception as e:  # provider failures end the attempt, no retry
+                raise ReflectionError(f"critique model call failed: {type(e).__name__}: {e}") from e
+            if out.get("parsing_error") is None and out.get("parsed") is not None:
+                return out["parsed"]
+            error = str(out.get("parsing_error") or "the model returned no structured critique")
+            if attempt == 0:
+                messages.append(HumanMessage(
+                    f"Your critique was invalid:\n{error}\n\nReturn a corrected critique that fixes these problems."))
+        raise ReflectionError(f"critique invalid twice: {error}")
 
     def stream(self, task: str, *, lock_held: bool = False) -> Iterator[StepEvent]:
         s = self.settings

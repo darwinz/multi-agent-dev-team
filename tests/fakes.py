@@ -99,6 +99,20 @@ def happy() -> list[AIMessage]:
     ]
 
 
+PAL_REVISED = 'def is_pal(s):\n    """True if s reads the same backwards."""\n    return s == s[::-1]\n'
+
+
+def revise_happy() -> list[AIMessage]:
+    """The revision run: rewrite the module (docstring added), rerun the test, finish."""
+    return [
+        ai("apply the self-review",
+           tool_call("write_file", path="palindrome.py", content=PAL_REVISED),
+           tool_call("exec_python", path="test_palindrome.py")),
+        ai("done", tool_call("finish", explanation="Checks palindromes, documented", plan=["revise"],
+                             entry_point="test_palindrome.py")),
+    ]
+
+
 def agent(settings: Any, *responses: Any) -> Any:
     from agents.coder_agent import CoderAgent
 
@@ -164,3 +178,18 @@ def qa_agent(settings: Any, *responses: Any) -> Any:
     from agents.qa_agent import QAAgent
 
     return QAAgent(settings, model=ScriptedChatModel(responses=list(responses)))
+
+
+# --- Coder self-reflection ------------------------------------------------------------
+
+def critique_response(*items: tuple[str, str, str, str]) -> AIMessage:
+    """items are (kind, location, concern, change); the default is one edge case about empty strings."""
+    items = items or (("edge_case", "palindrome.py:is_pal", "empty string is not covered by a test",
+                       "add a test that is_pal('') is True"),)
+    return structured("Critique", {"items": [
+        {"kind": k, "location": loc, "concern": c, "change": ch} for k, loc, c, ch in items]})
+
+
+def task_scripts() -> tuple[list, list]:
+    """(coder script, QA script) for one task that passes QA in round 1."""
+    return happy() + [critique_response()] + revise_happy(), [qa_suite_response()]

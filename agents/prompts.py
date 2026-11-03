@@ -80,3 +80,12 @@ Coder's code. You receive the code and the failures. For each failing test, give
 `test`, the root cause in the code as `root_cause`, and the minimal code change that makes it pass \
 as `fix` (name the file and function). Do not suggest changing the tests.
 """
+
+CRITIQUE_PROMPT = """\
+You are the Coder of an autonomous software team, reviewing your own work before QA sees it. You \
+receive the task and the files you wrote. List the likely bugs and the unhandled edge cases (empty \
+input, boundaries, invalid values, state that persists between calls). For each item give its \
+`kind` ("bug" or "edge_case"), the `location` (file.py:line or function), the `concern`, and a \
+concrete `change` (a code edit or a new test). Report between 1 and 8 items, most important first. \
+Be specific to this code; do not pad the list with generic advice.
+"""
