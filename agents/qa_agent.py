@@ -271,7 +271,7 @@ class QAAgent:
             try:
                 target = ws.resolve(path)
                 disk = sha256_file(target) if target.is_file() else None
-            except ToolError:
+            except (ToolError, OSError):  # outside the workspace, or a name the OS rejects
                 disk = None
             if disk is not None:
                 shas[path] = disk
@@ -280,7 +280,7 @@ class QAAgent:
                 now = f"sha {disk[:12]}" if disk else "missing"
                 issues.append(Issue(
                     severity="High", test=None, criterion=None, location=path,
-                    assertion=f"{path} changed after review request (requested sha {sha[:12]}, on disk {now})",
+                    assertion=_clip(f"changed after review request: {path} (requested sha {sha[:12]}, on disk {now})"),
                     fix=f"Send a new review request with the current contents of {path}"))
         return shas, contents, issues
 

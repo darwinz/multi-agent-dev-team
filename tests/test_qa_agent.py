@@ -286,3 +286,32 @@ def test_round_one_replaces_stale_canonical(settings):
     canonical.write_text("def test_old():\n    assert False\n")  # left by an earlier run
     suite = approved_t1(settings)
     assert canonical.read_text() == suite.content
+
+
+UNMAPPED_EXTRA = STACK_TESTS + "\n\ndef test_extra():\n    assert True\n"
+
+
+def test_unmapped_extra_test_retried(settings):
+    files = put(settings, **{"stack.py": FIXED_STACK})
+    agent = qa_agent(settings, qa_suite_response(UNMAPPED_EXTRA, STACK_MAP), qa_suite_response(STACK_TESTS, STACK_MAP))
+    report, suite = agent.review(handoff(), request(files), 1, None, {})
+    assert "test_extra" in "\n".join(str(m.content) for m in agent.model.calls[1])
+    assert suite.content == STACK_TESTS and report.approved is True
+
+
+def test_unmapped_extra_test_twice_is_qa_error(settings):
+    files = put(settings, **{"stack.py": FIXED_STACK})
+    bad = qa_suite_response(UNMAPPED_EXTRA, STACK_MAP)
+    report, suite = qa_agent(settings, bad, bad).review(handoff(), request(files), 1, None, {})
+    assert report.qa_error and "test_extra" in report.qa_error and suite is None
+    assert report.tests_run == 0 and report.approved is False
+
+
+def test_long_stale_path_does_not_raise(settings):
+    put(settings, **{"stack.py": FIXED_STACK})
+    long_path = "d" * 300 + "/" + "x" * 300 + ".py"
+    report, _ = qa_agent(settings, qa_suite_response(STACK_TESTS, STACK_MAP)).review(
+        handoff(), request({"stack.py": sha256_file(settings.workspace_dir / "stack.py"), long_path: "0" * 64}),
+        1, None, {})
+    stale = [i for i in report.issues if i.location == long_path]
+    assert stale and len(stale[0].assertion) <= 500 and report.approved is False

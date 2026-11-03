@@ -109,3 +109,15 @@ def test_critique_needs_an_item():
     with pytest.raises(ValidationError):
         Critique(items=[item] * 9)
     assert len(Critique(items=[item] * 8).items) == 8
+
+
+def test_check_reports_unmapped_top_level_test():
+    s = QATestSuite(content=SRC + "\n\ndef test_extra():\n    assert True\n",
+                    tests=[SuiteTest(name="test_a", criterion=1), SuiteTest(name="test_b", criterion=2)])
+    assert any("test_extra" in p and "not in the manifest" in p for p in s.check(2))
+
+
+def test_check_reports_test_class():
+    src = SRC + "\n\nclass TestThing:\n    def test_method(self):\n        assert True\n"
+    s = QATestSuite(content=src, tests=[SuiteTest(name="test_a", criterion=1), SuiteTest(name="test_b", criterion=2)])
+    assert any("TestThing" in p and "plain top-level functions" in p for p in s.check(2))

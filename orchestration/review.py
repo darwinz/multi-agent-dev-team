@@ -53,11 +53,17 @@ class QATestSuite(_Strict):
             tree = ast.parse(self.content)
         except SyntaxError as e:
             return [f"the test module has a syntax error: {e.msg} (line {e.lineno})"]
-        defined = {
+        defined = [
             n.name for n in tree.body
             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name.startswith("test_")
-        }
-        problems: list[str] = []
+        ]
+        problems: list[str] = [
+            f"class {n.name} holds test methods; tests must be plain top-level functions"
+            for n in tree.body
+            if isinstance(n, ast.ClassDef) and n.name.startswith("Test") and any(
+                isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)) and m.name.startswith("test")
+                for m in n.body)
+        ]
         seen: set[str] = set()
         for t in self.tests:
             if t.name in seen:
@@ -67,6 +73,9 @@ class QATestSuite(_Strict):
                 problems.append(f"manifest test {t.name} is not a top-level def test_* in the module")
             if not 1 <= t.criterion <= n_criteria:
                 problems.append(f"test {t.name} maps to criterion {t.criterion}, but criteria are 1..{n_criteria}")
+        mapped = {t.name for t in self.tests}
+        problems += [f"test {name} is not in the manifest; map it to a criterion or remove it"
+                     for name in dict.fromkeys(defined) if name not in mapped]
         covered = {t.criterion for t in self.tests}
         problems += [f"criterion {i} has no test" for i in range(1, n_criteria + 1) if i not in covered]
         return problems
