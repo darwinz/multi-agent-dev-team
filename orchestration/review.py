@@ -81,6 +81,15 @@ class QATestSuite(_Strict):
         return problems
 
 
+class TestCorrection(_Strict):
+    """A round-1 QA test that QA judged wrong against the criteria and replaced before freezing."""
+
+    __test__ = False
+
+    test: str
+    reason: str
+
+
 class QAReport(_Strict):
     task_id: str
     round: int
@@ -101,6 +110,8 @@ class QAReport(_Strict):
     issues: list[Issue]
     tampered: bool
     qa_error: str | None
+    test_corrections: list[TestCorrection] = Field(default_factory=list,
+                                                   description="round 1 only: QA tests replaced before the rerun")
     approved: bool
 
     @model_validator(mode="after")

@@ -20,6 +20,7 @@ from tests.fakes import (
     agent,
     ai,
     critique_response,
+    audit_response,
     fix_plan_response,
     qa_agent,
     qa_suite_response,
@@ -178,6 +179,11 @@ def _deliver_and_reflect() -> list[Any]:
     ]
 
 
+def _keep_test():
+    """QA's round-1 test check: test_reverse matches the criteria, so the code is at fault."""
+    return audit_response(("test_reverse", False, "reverse() must reorder the list; the code leaves it unchanged", ""))
+
+
 def _reverse_fix() -> Any:
     return fix_plan_response(("test_reverse", "reverse() is a no-op",
                               "relink each node to its predecessor and point head at the old tail"))
@@ -187,7 +193,7 @@ def feedback_scripts() -> tuple[list, list, list]:
     """(pm, coder, qa): round 1 fails on test_reverse, round 2 is fixed and approved."""
     coder = [*_deliver_and_reflect(),
              *coder_run({"linked_list.py": FIXED_LL}, "test_linked_list.py", "Fixed reverse")]
-    qa = [qa_suite_response(QA_LL_TESTS, QA_LL_MANIFEST), _reverse_fix()]
+    qa = [qa_suite_response(QA_LL_TESTS, QA_LL_MANIFEST), _keep_test(), _reverse_fix()]
     return [spec_response(linked_list_spec())], coder, qa
 
 
@@ -197,7 +203,7 @@ def nonconverging_scripts(rounds: int) -> tuple[list, list, list]:
     for n in range(1, rounds):
         coder += coder_run({"linked_list.py": BUGGY_LL_DOCUMENTED + f"\n# attempt {n}\n"},
                            "test_linked_list.py", f"Attempt {n} at reverse")
-    qa = [qa_suite_response(QA_LL_TESTS, QA_LL_MANIFEST), *(_reverse_fix() for _ in range(rounds))]
+    qa = [qa_suite_response(QA_LL_TESTS, QA_LL_MANIFEST), _keep_test(), *(_reverse_fix() for _ in range(rounds))]
     return [spec_response(linked_list_spec())], coder, qa
 
 

@@ -174,6 +174,13 @@ def fix_plan_response(*fixes: tuple[str, str, str]) -> AIMessage:
     return structured("FixPlan", {"fixes": [{"test": t, "root_cause": r, "fix": f} for t, r, f in fixes]})
 
 
+def audit_response(*verdicts: tuple[str, bool, str, str]) -> AIMessage:
+    """QA's round-1 check of its own failing tests: (test, test_is_wrong, reason, corrected source).
+    No verdicts means every failing test was judged correct."""
+    return structured("TestAudit", {"verdicts": [
+        {"test": t, "test_is_wrong": w, "reason": r, "corrected": c} for t, w, r, c in verdicts]})
+
+
 def qa_agent(settings: Any, *responses: Any) -> Any:
     from agents.qa_agent import QAAgent
 

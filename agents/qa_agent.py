@@ -5,6 +5,7 @@ Approval is computed here from real test results (spec §6–7), never taken fro
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import re
@@ -19,11 +20,11 @@ from pydantic import BaseModel
 
 from agents.config import Settings
 from agents.model import make_model
-from agents.prompts import QA_FIX_PROMPT, QA_TESTS_PROMPT
+from agents.prompts import QA_CHECK_PROMPT, QA_FIX_PROMPT, QA_TESTS_PROMPT
 from orchestration.a2a import ReviewRequest
 from orchestration.handoff import qa_test_file
 from orchestration.project_state import Task, TaskHandoff
-from orchestration.review import Issue, QAReport, QATestSuite, TestOutcome
+from orchestration.review import Issue, QAReport, QATestSuite, TestCorrection, TestOutcome
 from tools.exec_python import ExecOutcome, exec_python
 from tools.file_tools import write_file
 from tools.junit import CaseResult, parse_junit
@@ -47,6 +48,23 @@ class Fix(BaseModel):
 
 class FixPlan(BaseModel):
     fixes: list[Fix]
+
+
+class TestVerdict(BaseModel):
+    __test__ = False
+
+    test: str
+    test_is_wrong: bool
+    reason: str
+    corrected: str = ""
+
+
+class TestAudit(BaseModel):
+    """QA's round-1 check of its own failing tests against the criteria."""
+
+    __test__ = False
+
+    verdicts: list[TestVerdict]
 
 
 def canonical_suite_path(settings: Settings, task_id: str) -> Path:
@@ -77,6 +95,31 @@ def _location(text: str, fallback: str) -> str:
     """The last file.py:line in the failure text that isn't a test_* file."""
     hits = [f"{m[1]}:{m[2]}" for m in _LOCATION.finditer(text) if not Path(m[1]).name.startswith("test_")]
     return hits[-1] if hits else fallback
+
+
+def _replace_tests(content: str, replacements: dict[str, str]) -> str | None:
+    """Swap whole top-level test functions by name; every other line of the module is kept as is.
+    None if a name is not defined in the module or a replacement is not exactly one function of that name."""
+    funcs = (ast.FunctionDef, ast.AsyncFunctionDef)
+    try:
+        tree = ast.parse(content)
+    except SyntaxError:
+        return None
+    spans = {n.name: (min([n.lineno, *(d.lineno for d in n.decorator_list)]) - 1, n.end_lineno)
+             for n in tree.body if isinstance(n, funcs) and n.name in replacements}
+    if set(spans) != set(replacements):
+        return None
+    for name, source in replacements.items():
+        try:
+            body = ast.parse(source).body
+        except SyntaxError:
+            return None
+        if len(body) != 1 or not isinstance(body[0], funcs) or body[0].name != name:
+            return None
+    lines = content.splitlines(keepends=True)
+    for name, (start, end) in sorted(spans.items(), key=lambda kv: -kv[1][0]):
+        lines[start:end] = [replacements[name].strip("\n") + "\n"]
+    return "".join(lines)
 
 
 def _approved(r: dict[str, Any]) -> bool:
@@ -317,11 +360,56 @@ class QAAgent:
             return issues
         return [i.model_copy(update={"fix": by_test[i.test]}) if i.test in by_test else i for i in issues]
 
+    def _save_suite(self, task_id: str, suite: QATestSuite) -> None:
+        """The canonical copy (replacing any left by an earlier run) and its workspace copy."""
+        canonical = canonical_suite_path(self.settings, task_id)
+        canonical.parent.mkdir(parents=True, exist_ok=True)
+        canonical.write_text(suite.content, encoding="utf-8")
+        write_file(self._ws, qa_test_file(task_id), suite.content)
+
+    def _check_tests(self, handoff: TaskHandoff, suite: QATestSuite, issues: list[Issue],
+                     contents: dict[str, str]) -> tuple[QATestSuite, list[TestCorrection]]:
+        """Round 1 only: ask QA whether its own failing tests contradict the criteria, and splice in the
+        replacements it gives. Any invalid replacement keeps the suite unchanged. Never raises."""
+        manifest = {t.name for t in suite.tests}
+        failing = sorted({i.test for i in issues
+                          if i.test in manifest and not i.assertion.startswith("regression in ")})
+        if not failing:
+            return suite, []
+        try:
+            tree = ast.parse(suite.content)
+            source = {n.name: ast.get_source_segment(suite.content, n) or "" for n in tree.body
+                      if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name in failing}
+            failures = {i.test: i.assertion for i in issues if i.test in source}
+            criteria = "\n".join(f"{n}. {c}" for n, c in enumerate(handoff.acceptance_criteria, 1))
+            tests = "\n\n".join(f"--- {name} ---\n{source[name]}\nFailure:\n{failures.get(name, '')}"
+                                 for name in sorted(source))
+            code = "\n\n".join(f"--- {p} ---\n{t}" for p, t in sorted(contents.items())) or "(no files)"
+            out = self._structured(TestAudit).invoke([
+                SystemMessage(QA_CHECK_PROMPT),
+                HumanMessage(f"Task {handoff.task_id}: {handoff.title}\n\nAcceptance criteria:\n{criteria}\n\n"
+                             f"Failing tests:\n{tests}\n\nCode:\n{code}")])
+            audit = out.get("parsed") if out.get("parsing_error") is None else None
+        except Exception:
+            return suite, []
+        wrong = {v.test: v for v in (audit.verdicts if audit else [])
+                 if v.test_is_wrong and v.test in source and v.corrected.strip()}
+        if not wrong:
+            return suite, []
+        content = _replace_tests(suite.content, {t: v.corrected for t, v in wrong.items()})
+        if content is None:
+            return suite, []
+        corrected = suite.model_copy(update={"content": content})
+        if corrected.check(len(handoff.acceptance_criteria)):
+            return suite, []
+        return corrected, [TestCorrection(test=t, reason=_clip(v.reason)) for t, v in sorted(wrong.items())]
+
     def review(self, handoff: TaskHandoff, request: ReviewRequest, round: int, suite: QATestSuite | None,
                prior: dict[str, QATestSuite], later: Sequence[Task] = ()) -> tuple[QAReport, QATestSuite | None]:
         """Spec §7 steps 1–7. Never raises for model or test failures."""
         task_id = handoff.task_id
         shas, contents, stale = self._fresh(request)
+        generated = suite is None
         if suite is None:
             try:
                 suite = self.generate_suite(handoff, contents, later)
@@ -331,17 +419,20 @@ class QAAgent:
                     tested_files=shas, tests_run=0, passed=0, failed=0, errors=0, skipped=0, missing=[],
                     exit_code=None, timed_out=False, duration_s=0.0, results=[], issues=stale, tampered=False,
                     qa_error=str(e)), None
-            # Round 1: the canonical copy (replacing any left by an earlier run) and its first workspace copy
-            canonical = canonical_suite_path(self.settings, task_id)
-            canonical.parent.mkdir(parents=True, exist_ok=True)
-            canonical.write_text(suite.content, encoding="utf-8")
-            write_file(self._ws, qa_test_file(task_id), suite.content)
-        suites = {**{t: s for t, s in prior.items() if t != task_id}, task_id: suite}
-        ran = self._run(suites, task_id=task_id, round=round,
-                        criteria={task_id: list(handoff.acceptance_criteria)})
+            self._save_suite(task_id, suite)
+        criteria = {task_id: list(handoff.acceptance_criteria)}
+        others = {t: s for t, s in prior.items() if t != task_id}
+        ran = self._run({**others, task_id: suite}, task_id=task_id, round=round, criteria=criteria)
+        corrections: list[TestCorrection] = []
+        if generated:
+            # Before the suite freezes, QA may replace its own tests that contradict the criteria, then rerun once
+            suite, corrections = self._check_tests(handoff, suite, ran.issues, contents)
+            if corrections:
+                self._save_suite(task_id, suite)
+                ran = self._run({**others, task_id: suite}, task_id=task_id, round=round, criteria=criteria)
         issues = stale + ran.issues
         if issues:
             issues = self._fixes(issues, contents)
         fields = ran.model_dump(exclude={"approved"})
-        fields.update(tested_files=shas, issues=issues)
+        fields.update(tested_files=shas, issues=issues, test_corrections=corrections)
         return _report(**fields), suite

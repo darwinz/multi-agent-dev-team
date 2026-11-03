@@ -151,6 +151,8 @@ def test_feedback_drives_revision(settings):
     r1, r2 = end["qa_reports"]
     assert r1.failed == 1
     assert [i.test for i in r1.issues] == ["test_reverse"]
+    assert r1.test_corrections == []  # QA checked test_reverse against the criteria and kept it
+    assert r1.issues[0].fix.startswith("relink each node")  # QA's fix plan, not the fallback text
 
     (fix,) = sent(chunks, "fix_instruction")
     assertion = FixInstruction(**fix["payload"]).issues[0].assertion

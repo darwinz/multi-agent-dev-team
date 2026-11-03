@@ -187,6 +187,7 @@ Reflection runs once per task, on the first delivery. Fix rounds go straight fro
 - `coder_node` runs the existing `CoderAgent` for one task. It delivers the code, revises it from QA's `fix_instruction`, and closes the task when QA sends `approved` or `final_report`. A failed task does not stop the run; the next task still runs and the run ends `partial`.
 - `reflect_node` has the Coder critique its own code (likely bugs and edge cases), then revise it. A revision that changes no file is retried once. If there is still no revision, the task cannot be `done`: QA sends `final_report(reason="no_revision")`.
 - `qa_node` receives the `review_request`, generates the task's pytest suite on round 1, restores the canonical suites (this task's plus every earlier approved task's) into the workspace, runs them all in one pytest subprocess, and replies. Approval means every manifest test of every suite ran and passed, with no skips and no missing tests.
+- On round 1 only, before the suite freezes, QA checks any of its own failing tests against the task's criteria and may replace a test it wrote wrong (same name, spliced in by function, recorded in the QA report's `test_corrections`), then reruns once. Later rounds never change the suite.
 - `finalize` re-runs every `done` task's canonical suite against the final workspace. A task whose suite now fails becomes `failed` with outcome `regressed`, and the run is `partial`.
 
 ## Why A2A

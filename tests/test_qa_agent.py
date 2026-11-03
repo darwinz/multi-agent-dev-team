@@ -12,8 +12,8 @@ from agents.prompts import QA_TESTS_PROMPT
 from agents.qa_agent import QAAgent, QAError, canonical_suite_path
 from orchestration.a2a import ReviewRequest
 from orchestration.project_state import Task, TaskHandoff
-from orchestration.review import QAReport, QATestSuite
-from tests.fakes import ScriptedChatModel, fix_plan_response, qa_agent, qa_suite_response
+from orchestration.review import QAReport, QATestSuite, TestCorrection
+from tests.fakes import ScriptedChatModel, audit_response, fix_plan_response, qa_agent, qa_suite_response
 from tools.workspace import sha256_file
 
 CRITERIA = ["push adds an item that pop can return", "pop returns the most recently pushed item"]
@@ -103,7 +103,7 @@ def approved_t1(settings: Settings) -> QATestSuite:
 
 def test_mocked_code_produces_issue_schema(settings):
     files = put(settings, **{"stack.py": BUGGY_STACK})
-    agent = qa_agent(settings, qa_suite_response(STACK_TESTS, STACK_MAP),
+    agent = qa_agent(settings, qa_suite_response(STACK_TESTS, STACK_MAP), audit_response(),
                      fix_plan_response(("test_pop_returns_last", "pop removes index 0", "Use self._items.pop()")))
     report, suite = agent.review(handoff(), request(files), 1, None, {})
 
@@ -393,3 +393,70 @@ def test_tests_prompt_scopes_suite_to_task():
     assert "later task" in QA_TESTS_PROMPT
     assert "NotImplementedError" in QA_TESTS_PROMPT
     assert "standard library" in QA_TESTS_PROMPT
+
+
+# A suite whose second test miscomputes its expected value: correct code can never pass it
+WRONG_TEST = """\
+def test_pop_returns_last():
+    s = Stack()
+    s.push(1)
+    s.push(2)
+    assert s.pop() == 1
+"""
+RIGHT_TEST = """\
+def test_pop_returns_last():
+    s = Stack()
+    s.push(1)
+    s.push(2)
+    assert s.pop() == 2
+"""
+FIRST_TEST = STACK_TESTS[:STACK_TESTS.index("def test_pop_returns_last")]
+WRONG_SUITE = FIRST_TEST + WRONG_TEST
+
+
+def test_wrong_test_corrected_in_round_one(settings):
+    files = put(settings, **{"stack.py": FIXED_STACK})
+    agent = qa_agent(settings, qa_suite_response(WRONG_SUITE, STACK_MAP),
+                     audit_response(("test_pop_returns_last", True, "pushing 1 then 2 pops 2, not 1", RIGHT_TEST)))
+    report, suite = agent.review(handoff(), request(files), 1, None, {})
+    assert report.approved, report.issues
+    assert report.test_corrections == [TestCorrection(test="test_pop_returns_last",
+                                                      reason="pushing 1 then 2 pops 2, not 1")]
+    assert suite.content == FIRST_TEST + RIGHT_TEST
+    assert canonical_suite_path(settings, "T1").read_text() == suite.content
+    assert (settings.workspace_dir / "test_qa_t1.py").read_text() == suite.content
+
+
+def test_correct_test_kept_and_fix_planned(settings):
+    files = put(settings, **{"stack.py": BUGGY_STACK})
+    agent = qa_agent(settings, qa_suite_response(STACK_TESTS, STACK_MAP),
+                     audit_response(("test_pop_returns_last", False, "the code pops the first item", "")),
+                     fix_plan_response(("test_pop_returns_last", "pop removes index 0", "Use self._items.pop()")))
+    report, suite = agent.review(handoff(), request(files), 1, None, {})
+    assert report.approved is False and report.test_corrections == []
+    assert suite.content == STACK_TESTS
+    assert report.issues[0].fix == "Use self._items.pop()"
+
+
+@pytest.mark.parametrize("corrected", [
+    RIGHT_TEST.replace("test_pop_returns_last", "test_other"),  # renamed
+    RIGHT_TEST + "\n\ndef test_extra():\n    pass\n",  # adds a test
+    "def test_pop_returns_last(:\n",  # does not parse
+])
+def test_invalid_correction_rejected(settings, corrected):
+    files = put(settings, **{"stack.py": FIXED_STACK})
+    agent = qa_agent(settings, qa_suite_response(WRONG_SUITE, STACK_MAP),
+                     audit_response(("test_pop_returns_last", True, "wrong expectation", corrected)),
+                     fix_plan_response())
+    report, suite = agent.review(handoff(), request(files), 1, None, {})
+    assert report.approved is False and report.test_corrections == []
+    assert suite.content == WRONG_SUITE
+
+
+def test_no_test_check_after_round_one(settings):
+    suite = QATestSuite.model_validate(qa_suite_response(WRONG_SUITE, STACK_MAP).tool_calls[0]["args"])
+    files = put(settings, **{"stack.py": FIXED_STACK})
+    agent = qa_agent(settings, fix_plan_response())
+    report, again = agent.review(handoff(), request(files, round=2), 2, suite, {})
+    assert len(agent.model.calls) == 1  # the fix plan only
+    assert report.approved is False and again == suite

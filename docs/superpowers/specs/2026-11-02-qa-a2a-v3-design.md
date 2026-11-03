@@ -158,6 +158,7 @@ Design ruling: the course's Broker uses `asyncio.Queue` because its agents are c
    - Timeout: one High issue "QA test run timed out after N s".
    - Missing or unparsable XML, or a nonzero exit with no failing case to explain it: a High issue with the stderr tail.
    - Each failed, error or skipped case, and each manifest test with no result, is a High issue. Its `criterion` comes from its suite's map. Its `location` is the last `name.py:line` in the failure text that isn't a `test_*` file, else the test name. An issue from an earlier task's suite is prefixed `regression in <task_id>:`.
+   - **Round-1 test check.** On round 1 only, if any of this task's own tests failed, skipped or did not run (issues prefixed `regression in` are excluded), one `QA_CHECK_PROMPT` call asks QA whether each such test contradicts the criteria. For a test it judges wrong, QA returns a replacement function with the same name. The replacement is spliced in by function, so every other line of the module is unchanged; a replacement that does not parse, renames the test, adds a function or fails `check` voids the whole correction. On a valid correction QA saves the new suite (canonical and workspace copies) and reruns once in the same round. `QAReport.test_corrections` records each replaced test and the reason. After round 1 the suite is frozen. Added after a live run in which T4's suite expected `len == 2` where the criteria give 3, and the Coder spent all five rounds on correct code.
 6. **Fixes.** When there are issues, one `QA_FIX_PROMPT` call (code plus failures) gives `FixPlan.fixes[{test, root_cause, fix}]`. These are merged by test name. Missing entries or a failed call fall back to `"Make <test> pass: <assertion>"`.
 7. **Approve.** Compute `approved` in code (§6).
 
@@ -269,7 +270,7 @@ README:
 
 1. A2A over MCP. The A2A exchange *is* the graded loop. MCP would reroute every Coder file tool and touch `verify_delivery`.
 2. The broker is synchronous, not `asyncio` (§5).
-3. QA writes its suite once per task, keeps the canonical copy outside the workspace, and restores it (plus every earlier approved task's suite) before each run, so the goalposts stay fixed, the Coder can't edit its way to a pass, and a later task can't silently break an earlier one.
+3. QA writes its suite once per task, keeps the canonical copy outside the workspace, and restores it (plus every earlier approved task's suite) before each run, so the goalposts stay fixed, the Coder can't edit its way to a pass, and a later task can't silently break an earlier one. One exception, decided with Brandon: in round 1, before the suite freezes, QA may replace its own failing tests that contradict the criteria (§7 step 5, round-1 test check).
 4. Reflection runs on the first delivery only. Fix rounds go straight to QA.
 5. "Iteration" means one QA test run. Five rounds means up to four Coder fix runs.
 6. A QA test-generation failure ends the task immediately with `final_report(reason="qa_error")`, because more Coder rounds can't fix QA's problem.

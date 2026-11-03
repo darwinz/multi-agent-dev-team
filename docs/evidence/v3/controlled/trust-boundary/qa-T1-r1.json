@@ -18,7 +18,7 @@
   "missing": [],
   "exit_code": 0,
   "timed_out": false,
-  "duration_s": 5.345,
+  "duration_s": 2.112,
   "results": [
     {
       "name": "test_qa_t1::test_insert",
@@ -44,5 +44,6 @@
   "issues": [],
   "tampered": false,
   "qa_error": null,
+  "test_corrections": [],
   "approved": true
 }
