@@ -8,8 +8,21 @@ from __future__ import annotations
 
 from typing import Any
 
+from agents.config import Settings
+from agents.pm_agent import PMAgent
 from orchestration.project_state import AcceptanceCriterion, Spec, Task
-from tests.fakes import ai, critique_response, fix_plan_response, qa_suite_response, spec_response, tool_call
+from orchestration.team_runner import TeamRunner
+from tests.fakes import (
+    ScriptedChatModel,
+    agent,
+    ai,
+    critique_response,
+    fix_plan_response,
+    qa_agent,
+    qa_suite_response,
+    spec_response,
+    tool_call,
+)
 
 LL_CRITERIA = [
     "insert(value) appends value to the end of the list",
@@ -183,3 +196,10 @@ def nonconverging_scripts(rounds: int) -> tuple[list, list, list]:
                            "test_linked_list.py", f"Attempt {n} at reverse")
     qa = [qa_suite_response(QA_LL_TESTS, QA_LL_MANIFEST), *(_reverse_fix() for _ in range(rounds))]
     return [spec_response(linked_list_spec())], coder, qa
+
+
+def scripted_runner(settings: Settings, scripts: tuple[list, list, list]) -> TeamRunner:
+    """A TeamRunner whose PM, Coder (FakeEmbedding memory) and QA answer from (pm, coder, qa) scripts."""
+    pm, coder, qa = scripts
+    return TeamRunner(settings, pm=PMAgent(settings, model=ScriptedChatModel(responses=list(pm))),
+                      coder=agent(settings, *coder), qa=qa_agent(settings, *qa))

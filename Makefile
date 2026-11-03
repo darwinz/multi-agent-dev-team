@@ -1,4 +1,4 @@
-.PHONY: setup test verify demo web requirements team-demo team-large
+.PHONY: setup test verify demo web requirements team-demo team-large team-linked-list
 
 setup:
 	uv sync
@@ -23,3 +23,6 @@ team-demo:
 
 team-large:
 	uv run team --demo large --reset-memory
+
+team-linked-list:
+	uv run team --demo linked-list --reset-memory

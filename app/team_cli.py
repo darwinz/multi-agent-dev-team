@@ -1,4 +1,4 @@
-"""`team`: run the PM -> Coder team from the terminal."""
+"""`team`: run the PM -> Coder <-> QA team from the terminal."""
 
 from __future__ import annotations
 
@@ -16,9 +16,13 @@ from agents.config import Settings
 from agents.events import StepEvent
 from agents.model import provider_prerequisite
 from app.api_check import check_api, find_app
+from app.demo_check import check_linked_list
 from app.render import (
+    render_a2a,
     render_consolidation,
     render_event,
+    render_qa_report,
+    render_reflection,
     render_spec,
     render_task_header,
     render_team_summary,
@@ -41,15 +45,27 @@ DEMO_LARGE = (
     "(11) import items from JSON. Validate inputs and raise clear errors for unknown item ids."
 )
 
+# The Module 3 grading demo, verbatim (spec §2)
+DEMO_LINKED_LIST = (
+    "Implement a Python module that contains a linked list class with insert, delete, search, and reverse "
+    "methods. All methods must be covered by tests."
+)
+
+DEMOS = {"api": DEMO_API, "large": DEMO_LARGE, "linked-list": DEMO_LINKED_LIST}
+
 
 def _parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="team", description="Run the PM -> Coder team on a requirement.")
+    p = argparse.ArgumentParser(prog="team", description="Run the PM -> Coder <-> QA team on a requirement.")
     p.add_argument("requirement", nargs="?", help="the free-text requirement")
-    p.add_argument("--demo", choices=["api", "large"], help="api: the published grading task; "
-                   "large: a requirement that yields more than 8 tasks (exercises consolidation)")
+    p.add_argument("--demo", choices=list(DEMOS), help="api: the Module 2 grading task; "
+                   "large: a requirement that yields more than 8 tasks (exercises consolidation); "
+                   "linked-list: the Module 3 grading task, then the linked-list check")
     p.add_argument("--model", help="provider-prefixed model, e.g. anthropic:claude-sonnet-5-5 or openai:gpt-4o")
     p.add_argument("--max-iterations", type=int, help="per-task model-call limit, 1 to 10 (default 10)")
     p.add_argument("--timeout", type=float, help="exec_python timeout in seconds (default 10)")
+    # A string, so a bad value gets the same "invalid setting" report from Settings as the env var
+    p.add_argument("--qa-max-iterations", metavar="N",
+                   help="QA test rounds per task, 1 to 5 (default 5, or QA_MAX_ITERATIONS)")
     p.add_argument("--reset-memory", action="store_true", help="clear both memory layers and the workspace first")
     p.add_argument("--json", action="store_true", help="print only the final ProjectState JSON on stdout")
     return p
@@ -78,12 +94,12 @@ def main(argv: list[str] | None = None, *, runner: TeamRunner | None = None) -> 
 
     console = Console(stderr=args.json)
     err = Console(stderr=True)
-    requirement = DEMO_API if args.demo == "api" else DEMO_LARGE if args.demo == "large" else args.requirement
+    requirement = DEMOS[args.demo] if args.demo else args.requirement
 
     if runner is None:
         try:
             settings = Settings.from_env(model=args.model, max_iterations=args.max_iterations,
-                                         exec_timeout_s=args.timeout)
+                                         exec_timeout_s=args.timeout, qa_max_iterations=args.qa_max_iterations)
         except ValidationError as e:
             for problem in e.errors():
                 err.print(f"team: invalid setting {'.'.join(map(str, problem['loc']))}: {problem['msg']}",
@@ -101,8 +117,9 @@ def main(argv: list[str] | None = None, *, runner: TeamRunner | None = None) -> 
         if not requirement:
             return 0
         final: dict | None = None
-        api_check = None
-        for event in runner.stream(requirement, api_check=_api_check if args.demo == "api" else None):
+        api_check = demo_check = None
+        for event in runner.stream(requirement, api_check=_api_check if args.demo == "api" else None,
+                                   demo_check=check_linked_list if args.demo == "linked-list" else None):
             k = event.kind
             if k == "start":
                 console.print(Text(f"run dir: {event.data['run_dir']}", style="dim"), soft_wrap=True)
@@ -116,18 +133,27 @@ def main(argv: list[str] | None = None, *, runner: TeamRunner | None = None) -> 
                 with console.capture() as cap:
                     render_event(console, StepEvent.model_validate(event.data))
                 console.print(Padding(Text.from_ansi(cap.get().rstrip("\n")), (0, 0, 0, 4)))
+            elif k == "reflection":
+                render_reflection(console, event.data)
+            elif k == "qa_report":
+                render_qa_report(console, event.data)
+            elif k == "a2a":
+                render_a2a(console, event.data)
             elif k == "task_done":
-                console.print(Text(f"{event.task_id}: {event.data['status']} "
-                                   f"({event.data.get('coder_status')}, {event.data.get('iterations', 0)} iterations)",
-                                   style="bold"))
+                d = event.data
+                console.print(Text(f"{event.task_id}: {d['status']} (QA: {d.get('qa_outcome')} after "
+                                   f"{d.get('qa_rounds', 0)} round(s); Coder: {d.get('coder_status')}, "
+                                   f"{d.get('iterations', 0)} iterations)", style="bold"), soft_wrap=True)
             elif k == "final":
                 final = event.data["state"]
                 api_check = event.data.get("api_check")
+                demo_check = event.data.get("demo_check")
                 render_team_summary(console, final)
-                if api_check is not None:
-                    console.print(Text("API fixture check: " + ("PASSED" if api_check["passed"] else "FAILED"),
-                                       style="bold green" if api_check["passed"] else "bold red"))
-                    console.print(Text(api_check["report"]), soft_wrap=True)
+                for title, check in (("API fixture check", api_check), ("Linked-list check", demo_check)):
+                    if check is not None:
+                        console.print(Text(f"{title}: " + ("PASSED" if check["passed"] else "FAILED"),
+                                           style="bold green" if check["passed"] else "bold red"))
+                        console.print(Text(check["report"]), soft_wrap=True)
     except WorkspaceBusyError as e:
         err.print(f"team: {e}", markup=False)
         return 2
@@ -138,7 +164,10 @@ def main(argv: list[str] | None = None, *, runner: TeamRunner | None = None) -> 
     assert final is not None
     if args.json:
         print(json.dumps(final, indent=2))
-    ok = final["status"] == "completed" and (args.demo != "api" or (api_check is not None and api_check["passed"]))
+    ok = final["status"] == "completed"
+    for demo, check in (("api", api_check), ("linked-list", demo_check)):
+        if args.demo == demo:  # a demo's exit also needs its check to have run and passed
+            ok = ok and check is not None and check["passed"]
     return 0 if ok else 1
 
 

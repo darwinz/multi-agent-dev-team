@@ -93,7 +93,7 @@ def render_result(console: Console, result: CoderResult) -> None:
     console.print(Panel(Group(*parts), title="CoderResult", border_style=_STATUS_STYLE[result.status].split()[-1]))
 
 
-# --- team (PM -> Coder) renderers ---------------------------------------------------
+# --- team (PM -> Coder <-> QA) renderers --------------------------------------------
 
 _TASK_STYLE = {"done": "green", "failed": "red", "in_progress": "yellow", "pending": "dim"}
 _RUN_STYLE = {"completed": "bold green", "partial": "bold yellow", "failed": "bold red", "running": "bold"}
@@ -127,16 +127,78 @@ def render_task_header(console: Console, data: dict) -> None:
                       style="bold"), align="left")
 
 
+def _n(count: int, word: str) -> str:
+    return f"{count} {word}" + ("" if count == 1 else "s")
+
+
+def render_a2a(console: Console, record: dict) -> None:
+    """One line per broker record, e.g. `A2A coder → qa review_request #1a2b3c4d round 1 · 2 files`."""
+    m = record["message"]
+    p = m["payload"]
+    tag = f"{m['intent']} #{m['correlation_id'][:8]}"
+    if record["event"] == "received":
+        console.print(Text(f"A2A {m['receiver']} received {tag}", style="dim"), soft_wrap=True)
+        return
+    if record["event"] == "rejected":
+        console.print(Text(f"A2A {m['receiver']} rejected {tag} from {m['sender']}: {record['reason']}",
+                           style="bold red"), soft_wrap=True)
+        return
+    detail = {
+        "review_request": lambda: _n(len(p["files"]), "file"),
+        "fix_instruction": lambda: _n(len(p["issues"]), "issue"),
+        "approved": lambda: _n(p["tests_run"], "test") + " passed",
+        "final_report": lambda: f"{p['reason']} · {len(p['unresolved'])} unresolved",
+    }[m["intent"]]()
+    style = {"approved": "bold green", "final_report": "bold red", "fix_instruction": "yellow"}.get(m["intent"], "blue")
+    console.print(Text(f"A2A {m['sender']} → {m['receiver']} {tag} round {p['round']} · {detail}", style=style),
+                  soft_wrap=True)
+
+
+def render_reflection(console: Console, data: dict) -> None:
+    items = (data.get("critique") or {}).get("items", [])
+    if data.get("error"):
+        line = f"self-review: no revision ({data['error']})"
+        style = "bold red"
+    else:
+        line = f"self-review: {_n(len(items), 'critique item')}, revised {', '.join(data['changed'])}"
+        style = "magenta"
+    console.print(Text(line, style=style), soft_wrap=True)
+    for item in items:
+        console.print(Text(f"    {item['kind']} {item['location']}: {item['concern']}", style="dim"), soft_wrap=True)
+    if data.get("dropped"):
+        console.print(Text(f"    dropped (no longer on disk): {', '.join(data['dropped'])}", style="yellow"),
+                      soft_wrap=True)
+
+
+def render_qa_report(console: Console, data: dict) -> None:
+    head = f"QA round {data['round']}: "
+    if data.get("qa_error"):
+        console.print(Text(head + f"QA error: {data['qa_error']}", style="bold red"), soft_wrap=True)
+    else:
+        verdict = "approved" if data["approved"] else _n(len(data["issues"]), "issue")
+        console.print(Text(head + f"{data['passed']}/{data['tests_run']} passed in {data['test_file']} · {verdict}"
+                           + (" · workspace suite restored (tampered)" if data.get("tampered") else ""),
+                           style="bold green" if data["approved"] else "bold yellow"), soft_wrap=True)
+    for issue in data.get("issues", []):
+        first = issue["assertion"].splitlines()[0] if issue["assertion"] else ""
+        console.print(Text(f"    {issue['severity']} {issue['test'] or issue['location']}: {_short(first, 100)}",
+                           style="red"), soft_wrap=True)
+
+
 def render_team_summary(console: Console, data: dict) -> None:
-    table = Table("id", "status", "iterations", "files")
+    table = Table("id", "status", "qa rounds", "qa", "iterations", "files")
     # One row per task that executes (the merged tasks after consolidation)
     records = data.get("task_status") or {}
     for task_id in (t["task_id"] for t in data.get("tasks") or []):
         rec = records.get(task_id, {"status": "pending"})
         table.add_row(task_id, Text(rec["status"], style=_TASK_STYLE.get(rec["status"], "")),
+                      str(rec.get("qa_rounds", 0)), rec.get("qa_outcome") or "-",
                       str(rec.get("iterations", 0)), ", ".join(rec.get("files", [])) or "none")
     status = data.get("status", "failed")
     parts: list = [table, Text.assemble(("run status: ", "bold"), (status, _RUN_STYLE.get(status, "bold")))]
+    for task_id in (t["task_id"] for t in data.get("tasks") or []):
+        for line in records.get(task_id, {}).get("unresolved", []):
+            parts.append(Text(f"{task_id} unresolved: {_short(line, 120)}", style="red"))
     if data.get("error"):
         parts.append(Text.assemble(("error: ", "bold red"), str(data["error"])))
     console.print(Panel(Group(*parts), title="Team summary", border_style=_RUN_STYLE.get(status, "bold").split()[-1]))

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import hashlib
 
+import pytest
 from langchain_core.messages import HumanMessage
 
+from agents.config import Settings
 from agents.pm_agent import PMAgent
 from orchestration.a2a import Approved, Broker, FixInstruction, Message
 from orchestration.project_state import MAX_TASKS, AcceptanceCriterion, Spec, Task, initial_project_state
@@ -33,6 +35,12 @@ from tests.scenarios import coder_run, feedback_scripts, nonconverging_scripts
 from tools.workspace import sha256_file
 
 REQ = "Build it"
+
+
+@pytest.fixture
+def settings(tmp_path) -> Settings:
+    # These tests run real QA pytest through the team graph; 15 s keeps them stable under load
+    return Settings.from_env(project_dir=tmp_path, exec_timeout_s=15)
 
 
 def run(settings, pm, coder_resp, qa_resp, max_rounds=5, broker=None):
