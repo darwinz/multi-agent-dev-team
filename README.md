@@ -1,6 +1,6 @@
-# Multi-Agent Dev Team: the Coder Agent (Module 1)
+# Multi-Agent Dev Team: PM → Coder ↔ QA (v3)
 
-An autonomous **LangGraph** Coder agent that takes a coding task in plain language, then plans, writes, runs and verifies Python code with **Claude Sonnet**. It works in a bounded ReAct loop (at most 10 model calls), with two memory layers (a sliding window plus Chroma) and three confined tools. Every run ends in a **Pydantic-validated result** whose code is read back from disk and whose result comes from a real execution. It is Module 1 of a five-module capstone: a PM → Coder → QA software team.
+An autonomous **LangGraph** Coder agent that takes a coding task in plain language, then plans, writes, runs and verifies Python code with **Claude Sonnet**. It works in a bounded ReAct loop (at most 10 model calls), with two memory layers (a sliding window plus Chroma) and three confined tools. Every run ends in a **Pydantic-validated result** whose code is read back from disk and whose result comes from a real execution. It is Module 1 of a five-module capstone: a PM → Coder ↔ QA software team. Modules 2 and 3 add the PM and QA agents on top, with the Coder and QA talking over A2A (see [v3.0](#v30-pm--coder--qa) and [Why A2A](#why-a2a)).
 
 ![The web UI: workspace tree, code viewer with terminal, live agent timeline and verified result](docs/images/web-ui.png)
 
@@ -73,11 +73,14 @@ flowchart LR
 
 ```
 agents/         coder_agent.py (CoderAgent), config, model, prompts, result (CoderResult), events
-                pm_agent.py (PMAgent, v2); qa_agent.py: placeholder for Module 3
+                pm_agent.py (PMAgent, v2)
+                qa_agent.py (QAAgent, v3): writes pytest suites from the criteria, runs them in a sandboxed
+                subprocess, parses failures into fix instructions, computes approval in code
 tools/          workspace confinement + lock, read_file / write_file, exec_python + _runner, specs, dispatch
 memory/         sliding window, Chroma semantic store, context formatting
 orchestration/  graph, routing, state, verify, finalize (v1 inner graph)
                 team_graph, project_state, handoff, consolidation, team_runner (v2 outer graph)
+                a2a (v3 message protocol and broker), review (QA and reflection models)
 app/            cli.py (coder), web.py (coder-web), team_cli.py (team), api_check.py, render.py
 web/            static mini-IDE (HTML/JS/CSS, no build step)
 tests/          unit tests (scripted fake model) + tests/live (real model)
@@ -114,9 +117,15 @@ Details are in [docs/architecture.md](docs/architecture.md).
 - **The web UI is local and read-only.** There is no authentication. It binds to 127.0.0.1 by default and refuses foreign `Host` headers (`CODER_WEB_ALLOWED_HOSTS`).
 - **The memory threshold (cosine distance 0.65) is tuned for the default embedding model.** Other embedding models may need `MEMORY_MAX_DISTANCE`.
 
-## v2.0: PM → Coder
+## v3.0: PM → Coder ↔ QA
 
-Module 2 adds a Product Manager agent in front of the Coder. One LangGraph graph (`orchestration/team_graph.py`) takes a free-text requirement, has the PM turn it into a spec with acceptance criteria and a task list, then hands the tasks to the Coder one at a time. Both agents read and write one shared `ProjectState`. The v1 `coder` and `coder-web` commands are unchanged.
+Module 3 completes the three-agent team. One LangGraph graph (`orchestration/team_graph.py`) takes a free-text requirement and runs three agents over a shared `ProjectState`:
+
+- **PM** (`agents/pm_agent.py`) turns the requirement into a spec with acceptance criteria and a task list.
+- **Coder** (`agents/coder_agent.py`) builds each task, critiques its own code once, and revises it.
+- **QA** (`agents/qa_agent.py`) writes pytest tests from the task's acceptance criteria, runs them in a subprocess with a timeout, parses the failures into structured fix instructions, and decides approval in code from the test results, never from a model's opinion.
+
+Per task, the loop is: `dispatch_node` hands the task over, `coder_node` delivers, `reflect_node` runs the Coder's self-critique and a revision, then `qa_node` tests the revised code. QA replies `fix_instruction` and the Coder revises and resubmits, or QA replies `approved` or `final_report` and the task closes. A round is one QA test run, and the loop is capped by `QA_MAX_ITERATIONS` (default and maximum 5). The v1 `coder` and `coder-web` commands are unchanged.
 
 ```mermaid
 flowchart TD
@@ -138,27 +147,79 @@ flowchart TD
 The same flow as text:
 
 ```
-            requirement
-                │
-   START ──► pm_node ──route_after_pm──┬── error ──────────────────────────► finalize ──► END
-                                       ├── > 8 tasks ──► consolidate_node ──┐      ▲
-                                       └── ≤ 8 tasks ───────────────────────┤      │
-                                                                            ▼      │
-                                         ┌──────────────────────────► dispatch_node│
-                                         │                                  │ handoff (TaskHandoff)
-                                         │                                  ▼      │
-                                         └──── more tasks ◄── route_after_coder ◄── coder_node
-                                                               └── all done ───────┘
+requirement
+    │
+    ▼
+ pm_node ──route_after_pm──┬── error or no tasks ───────────────────────────────► finalize ──► END
+                           ├── > 8 tasks ──► consolidate_node ──┐                    ▲
+                           └── ≤ 8 tasks ───────────────────────┤                    │
+                                                                ▼                    │
+              ┌─────────────────────────────────────────► dispatch_node              │
+              │                                                 │ TaskHandoff        │
+              │                                                 ▼                    │
+              │                                            coder_node (deliver)      │
+              │                                                 │                    │
+              │                                                 ▼                    │
+              │                                            reflect_node              │
+              │                                         critique, then revise        │
+              │                                                 │ A2A review_request │
+              │                                                 ▼                    │
+              │                                  ┌───────► qa_node                   │
+              │                                  │  tests, run, report               │
+              │                                  │             │                     │
+              │                  A2A review_request            │ A2A reply           │
+              │                  (next round)    │             ▼                     │
+              │                                  └──── coder_node ◄── fix_instruction
+              │                                        (revise)                      │
+              │                                                                      │
+              │                  approved or final_report: coder_node closes the task│
+              │                                                 │                    │
+              │                                        route_after_coder             │
+              └────────────── more tasks ◄──────────────────────┤                    │
+                                                                └── none left ───────┘
 ```
+
+Reflection runs once per task, on the first delivery. Fix rounds go straight from `coder_node` to `qa_node`. The Coder leaves a task only on an explicit `approved` or `final_report` message from QA.
 
 - `pm_node` drafts a `Spec` (acceptance criteria `AC1…`, tasks `T1…`, each task covering at least one criterion). It is validated, so a task that covers an unknown criterion, or a criterion no task covers, fails the run.
 - `consolidate_node` runs only when the PM returns more than 8 tasks. It merges them to at most 8 (model first, deterministic fallback) and records the mapping in `consolidation`.
-- `dispatch_node` writes a `TaskHandoff` into state. That is the readiness signal for the Coder, and `coder_node` reads nothing else.
-- `coder_node` runs the existing `CoderAgent` for one task and records the result. A failed task does not stop the run; the next task still runs and the run ends `partial`.
+- `dispatch_node` writes a `TaskHandoff` into state. That is the readiness signal for the Coder.
+- `coder_node` runs the existing `CoderAgent` for one task. It delivers the code, revises it from QA's `fix_instruction`, and closes the task when QA sends `approved` or `final_report`. A failed task does not stop the run; the next task still runs and the run ends `partial`.
+- `reflect_node` has the Coder critique its own code (likely bugs and edge cases), then revise it. A revision that changes no file is retried once. If there is still no revision, the task cannot be `done`: QA sends `final_report(reason="no_revision")`.
+- `qa_node` receives the `review_request`, generates the task's pytest suite on round 1, restores the canonical suites (this task's plus every earlier approved task's) into the workspace, runs them all in one pytest subprocess, and replies. Approval means every manifest test of every suite ran and passed, with no skips and no missing tests.
+- `finalize` re-runs every `done` task's canonical suite against the final workspace. A task whose suite now fails becomes `failed` with outcome `regressed`, and the run is `partial`.
+
+## Why A2A
+
+The Coder ↔ QA exchange is peer agent-to-agent work, so it uses an A2A-style message protocol (`orchestration/a2a.py`), not a tool call and not MCP.
+
+- **Peers, not a tool.** QA is not a function the Coder calls and gets a string back from. It is an agent with its own model, its own sandboxed test runs and its own decision to approve, and the two take turns: review request, fix instruction, revised request, verdict. Modelling that as a tool call would hide the loop that Module 3 is graded on.
+- **Correlation ids across rounds.** Every `Message` carries `sender`, `receiver`, `intent`, `payload` and `correlation_id`. QA echoes the id of the request it answers, so a reply is matched to the outstanding `review_request`. The Coder discards a reply carrying any other `correlation_id`, which keeps a stale answer from an earlier round from closing the task.
+- **Intent validation at a trust boundary.** There are four intents: `review_request`, `fix_instruction`, `approved` and `final_report`. A `Message` is validated when it is built: both agents must be `coder` or `qa` and differ, the intent must be known, and the payload must validate against that intent's model. On receipt, each agent accepts only what it declared (QA takes `review_request` from the Coder; the Coder takes `fix_instruction`, `approved` and `final_report` from QA). Anything else, or a message for another task, is logged as `rejected` and discarded.
+- **A decoupled broker.** Agents hold only the `Broker`, never each other. It keeps one FIFO queue per agent and reports every `sent`, `received` and `rejected` event, which `TeamRunner` appends to `a2a-log.jsonl` after two lines advertising what each agent accepts.
+- **Why a synchronous broker, not `asyncio`.** The course's reference broker uses `asyncio.Queue` because its agents are concurrent coroutines. Here the LangGraph nodes run one at a time, so a synchronous `collections.deque` per agent has the same send and receive contract with no event loop to manage. The part that matters, no agent referencing another and all traffic going through the broker, is kept.
+- **Why not MCP.** The Coder ↔ QA loop, not file access, is the graded pathway. MCP would reroute the Coder's file tools and touch delivery verification, and it does not model two agents taking turns.
+
+`correlation_id` pairs and the rejected-message records are visible in the `a2a-log.jsonl` of any run.
+
+### Configuration
+
+Set these in the environment or `.env` (see `.env.example`). The model key is only needed for live runs.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | none | API key for the default model. Not needed for tests. |
+| `CODER_MODEL` | `anthropic:claude-sonnet-5-5` | Provider-prefixed model used by the PM, Coder and QA. |
+| `CODER_MAX_ITERATIONS` | `10` | Model calls per Coder run, 1 to 10. |
+| `QA_MAX_ITERATIONS` | `5` | QA test rounds per task, 1 to 5 (the course cap). A round is one QA test run, so 5 rounds means up to 4 Coder fix runs. An invalid value exits with code 2. |
+| `EXEC_TIMEOUT_SECONDS` | `10` | Timeout for each `exec_python` run, including QA's pytest run. |
+| `MEMORY_WINDOW_TURNS` | `10` | Sliding-window turns kept by the Coder. |
 
 ### Running it
 
 ```bash
+make team-linked-list                     # the Module 3 grading task, then the linked-list check (live model)
+uv run team --demo linked-list --reset-memory --qa-max-iterations 3
 uv run team --demo api --reset-memory     # the published task: GET /health + POST /echo (make team-demo)
 uv run team --demo large --reset-memory   # an 11-feature requirement, so the PM yields > 8 tasks and consolidation runs (make team-large)
 uv run team "Build a CLI that converts CSV to JSON, with tests"
@@ -166,7 +227,11 @@ uv run team --json "…"                    # only the final ProjectState JSON o
 uv run python scripts/check_api.py        # run the Postman fixture against the generated API in workspace/
 ```
 
-`--demo api` runs `scripts/check_api.py`'s checks automatically after the Coder finishes and passes only if they do. Each run writes its evidence to `.coder/runs/<id>/`: `requirement.txt`, `state-after-pm.json`, `handoff-<task>.json`, `state-after-<task>.json`, `consolidation.json` (when consolidation ran), `api-check.txt` (for `--demo api`) and `final-state.json`. Flags and exit codes are in [docs/usage.md](docs/usage.md).
+`--demo api` runs `scripts/check_api.py`'s checks automatically after the Coder finishes and passes only if they do. `--demo linked-list` runs the Module 3 requirement, then checks that every task was approved with tests run, that QA's canonical suites call `insert`, `delete`, `search` and `reverse`, and that the project regression check passed. Flags and exit codes are in [docs/usage.md](docs/usage.md).
+
+Each run writes its evidence to `.coder/runs/<id>/`: `requirement.txt`, `state-after-pm.json`, `handoff-<task>.json`, `reflection-<task>.json`, `qa-<task>-r<n>.json`, `qa-tests-<task>.py`, `a2a-log.jsonl`, `state-after-<task>.json`, `consolidation.json` (when consolidation ran), `regression.json`, `api-check.txt` or `demo-check.txt` (for the demos) and `final-state.json`.
+
+**Status timing.** A task's `state-after-<id>.json` and its transcript `task_done` line show the status at the moment the task closed. The end-of-run regression check can later change a `done` task to `failed` (outcome `regressed`). The summary table, `regression.json` and `final-state.json` hold the final status.
 
 ### v2 rubric evidence
 
@@ -179,13 +244,31 @@ uv run python scripts/check_api.py        # run the Postman fixture against the 
 | **C2.5** Working end to end | `tests/test_team_graph.py`, `scripts/check_api.py` | The `tests/test_team_graph.py` result, the demo run and the `check_api.py` output on the generated API, in [docs/evidence/v2/](docs/evidence/v2/) |
 | **C2.6** Documentation | This section, [docs/architecture.md](docs/architecture.md) | The diagram above is checked against the compiled graph by `tests/test_docs.py` |
 
+### v3 rubric evidence
+
+| Criterion | Where in code | Evidence |
+|---|---|---|
+| **C3.1** QA agent, real tests | `agents/qa_agent.py`; the pytest subprocess and timeout in `tools/exec_python.py`; JUnit parsing in `tools/junit.py` | `qa-tests-<task>.py` (the suite) and `qa-<task>-r<n>.json` (per-test results, issues tied to the failing test) in any run directory |
+| **C3.2** Feedback loop | `qa_node` and `coder_node` in `orchestration/team_graph.py` | [feedback/](docs/evidence/v3/controlled/feedback/): `qa-T1-r1.json` failing assertion, then `fix_instruction` in `a2a-log.jsonl`, then `review_request` round 2 with revised file hashes, then `qa-T1-r2.json` passing |
+| **C3.3** Bounded loop | `Settings.qa_max_iterations` (`QA_MAX_ITERATIONS`, default 5, max 5) in `agents/config.py` | [nonconverging/](docs/evidence/v3/controlled/nonconverging/): `final_report`, task `failed`, run `partial`, exit 1. The success exit is in the live run below |
+| **C3.4** Self-reflection | `reflect_node`, `CoderAgent.critique` | `reflection-<task>.json` (critique, before and after hashes, changed files). The `review_request` round 1 hashes equal `after` |
+| **C3.5** A2A | `orchestration/a2a.py` | `a2a-log.jsonl` (five fields on every message, `correlation_id` pairs, capability lines, rejected messages). Tests: `tests/test_a2a.py`, `tests/test_team_loop.py` |
+| **C3.6** Working, documented | `tests/`, `app/demo_check.py` | The live linked-list run, and this README (protocol rationale and the three-agent diagram) |
+
+### Evidence index: `docs/evidence/v3/`
+
+- [`controlled/feedback/`](docs/evidence/v3/controlled/feedback/) and [`controlled/nonconverging/`](docs/evidence/v3/controlled/nonconverging/): **scripted PM/Coder/QA models, real pytest subprocess execution.** The model names in these transcripts are config defaults, not calls made. Regenerate with `uv run python -m scripts.controlled_runs`.
+- `docs/evidence/v3/linked-list/` (live run, coming next): the real-model run of `make team-linked-list`, with `demo-check.txt`, `a2a-log.jsonl`, the reflection and QA files and `regression.json`.
+
+In every run directory, `state-after-<id>.json` and the transcript `task_done` line show a task's status when it closed. The end-of-run regression check can later change a `done` task to `failed` (outcome `regressed`); the summary table, `regression.json` and `final-state.json` hold the final status.
+
 ## Roadmap
 
 | Module | Adds |
 |---|---|
 | 2 | Product Manager agent: request → spec → Coder (`agents/pm_agent.py`) |
-| 3 | QA & Debugger agent: reviews `CoderResult`, writes more tests, loops back with diagnoses (`agents/qa_agent.py`) |
-| 4 | MCP / A2A tool and agent interfaces; container-isolated execution |
+| 3 (built, v3.0) | QA & Debugger agent: writes tests from the acceptance criteria, runs them, loops back with fix instructions over A2A (`agents/qa_agent.py`, `orchestration/a2a.py`) |
+| 4 | MCP tool interfaces; container-isolated execution (A2A is already used between Coder and QA) |
 | 5 | Observability, cost tracking and optimisation |
 
 ## LangSmith (optional)

@@ -40,3 +40,11 @@ def test_readme_diagram_matches_graph(settings):
 
 def test_readme_has_no_local_notes():
     assert "LOCAL-NOTES" not in README.read_text()
+
+
+def test_readme_explains_protocol():
+    text = README.read_text()
+    for needle in ("## Why A2A", "QA_MAX_ITERATIONS", "correlation_id", "make team-linked-list",
+                   "scripted PM/Coder/QA models, real pytest subprocess execution",
+                   "docs/evidence/v3/linked-list/"):
+        assert needle in text, f"README is missing {needle!r}"

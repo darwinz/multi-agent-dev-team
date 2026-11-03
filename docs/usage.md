@@ -32,10 +32,11 @@ make demo        # = uv run coder --demo --reset-memory
 - **Task 1:** `palindrome.py` plus pytest tests.
 - **Task 2:** "Now make the palindrome checker also ignore punctuation…". The memory line before each call shows the first run retrieved from Chroma, and the agent reads and extends the existing files.
 
-## Team (PM → Coder)
+## Team (PM → Coder ↔ QA)
 
 ```bash
 uv run team --demo api --reset-memory
+uv run team --demo linked-list --reset-memory    # = make team-linked-list
 uv run team "Build a CLI that converts CSV to JSON, with tests"
 ```
 
@@ -44,19 +45,39 @@ uv run team "Build a CLI that converts CSV to JSON, with tests"
 | `requirement` | The free-text requirement. Give this or `--demo` or `--reset-memory`, not a requirement together with `--demo`. |
 | `--demo api` | The published grading task (GET /health, POST /echo with FastAPI). After the run it checks the generated API against the Postman fixture. |
 | `--demo large` | An 11-feature to-do library requirement. The PM yields more than 8 tasks, so `consolidate_node` runs. |
+| `--demo linked-list` | The Module 3 grading task (a linked list with insert, delete, search and reverse, all covered by tests). After the run it checks that every task was approved with tests run, that QA's canonical suites call all four methods, and that the project regression check passed. |
 | `--model` | A provider-prefixed model, as for `coder`. Same as `CODER_MODEL`. |
 | `--max-iterations N` | Per-task Coder model-call limit, from 1 to 10 (default 10). |
+| `--qa-max-iterations N` | QA test rounds per task, from 1 to 5 (default 5). Same as `QA_MAX_ITERATIONS`. A round is one QA test run, so 5 rounds means up to 4 Coder fix runs. A bad value (`0`, `6`, `abc`), from the flag or the variable, exits 2 with "invalid setting". |
 | `--timeout S` | `exec_python` timeout in seconds (default 10). |
 | `--reset-memory` | Clears both memory layers and the workspace first. Can be used alone. |
 | `--json` | Prints only the final `ProjectState` JSON on stdout. Progress goes to stderr. |
 
 Exit codes:
-- **0**: the run `completed` (every task done). With `--demo api`, the API fixture check must also pass. `--reset-memory` alone also exits 0.
-- **1**: the run ended `partial` or `failed`, or the `--demo api` fixture check failed.
+- **0**: the run `completed` (every task done, approved by QA and still passing the final regression check). With `--demo api` or `--demo linked-list`, that demo's check must also pass. `--reset-memory` alone also exits 0.
+- **1**: the run ended `partial` or `failed` (including a task QA could not approve within the round limit), or a demo's check failed.
 - **2**: a usage or settings error, a missing provider prerequisite, or a busy workspace (another `coder` or `team` run holds the lock).
 - **130**: interrupted with Ctrl-C (the lock is released).
 
-Each run writes its evidence to `.coder/runs/<run id>/` (`requirement.txt`, `state-after-pm.json`, `handoff-<task>.json`, `state-after-<task>.json`, `consolidation.json`, `api-check.txt`, `final-state.json`). `make team-demo` and `make team-large` run the two demos.
+Each run writes its evidence to `.coder/runs/<run id>/`:
+
+- `requirement.txt`, `state-after-pm.json`, `handoff-<task>.json`, `consolidation.json`
+- `reflection-<task>.json`: the Coder's critique, before and after file hashes, changed files
+- `qa-<task>-r<n>.json`: QA's report for each round (per-test results and issues); `qa-tests-<task>.py` is the suite
+- `a2a-log.jsonl`: every Coder ↔ QA message sent, received or rejected
+- `regression.json`: the end-of-run regression check
+- `api-check.txt` or `demo-check.txt`, and `final-state.json`
+
+`state-after-<task>.json` and the `task_done` line in the terminal show a task's status when it closed. The regression check can later change a `done` task to `failed` (outcome `regressed`); the summary table, `regression.json` and `final-state.json` hold the final status.
+
+`make team-demo`, `make team-large` and `make team-linked-list` run the three demos. The linked-list demo needs a live model; run it with `op run --env-file=.env.op -- make team-linked-list`.
+
+### QA settings
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `QA_MAX_ITERATIONS` / `--qa-max-iterations` | 5 | QA test rounds per task, 1 to 5. At the limit QA sends a `final_report`, and the task is `failed` with its unresolved issues; the run is `partial`. |
+| `EXEC_TIMEOUT_SECONDS` / `--timeout` | 10 | Also bounds QA's pytest run. A timeout is a High issue, never an approval. |
 
 To check an API you already generated in `workspace/`:
 
