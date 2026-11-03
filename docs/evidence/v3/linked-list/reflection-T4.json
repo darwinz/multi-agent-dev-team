@@ -1,0 +1,52 @@
+{
+  "task_id": "T4",
+  "critique": {
+    "items": [
+      {
+        "kind": "bug",
+        "location": "linked_list.py: LinkedList.delete, `node.next = None`",
+        "concern": "Clearing the removed node's `next` silently truncates any live iteration. In `for v in ll: if pred(v): ll.delete(v)`, the generator resumes at the removed node, reads `node.next`, gets None and stops. The remaining items are skipped with no error. The class docstring says only that items may be skipped or repeated. Clearing `next` isn't needed for correctness, and it makes the common delete-while-iterating pattern worse than leaving the node alone.",
+        "change": "Delete the `node.next = None` line. The unlinked node is garbage-collected anyway. Alternatively, keep it and state in the delete docstring that deleting during iteration ends the iteration early. Add a test that deletes during iteration and asserts the documented behaviour."
+      },
+      {
+        "kind": "edge_case",
+        "location": "linked_list.py: LinkedList.delete, loop bound `range(self._size)`",
+        "concern": "If `_size` is stale and too small, for example from hand-edited nodes, delete misses a value that is really in the chain. It returns False even though `search` and iteration can still reach that node, with no signal that the invariant is broken. test_search_is_bounded_by_size_invariant covers this for search but nothing covers it for delete.",
+        "change": "Add a test that sets `ll._size = 2` on a 3-node list and asserts `delete(3)` is False and the list is unchanged. Alternatively, document that the walk is bounded by `_size`."
+      },
+      {
+        "kind": "edge_case",
+        "location": "test_linked_list.py: test_delete_on_cycle_terminates",
+        "concern": "This test only deletes a missing value, so it only checks that the walk ends. It never deletes an existing node in a cyclic list. Deleting the tail of `[1,2,3]` where `3.next` is head leaves `prev.next = head` and still decrements `_size`. Deleting the head leaves the tail pointing at the removed node. The behaviour on a cycle is untested and undocumented.",
+        "change": "Add tests for a cyclic list. Either delete a present value and assert that it returns True and `_size` decrements, or state that cycle behaviour is undefined and drop the claim of safety."
+      },
+      {
+        "kind": "edge_case",
+        "location": "linked_list.py: LinkedList.delete, `node.value == value`",
+        "concern": "Values whose `==` returns a non-bool, such as numpy arrays or pandas objects, make the `or` expression raise ValueError (ambiguous truth value) mid-walk. The error propagates and the list is left unchanged, which is acceptable. It is not tested, and the docstring doesn't mention this case.",
+        "change": "Add a test with a class whose `__eq__` returns an object whose `__bool__` raises ValueError. Assert that `delete` raises, the list is unchanged and `len` is unchanged."
+      },
+      {
+        "kind": "edge_case",
+        "location": "test_linked_list.py: delete tests, identity vs equality",
+        "concern": "No test checks that delete removes the first node with an equal value when a later node is the identical object. No test checks that a node matching by `is` is removed even when its `__eq__` returns False. The `is` short-circuit in delete is therefore only covered through NaN. Operand order (`node.value == value`) is checked for search but not for delete.",
+        "change": "Add a test like test_search_operand_order_is_node_value_first for delete. Add a test with an object whose `__eq__` always returns False and which is deleted by passing the same object. Assert it returns True."
+      }
+    ]
+  },
+  "before": {
+    "linked_list.py": "2b8cb46ac23f24f8b153b62f4a545f0aa0367d254fd86841c0cb8d6209c57413",
+    "test_linked_list.py": "0c879ba025ec6e2f7a031a0657a117c6002d1e6f374a58847b403d67ffc9a80b"
+  },
+  "after": {
+    "linked_list.py": "f37cb0bd83a05668970657d5c31cd85009fd5f2e4f049b195aa32b24f3388907",
+    "test_linked_list.py": "fc36d4453eea2aef60490c686fde7a23b4665ca9357ed03a526af279866910b1"
+  },
+  "changed": [
+    "linked_list.py",
+    "test_linked_list.py"
+  ],
+  "revision_status": "success",
+  "error": null,
+  "dropped": []
+}

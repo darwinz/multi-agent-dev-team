@@ -258,7 +258,7 @@ Each run writes its evidence to `.coder/runs/<id>/`: `requirement.txt`, `state-a
 ### Evidence index: `docs/evidence/v3/`
 
 - [`controlled/feedback/`](docs/evidence/v3/controlled/feedback/), [`controlled/nonconverging/`](docs/evidence/v3/controlled/nonconverging/) and [`controlled/trust-boundary/`](docs/evidence/v3/controlled/trust-boundary/): **scripted PM/Coder/QA models, real pytest subprocess execution.** The transcripts show the model as `scripted`; no model API calls were made. In `trust-boundary`, two forged messages are injected into the broker on purpose, to show the trust boundary rejecting them. Regenerate with `uv run python -m scripts.controlled_runs`.
-- `docs/evidence/v3/linked-list/` (live run, coming next): the real-model run of `make team-linked-list`, with `demo-check.txt`, `a2a-log.jsonl`, the reflection and QA files and `regression.json`.
+- `docs/evidence/v3/linked-list/` (live run): the real-model run of the grading demo. Five tasks, all approved; T1 went through a live QA `fix_instruction` round before approval; the regression check passed 109/109 tests. Includes `demo-check.txt`, `a2a-log.jsonl`, the reflection and QA files and `regression.json`.
 
 In every run directory, `state-after-<id>.json` and the transcript `task_done` line show a task's status when it closed. The end-of-run regression check can later change a `done` task to `failed` (outcome `regressed`); the summary table, `regression.json` and `final-state.json` hold the final status.
 

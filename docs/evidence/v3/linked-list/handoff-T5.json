@@ -1,0 +1,21 @@
+{
+  "task_id": "T5",
+  "title": "Implement reverse and integration tests",
+  "description": "Implement in-place reverse() returning None. Add tests for lengths 0,1,2,many, double reverse restoring the original, and a mixed sequence test of insert/delete/search after reverse (verifying append goes to the correct tail). Confirm every public method is exercised by the test suite.",
+  "acceptance_criteria": [
+    "Reverse works on lengths 0, 1, 2 and many and returns None",
+    "Reversing twice restores the original order",
+    "After reverse, append, delete and search behave correctly on the new order",
+    "len and iteration are correct after mixed operations",
+    "Full pytest run passes with all methods covered"
+  ],
+  "priority": "medium",
+  "position": 5,
+  "total": 5,
+  "spec_name": "Singly Linked List Module",
+  "spec_description": "A Python module (linked_list.py) providing a singly linked list class `LinkedList` (with an internal `Node` class) that supports insert, delete, search, and reverse operations, plus a pytest test suite (test_linked_list.py) covering every method, including edge and error cases. Design decisions: values may be any Python object compared with ==; `insert(value, index=None)` appends to the tail when index is None, otherwise inserts before the given position (0 = head, len = tail); an out-of-range or non-integer index raises IndexError / TypeError respectively; `delete(value)` removes the first node whose value equals the argument and returns True, or returns False if not found (no exception); `search(value)` returns the zero-based index of the first match or -1 if absent; `reverse()` reverses the list in place and returns None. The class also supports len(), iteration, and `to_list()` to make behaviour testable.",
+  "prior_files": [
+    "linked_list.py",
+    "test_linked_list.py"
+  ]
+}

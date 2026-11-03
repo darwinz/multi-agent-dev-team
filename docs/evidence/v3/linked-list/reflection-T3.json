@@ -1,0 +1,58 @@
+{
+  "task_id": "T3",
+  "critique": {
+    "items": [
+      {
+        "kind": "edge_case",
+        "location": "linked_list.py: LinkedList.search (`node.value == value`)",
+        "concern": "Searching for NaN always returns -1, even when the very same float('nan') object is in the list. Python's `list.index` and `in` check identity first, so this is inconsistent with them. Nothing in the tests or docstring mentions it.",
+        "change": "Either use `if node.value is value or node.value == value:`, which matches list.index, or state in the docstring that NaN is never found. Add a test: `n = float('nan'); assert make_list([1, n]).search(n) == 1` if identity is kept, or `== -1` if the strict `==` rule is kept."
+      },
+      {
+        "kind": "edge_case",
+        "location": "linked_list.py: LinkedList.search, equality call",
+        "concern": "`==` can raise, or can return something that isn't a bool. numpy arrays raise ValueError on truthiness. A custom __eq__ may raise. The exception passes straight through search. That is probably fine, but it is untested. The list stays unmodified, which is the behaviour to pin down.",
+        "change": "Add a test with a class whose __eq__ raises RuntimeError. Check that `pytest.raises(RuntimeError)` fires on search and that `to_list()` and `assert_consistent` are unchanged afterwards. Document that comparison errors propagate."
+      },
+      {
+        "kind": "edge_case",
+        "location": "test_linked_list.py: test_search_custom_eq_object",
+        "concern": "The tests don't fix the operand order. The code calls `node.value.__eq__(value)` first. An asymmetric __eq__, or a subclass that overrides it, would behave differently from `value == node.value`. Cross-type numeric matches such as 1 == 1.0 == True are also untested, apart from the 0/False case.",
+        "change": "Add `assert make_list([1, 2.0]).search(2) == 1`, `make_list([1]).search(True) == 0` and `make_list([1]).search(1.0) == 0`. Add a test with an object whose __eq__ records its calls, to document the order."
+      },
+      {
+        "kind": "edge_case",
+        "location": "test_linked_list.py: search tests (tail/large list)",
+        "concern": "Search is only tested on tiny lists, and only through the hand-built `make_list` or a few `insert` calls. There is no test for a large list, such as a 3000-node tail match. There is no check that `search` ignores `_size` and walks the real chain. A bug that stopped at `_size` or recursed would go unnoticed.",
+        "change": "Add `ll = make_list(list(range(5000))); assert ll.search(4999) == 4999; assert ll.search(5000) == -1`. Add a test with a deliberately wrong `_size` to show that search follows the chain, or decide that it should respect `_size` and test that instead."
+      },
+      {
+        "kind": "edge_case",
+        "location": "linked_list.py: LinkedList.search (cyclic chain)",
+        "concern": "If a user edits `head`/`next` directly and creates a cycle, a missing value makes search loop forever. The class docstring says cycles are unsupported, but search is the one method that can hang with no way out.",
+        "change": "Either leave it as documented and add a note to the search docstring, or bound the loop with `for _ in range(self._size)`. If you bound it, a test that builds a cycle and expects -1 must not hang."
+      },
+      {
+        "kind": "edge_case",
+        "location": "test_linked_list.py: test_search_uses_equality_not_identity",
+        "concern": "The test looks for `[1, 2]` and `'xy'`, but CPython may intern or reuse equal literals. `\"\".join` guards the string case, but the `(3, 4)` tuple is a constant that the compiler may share, so it never shows that identity is not used. The test is weaker than its name claims.",
+        "change": "Build the probe at runtime, for example `probe = tuple([3, 4])`. Assert `probe is not ll.head.next.value` before asserting `ll.search(probe) == 1`."
+      }
+    ]
+  },
+  "before": {
+    "linked_list.py": "614d672eec7e0ad7f058ea184d3e6ef0343641d30f73227c7085f95fe852316f",
+    "test_linked_list.py": "d763ce1b96e768ebad6bb70d145135bbc4858798b656fdd949e7c265b76db413"
+  },
+  "after": {
+    "linked_list.py": "9973c4280d1d93b1f3bc02e785f298bf0bd329ee02033e497d426a515d7cfd5b",
+    "test_linked_list.py": "2ca684abf2b40cfce2036e81a300fcbe37e68ff2fc7b88157cee19c29c75d4d5"
+  },
+  "changed": [
+    "linked_list.py",
+    "test_linked_list.py"
+  ],
+  "revision_status": "success",
+  "error": null,
+  "dropped": []
+}
