@@ -229,7 +229,7 @@ uv run python scripts/check_api.py        # run the Postman fixture against the 
 
 `--demo api` runs `scripts/check_api.py`'s checks automatically after the Coder finishes and passes only if they do. `--demo linked-list` runs the Module 3 requirement, then checks that every task was approved with tests run, that QA's canonical suites call `insert`, `delete`, `search` and `reverse`, and that the project regression check passed. Flags and exit codes are in [docs/usage.md](docs/usage.md).
 
-Each run writes its evidence to `.coder/runs/<id>/`: `requirement.txt`, `state-after-pm.json`, `handoff-<task>.json`, `reflection-<task>.json`, `qa-<task>-r<n>.json`, `qa-tests-<task>.py`, `a2a-log.jsonl`, `state-after-<task>.json`, `consolidation.json` (when consolidation ran), `regression.json`, `api-check.txt` or `demo-check.txt` (for the demos) and `final-state.json`.
+Each run writes its evidence to `.coder/runs/<id>/`: `requirement.txt`, `state-after-pm.json`, `handoff-<task>.json`, `reflection-<task>.json`, `qa-<task>-r<n>.json`, `qa-tests-<task>.py`, `a2a-log.jsonl`, `state-after-<task>.json`, `consolidation.json` (when consolidation ran), `regression.json` (when at least one task is done), `api-check.txt` or `demo-check.txt` (for the demos) and `final-state.json`.
 
 **Status timing.** A task's `state-after-<id>.json` and its transcript `task_done` line show the status at the moment the task closed. The end-of-run regression check can later change a `done` task to `failed` (outcome `regressed`). The summary table, `regression.json` and `final-state.json` hold the final status.
 
@@ -252,12 +252,12 @@ Each run writes its evidence to `.coder/runs/<id>/`: `requirement.txt`, `state-a
 | **C3.2** Feedback loop | `qa_node` and `coder_node` in `orchestration/team_graph.py` | [feedback/](docs/evidence/v3/controlled/feedback/): `qa-T1-r1.json` failing assertion, then `fix_instruction` in `a2a-log.jsonl`, then `review_request` round 2 with revised file hashes, then `qa-T1-r2.json` passing |
 | **C3.3** Bounded loop | `Settings.qa_max_iterations` (`QA_MAX_ITERATIONS`, default 5, max 5) in `agents/config.py` | [nonconverging/](docs/evidence/v3/controlled/nonconverging/): `final_report`, task `failed`, run `partial`, exit 1. The success exit is in the live run below |
 | **C3.4** Self-reflection | `reflect_node`, `CoderAgent.critique` | `reflection-<task>.json` (critique, before and after hashes, changed files). The `review_request` round 1 hashes equal `after` |
-| **C3.5** A2A | `orchestration/a2a.py` | `a2a-log.jsonl` (five fields on every message, `correlation_id` pairs, capability lines, rejected messages). Tests: `tests/test_a2a.py`, `tests/test_team_loop.py` |
+| **C3.5** A2A | `orchestration/a2a.py` | `a2a-log.jsonl` (five fields on every message, `correlation_id` pairs, capability lines). Rejected messages: [trust-boundary/](docs/evidence/v3/controlled/trust-boundary/), where a forged `fix_instruction` and an `approved` with a wrong `correlation_id` were injected deliberately and both are logged as `rejected` with a reason while the task still ends `done`. Tests: `tests/test_a2a.py`, `tests/test_team_loop.py` |
 | **C3.6** Working, documented | `tests/`, `app/demo_check.py` | The live linked-list run, and this README (protocol rationale and the three-agent diagram) |
 
 ### Evidence index: `docs/evidence/v3/`
 
-- [`controlled/feedback/`](docs/evidence/v3/controlled/feedback/) and [`controlled/nonconverging/`](docs/evidence/v3/controlled/nonconverging/): **scripted PM/Coder/QA models, real pytest subprocess execution.** The model names in these transcripts are config defaults, not calls made. Regenerate with `uv run python -m scripts.controlled_runs`.
+- [`controlled/feedback/`](docs/evidence/v3/controlled/feedback/), [`controlled/nonconverging/`](docs/evidence/v3/controlled/nonconverging/) and [`controlled/trust-boundary/`](docs/evidence/v3/controlled/trust-boundary/): **scripted PM/Coder/QA models, real pytest subprocess execution.** The transcripts show the model as `scripted`; no model API calls were made. In `trust-boundary`, two forged messages are injected into the broker on purpose, to show the trust boundary rejecting them. Regenerate with `uv run python -m scripts.controlled_runs`.
 - `docs/evidence/v3/linked-list/` (live run, coming next): the real-model run of `make team-linked-list`, with `demo-check.txt`, `a2a-log.jsonl`, the reflection and QA files and `regression.json`.
 
 In every run directory, `state-after-<id>.json` and the transcript `task_done` line show a task's status when it closed. The end-of-run regression check can later change a `done` task to `failed` (outcome `regressed`); the summary table, `regression.json` and `final-state.json` hold the final status.

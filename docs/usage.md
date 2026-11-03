@@ -65,7 +65,7 @@ Each run writes its evidence to `.coder/runs/<run id>/`:
 - `reflection-<task>.json`: the Coder's critique, before and after file hashes, changed files
 - `qa-<task>-r<n>.json`: QA's report for each round (per-test results and issues); `qa-tests-<task>.py` is the suite
 - `a2a-log.jsonl`: every Coder ↔ QA message sent, received or rejected
-- `regression.json`: the end-of-run regression check
+- `regression.json` (when at least one task is done): the end-of-run regression check
 - `api-check.txt` or `demo-check.txt`, and `final-state.json`
 
 `state-after-<task>.json` and the `task_done` line in the terminal show a task's status when it closed. The regression check can later change a `done` task to `failed` (outcome `regressed`); the summary table, `regression.json` and `final-state.json` hold the final status.
