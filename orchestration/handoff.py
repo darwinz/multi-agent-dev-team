@@ -12,6 +12,11 @@ BUILD_ON = (
 )
 
 
+def qa_test_file(task_id: str) -> str:
+    """The workspace-root file name of a task's QA suite, e.g. test_qa_t1.py."""
+    return f"test_qa_{task_id.lower()}.py"
+
+
 def make_handoff(state: ProjectState) -> TaskHandoff:
     """The handoff for tasks[current_task_index]; prior_files are the files earlier tasks produced."""
     tasks = state["tasks"]
