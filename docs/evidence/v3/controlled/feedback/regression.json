@@ -15,7 +15,7 @@
   "missing": [],
   "exit_code": 0,
   "timed_out": false,
-  "duration_s": 0.501,
+  "duration_s": 0.769,
   "results": [
     {
       "name": "test_qa_t1::test_insert",

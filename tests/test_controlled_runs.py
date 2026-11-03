@@ -3,13 +3,16 @@ import json
 from scripts.controlled_runs import main
 
 
+def _records(path):
+    return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
+
+
 def _a2a(path):
     """The intent of every message in the log (capability lines carry none)."""
-    records = [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
-    return [{"intent": r["message"]["intent"]} for r in records if "message" in r]
+    return [{"intent": r["message"]["intent"]} for r in _records(path) if "message" in r]
 
 
-def test_script_writes_both_scenarios(tmp_path):
+def test_script_writes_all_scenarios(tmp_path):
     out = tmp_path / "out"
     assert main(["--out", str(out)]) == 0
 
@@ -26,10 +29,21 @@ def test_script_writes_both_scenarios(tmp_path):
     nc = out / "nonconverging"
     assert "final_report" in {m["intent"] for m in _a2a(nc / "a2a-log.jsonl")}
     assert "failed" in (nc / "transcript.txt").read_text()
-    for d in (fb, nc):
+    tb = out / "trust-boundary"
+    rejected = [r for r in _records(tb / "a2a-log.jsonl") if r.get("event") == "rejected"]
+    assert len(rejected) >= 2 and all(r["reason"] for r in rejected)
+    assert {(r["message"]["sender"], r["message"]["intent"]) for r in rejected} == {
+        ("coder", "fix_instruction"), ("qa", "approved")}
+    state = json.loads((tb / "final-state.json").read_text())
+    assert state["task_status"]["T1"]["status"] == "done" and state["status"] == "completed"
+    assert "deliberately" in (tb / "README.md").read_text()
+
+    for d in (fb, nc, tb):
         readme = (d / "README.md").read_text()
         assert "scripted PM/Coder/QA models, real pytest subprocess execution" in readme
         assert "exit code" in readme.lower()
+        assert "Model names in transcript.txt are config defaults; no model API calls were made." in readme
+        assert "claude-sonnet" not in (d / "transcript.txt").read_text()
 
     # No personal paths or temp roots leak into the committed evidence
     for f in out.rglob("*"):

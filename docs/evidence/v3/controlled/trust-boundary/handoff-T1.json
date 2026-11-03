@@ -1,0 +1,17 @@
+{
+  "task_id": "T1",
+  "title": "Linked list",
+  "description": "Implement LinkedList in linked_list.py.",
+  "acceptance_criteria": [
+    "insert(value) appends value to the end of the list",
+    "delete(value) removes the first node holding value and returns True, or returns False if it is absent",
+    "search(value) returns True if value is in the list, otherwise False",
+    "reverse() reverses the list in place"
+  ],
+  "priority": "high",
+  "position": 1,
+  "total": 1,
+  "spec_name": "Linked list",
+  "spec_description": "A singly linked list with insert, delete, search and reverse.",
+  "prior_files": []
+}

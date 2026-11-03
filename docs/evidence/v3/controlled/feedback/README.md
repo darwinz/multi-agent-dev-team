@@ -10,4 +10,6 @@ Round 1 ships a linked list whose `reverse` is a no-op, so QA's `test_reverse` f
 
 Chain: `qa-T1-r1.json` (failing assertion) -> `a2a-log.jsonl` (`fix_instruction`) -> `a2a-log.jsonl` (`review_request` round 2, revised file hashes) -> `qa-T1-r2.json` (passing).
 
+Model names in transcript.txt are config defaults; no model API calls were made.
+
 Files: `transcript.txt` is the CLI output; the rest is the run directory (`<project>` replaces the temporary project root).

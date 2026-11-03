@@ -1,4 +1,4 @@
-run dir: <project>/.coder/runs/3e650e5725f3
+run dir: <project>/.coder/runs/ddfab1f48fec
 ╭───────────────────────────── Spec: Linked list ──────────────────────────────╮
 │ A singly linked list with insert, delete, search and reverse.                │
 │ acceptance criteria:                                                         │
@@ -10,8 +10,8 @@ run dir: <project>/.coder/runs/3e650e5725f3
 │ └─────────┴────────────────────┴──────────────────────────┴────────────────┘ │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 T1/1 · high · Linked list ──────────────────────────────────────────────────────
-    ───────────── Task (anthropic:claude-sonnet-5-5, run 8c9195c63558)          
-    ─────────────                                                               
+    ────────────────────── Task (scripted, run 2383611ab760)                    
+    ───────────────────────                                                     
     Project: Linked list                                                        
     A singly linked list with insert, delete, search and reverse.               
                                                                                 
@@ -49,7 +49,7 @@ T1/1 · high · Linked list ─────────────────�
     target=test_linked_list.py mode=pytest                                      
     exit_code=0                                                                 
     timed_out=False                                                             
-    duration=1.78s                                                              
+    duration=2.28s                                                              
     --- stdout ---                                                              
     .                                                                           
     [100%]                                                                      
@@ -59,8 +59,8 @@ T1/1 · high · Linked list ─────────────────�
     [2/10] memory: 0 relevant past run(s), 0 recent turn(s)                     
     [2/10] thought: done                                                        
                                                                                 
-    ───────────── Task (anthropic:claude-sonnet-5-5, run e91162d9e967)          
-    ─────────────                                                               
+    ────────────────────── Task (scripted, run 6f6f0c722c3b)                    
+    ───────────────────────                                                     
     Project: Linked list                                                        
     A singly linked list with insert, delete, search and reverse.               
                                                                                 
@@ -104,7 +104,7 @@ T1/1 · high · Linked list ─────────────────�
     target=test_linked_list.py mode=pytest                                      
     exit_code=0                                                                 
     timed_out=False                                                             
-    duration=0.55s                                                              
+    duration=0.61s                                                              
     --- stdout ---                                                              
     .                                                                           
     [100%]                                                                      
@@ -117,14 +117,14 @@ T1/1 · high · Linked list ─────────────────�
                                                                                 
 self-review: 1 critique item, revised linked_list.py
     edge_case linked_list.py:LinkedList: the class has no documentation
-A2A coder → qa review_request #1e5512d3 round 1 · 2 files
-A2A qa received review_request #1e5512d3
+A2A coder → qa review_request #0b381090 round 1 · 2 files
+A2A qa received review_request #0b381090
 QA round 1: 3/4 passed in test_qa_t1.py · 1 issue
     High test_reverse: assert ll.to_list() == [3, 2, 1]
-A2A qa → coder fix_instruction #1e5512d3 round 1 · 1 issue
-A2A coder received fix_instruction #1e5512d3
-    ───────────── Task (anthropic:claude-sonnet-5-5, run 16cd8e6d5cc3)          
-    ─────────────                                                               
+A2A qa → coder fix_instruction #0b381090 round 1 · 1 issue
+A2A coder received fix_instruction #0b381090
+    ────────────────────── Task (scripted, run c0403b154b46)                    
+    ───────────────────────                                                     
     Project: Linked list                                                        
     A singly linked list with insert, delete, search and reverse.               
                                                                                 
@@ -173,7 +173,7 @@ A2A coder received fix_instruction #1e5512d3
     target=test_linked_list.py mode=pytest                                      
     exit_code=0                                                                 
     timed_out=False                                                             
-    duration=0.50s                                                              
+    duration=0.67s                                                              
     --- stdout ---                                                              
     .                                                                           
     [100%]                                                                      
@@ -184,12 +184,12 @@ A2A coder received fix_instruction #1e5512d3
     Linked list (distance 0.10)                                                 
     [2/10] thought: done                                                        
                                                                                 
-A2A coder → qa review_request #ad5b1be7 round 2 · 2 files
-A2A qa received review_request #ad5b1be7
+A2A coder → qa review_request #72c59da3 round 2 · 2 files
+A2A qa received review_request #72c59da3
 QA round 2: 3/4 passed in test_qa_t1.py · 1 issue
     High test_reverse: assert ll.to_list() == [3, 2, 1]
-A2A qa → coder final_report #ad5b1be7 round 2 · max_iterations · 1 unresolved
-A2A coder received final_report #ad5b1be7
+A2A qa → coder final_report #72c59da3 round 2 · max_iterations · 1 unresolved
+A2A coder received final_report #72c59da3
 T1: failed (QA: unresolved after 2 round(s); Coder: success, 6 iterations)
 ╭──────────────────────────────── Team summary ────────────────────────────────╮
 │ ┏━━━━┳━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┓ │

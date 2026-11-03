@@ -50,7 +50,7 @@
       "task_id": "T1",
       "status": "done",
       "coder_status": "success",
-      "run_id": "11194c479a7b",
+      "run_id": "d8f2cba1ce08",
       "iterations": 6,
       "files": [
         "linked_list.py",
@@ -83,7 +83,7 @@
           "stdout": ".                                                                        [100%]\n1 passed in 0.00s\n",
           "stderr": "",
           "timed_out": false,
-          "duration_s": 1.791
+          "duration_s": 2.485
         },
         "status": "success",
         "iterations": 2,
@@ -92,7 +92,7 @@
           "test_linked_list.py": "from linked_list import LinkedList\n\n\ndef test_insert_and_search():\n    ll = LinkedList()\n    ll.insert(1)\n    ll.insert(2)\n    assert ll.search(2)\n    assert not ll.search(3)\n"
         },
         "memories_used": [],
-        "run_id": "7b78af62ad2c",
+        "run_id": "3c0176a6b6f7",
         "verified": true,
         "verification_notes": [],
         "error": null
@@ -114,7 +114,7 @@
           "stdout": ".                                                                        [100%]\n1 passed in 0.00s\n",
           "stderr": "",
           "timed_out": false,
-          "duration_s": 0.551
+          "duration_s": 0.615
         },
         "status": "success",
         "iterations": 2,
@@ -123,12 +123,12 @@
         },
         "memories_used": [
           {
-            "id": "486d9dccb1814a5baf37f5da13458b69",
+            "id": "5e49d60dd8c1424f927466553ad96f8d",
             "text": "Task: Project: Linked list\nA singly linked list with insert, delete, search and reverse.\n\nTask T1 (1 of 1, high priority): Linked list\nImplement LinkedList in linked_list.py.\n\nAcceptance criteria:\n- [ ] insert(value) appends value to the end of the list\n- [ ] delete(value) removes the first node holding value and returns True, or returns False if it is absent\n- [ ] search(value) returns True if value is in the list, otherwise False\n- [ ] reverse() reverses the list in place\n\nFiles from earlier tasks:\nnone yet\n\nBuild on the files from earlier tasks rather than replacing them, keep their tests passing, and run all tests before finishing: run each test file by its path with exec_python, one call per file. Tests run any other way (for example through subprocess) are not verified, so the task fails.\nOutcome: success\nFiles: linked_list.py, test_linked_list.py\nPlan: write | run\nSummary: Linked list with insert, delete, search and reverse\nDefines: linked_list.py:Node, linked_list.py:LinkedList, test_linked_list.py:test_insert_and_search",
             "distance": 0.09800893068313599
           }
         ],
-        "run_id": "ee087b83cbb6",
+        "run_id": "9be0cd2928be",
         "verified": true,
         "verification_notes": [],
         "error": null
@@ -150,7 +150,7 @@
           "stdout": ".                                                                        [100%]\n1 passed in 0.00s\n",
           "stderr": "",
           "timed_out": false,
-          "duration_s": 0.506
+          "duration_s": 0.608
         },
         "status": "success",
         "iterations": 2,
@@ -159,17 +159,17 @@
         },
         "memories_used": [
           {
-            "id": "486d9dccb1814a5baf37f5da13458b69",
+            "id": "5e49d60dd8c1424f927466553ad96f8d",
             "text": "Task: Project: Linked list\nA singly linked list with insert, delete, search and reverse.\n\nTask T1 (1 of 1, high priority): Linked list\nImplement LinkedList in linked_list.py.\n\nAcceptance criteria:\n- [ ] insert(value) appends value to the end of the list\n- [ ] delete(value) removes the first node holding value and returns True, or returns False if it is absent\n- [ ] search(value) returns True if value is in the list, otherwise False\n- [ ] reverse() reverses the list in place\n\nFiles from earlier tasks:\nnone yet\n\nBuild on the files from earlier tasks rather than replacing them, keep their tests passing, and run all tests before finishing: run each test file by its path with exec_python, one call per file. Tests run any other way (for example through subprocess) are not verified, so the task fails.\nOutcome: success\nFiles: linked_list.py, test_linked_list.py\nPlan: write | run\nSummary: Linked list with insert, delete, search and reverse\nDefines: linked_list.py:Node, linked_list.py:LinkedList, test_linked_list.py:test_insert_and_search",
             "distance": 0.09800893068313599
           },
           {
-            "id": "81b4d335ee6f44739d35481e18d57881",
+            "id": "4a884a2133114eacbaea36c8385ce9a9",
             "text": "Task: Project: Linked list\nA singly linked list with insert, delete, search and reverse.\n\nTask T1 (1 of 1, high priority): Linked list\nImplement LinkedList in linked_list.py.\n\nAcceptance criteria:\n- [ ] insert(value) appends value to the end of the list\n- [ ] delete(value) removes the first node holding value and returns True, or returns False if it is absent\n- [ ] search(value) returns True if value is in the list, otherwise False\n- [ ] reverse() reverses the list in place\n\nFiles from earlier tasks:\nnone yet\n\nBuild on the files from earlier tasks rather than replacing them, keep their tests passing, and run all tests before finishing: run each test file by its path with exec_python, one call per file. Tests run any other way (for example through subprocess) are not verified, so the task fails.\n\nSelf-review:\n- [edge_case] linked_list.py:LinkedList: the class has no documentation \u2192 add a module docstring\n\nAddress every item with a code change or a new test, keep all tests passing, and run each test file with exec_python before finishing.\nOutcome: success\nFiles: linked_list.py\nPlan: write | run\nSummary: Documented the module\nDefines: linked_list.py:Node, linked_list.py:LinkedList",
             "distance": 0.11426150798797607
           }
         ],
-        "run_id": "11194c479a7b",
+        "run_id": "d8f2cba1ce08",
         "verified": true,
         "verification_notes": [],
         "error": null
@@ -261,7 +261,7 @@
     "missing": [],
     "exit_code": 0,
     "timed_out": false,
-    "duration_s": 0.501,
+    "duration_s": 0.769,
     "results": [
       {
         "name": "test_qa_t1::test_insert",
@@ -312,7 +312,7 @@
       "missing": [],
       "exit_code": 1,
       "timed_out": false,
-      "duration_s": 1.858,
+      "duration_s": 2.385,
       "results": [
         {
           "name": "test_qa_t1::test_insert",
@@ -369,7 +369,7 @@
       "missing": [],
       "exit_code": 0,
       "timed_out": false,
-      "duration_s": 0.663,
+      "duration_s": 0.762,
       "results": [
         {
           "name": "test_qa_t1::test_insert",

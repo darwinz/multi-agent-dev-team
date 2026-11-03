@@ -30,8 +30,9 @@ def _capabilities(agent: str, accepts: frozenset[tuple[str, str]]) -> dict:
 
 class TeamRunner:
     def __init__(self, settings: Settings, *, pm: PMAgent | None = None, coder: CoderAgent | None = None,
-                 qa: QAAgent | None = None) -> None:
+                 qa: QAAgent | None = None, broker_factory: Callable[[], Broker] | None = None) -> None:
         self.settings = settings
+        self.broker_factory = broker_factory or Broker  # one fresh broker per run
         self.pm = pm or PMAgent(settings)
         self.coder = coder or CoderAgent(settings)
         self.qa = qa or QAAgent(settings)
@@ -64,7 +65,7 @@ class TeamRunner:
             self._append_a2a(_capabilities("qa", QA_ACCEPTS))
             yield TeamEvent(kind="start", data={"run_id": run_id, "run_dir": str(run_dir)})
 
-            deps = TeamDeps(pm=self.pm, coder=self.coder, qa=self.qa, broker=Broker(),
+            deps = TeamDeps(pm=self.pm, coder=self.coder, qa=self.qa, broker=self.broker_factory(),
                             qa_max_iterations=s.qa_max_iterations)
             graph = build_team_graph(deps)
             values: dict = {}
