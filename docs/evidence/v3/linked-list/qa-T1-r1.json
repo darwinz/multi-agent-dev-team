@@ -1,0 +1,52 @@
+{
+  "task_id": "T1",
+  "round": 1,
+  "test_file": "test_qa_t1.py",
+  "suite_sha": "50fe06122325dc7ba7414602676b78e9d92b8c95fa6df1de5b74ad6b89884bd4",
+  "suites_run": {
+    "T1": "50fe06122325dc7ba7414602676b78e9d92b8c95fa6df1de5b74ad6b89884bd4"
+  },
+  "tested_files": {
+    "linked_list.py": "5d050e94a7b7f7e41f4bf87f74ff147c2ce5958687e976bc42a67b9d35328aa1",
+    "test_linked_list.py": "72eed1a87bba8898f8ef248eb94bb16b0c5b7c944b245458f9ff971bdc9648af"
+  },
+  "tests_run": 0,
+  "passed": 0,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [
+    "test_empty_len_is_zero",
+    "test_empty_to_list_is_empty_list",
+    "test_empty_iter_yields_nothing",
+    "test_empty_head_is_none",
+    "test_separate_instances_independent",
+    "test_to_list_returns_fresh_list",
+    "test_node_value_and_next_defaults",
+    "test_node_next_link",
+    "test_nonempty_iteration_and_to_list_follow_head_chain",
+    "test_iter_yields_values_not_nodes",
+    "test_falsy_values_preserved",
+    "test_node_and_linkedlist_importable",
+    "test_classes_instantiable",
+    "test_delivered_test_file_exists_and_covers_empty_list",
+    "test_delivered_tests_pass_under_pytest"
+  ],
+  "exit_code": null,
+  "timed_out": true,
+  "duration_s": 10.011,
+  "results": [],
+  "issues": [
+    {
+      "severity": "High",
+      "test": null,
+      "criterion": null,
+      "location": "QA test run",
+      "assertion": "QA test run timed out after 10 s",
+      "fix": "Make QA test run pass: QA test run timed out after 10 s"
+    }
+  ],
+  "tampered": false,
+  "qa_error": null,
+  "approved": false
+}

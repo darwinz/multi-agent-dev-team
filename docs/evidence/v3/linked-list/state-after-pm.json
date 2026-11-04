@@ -1,0 +1,317 @@
+{
+  "requirement": "Implement a Python module that contains a linked list class with insert, delete, search, and reverse methods. All methods must be covered by tests.",
+  "spec": {
+    "name": "Singly Linked List Module",
+    "description": "A Python module (linked_list.py) providing a singly linked list class `LinkedList` (with an internal `Node` class) that supports insert, delete, search, and reverse operations, plus a pytest test suite (test_linked_list.py) covering every method, including edge and error cases. Design decisions: values may be any Python object compared with ==; `insert(value, index=None)` appends to the tail when index is None, otherwise inserts before the given position (0 = head, len = tail); an out-of-range or non-integer index raises IndexError / TypeError respectively; `delete(value)` removes the first node whose value equals the argument and returns True, or returns False if not found (no exception); `search(value)` returns the zero-based index of the first match or -1 if absent; `reverse()` reverses the list in place and returns None. The class also supports len(), iteration, and `to_list()` to make behaviour testable.",
+    "acceptance_criteria": [
+      {
+        "id": "AC1",
+        "text": "A new LinkedList() is empty: len() is 0, to_list() returns [], and iterating yields nothing."
+      },
+      {
+        "id": "AC2",
+        "text": "insert(value) with no index appends the value at the tail; inserting 1, 2, 3 in order gives to_list() == [1, 2, 3] and len() == 3."
+      },
+      {
+        "id": "AC3",
+        "text": "insert(value, index) inserts the value so it ends up at that position: index 0 inserts at the head, index == len(list) inserts at the tail, and a middle index inserts between existing nodes, preserving the order of other elements."
+      },
+      {
+        "id": "AC4",
+        "text": "insert with an index that is negative or greater than len(list) raises IndexError and leaves the list unchanged; a non-integer index (e.g. 'a' or 1.5) raises TypeError."
+      },
+      {
+        "id": "AC5",
+        "text": "delete(value) removes the first node equal to value and returns True; it works for head, middle, and tail nodes and for a single-element list, and len() decreases by 1; when duplicates exist only the first occurrence is removed."
+      },
+      {
+        "id": "AC6",
+        "text": "delete(value) on an empty list or with a value not present returns False and leaves the list unchanged."
+      },
+      {
+        "id": "AC7",
+        "text": "search(value) returns the zero-based index of the first node equal to value, or -1 if the value is not present (including on an empty list)."
+      },
+      {
+        "id": "AC8",
+        "text": "reverse() reverses the list in place so to_list() returns the elements in the opposite order, and returns None; it works for lists of length 0, 1, 2 and many; after reversing, insert (append), delete, and search operate correctly on the new order (tail is updated correctly)."
+      },
+      {
+        "id": "AC9",
+        "text": "The module provides __len__ and __iter__ (and to_list()) that always reflect the current state after any sequence of insert, delete and reverse operations."
+      },
+      {
+        "id": "AC10",
+        "text": "A pytest test file exercises every public method (insert, delete, search, reverse, len, iteration, to_list) including the success, edge and error cases above, and all tests pass."
+      }
+    ],
+    "tasks": [
+      {
+        "task_id": "T1",
+        "title": "LinkedList skeleton with Node, len, iteration, to_list",
+        "description": "Create linked_list.py with a Node class (value, next) and LinkedList class with head, size tracking, __len__, __iter__, and to_list(). Create test_linked_list.py with tests for the empty list.",
+        "acceptance_criteria": [
+          "LinkedList() has len 0, to_list() == [], list(iter(ll)) == []",
+          "Node and LinkedList importable from linked_list",
+          "Tests for empty list pass with pytest"
+        ],
+        "priority": "high",
+        "covers": [
+          "AC1",
+          "AC9"
+        ]
+      },
+      {
+        "task_id": "T2",
+        "title": "Implement insert (append and positional) with validation",
+        "description": "Implement insert(value, index=None). No index appends to tail; index inserts at that position (0..len). Raise IndexError for negative or > len indexes without modifying the list; raise TypeError for non-int index (bool may be treated as invalid too). Add tests.",
+        "acceptance_criteria": [
+          "Appending 1,2,3 yields [1,2,3] and len 3",
+          "insert at index 0, middle, and len produce correct order",
+          "Negative index and index > len raise IndexError and list unchanged",
+          "Non-integer index ('a', 1.5) raises TypeError",
+          "Inserting into an empty list at index 0 works",
+          "Tests for all of the above pass"
+        ],
+        "priority": "high",
+        "covers": [
+          "AC2",
+          "AC3",
+          "AC4",
+          "AC9"
+        ]
+      },
+      {
+        "task_id": "T3",
+        "title": "Implement search",
+        "description": "Implement search(value) returning the zero-based index of the first node equal to value, or -1. Add tests.",
+        "acceptance_criteria": [
+          "Returns correct index for head, middle, tail values",
+          "Returns first index when duplicates exist",
+          "Returns -1 for missing value and for an empty list",
+          "Tests pass"
+        ],
+        "priority": "high",
+        "covers": [
+          "AC7"
+        ]
+      },
+      {
+        "task_id": "T4",
+        "title": "Implement delete",
+        "description": "Implement delete(value) removing the first matching node and returning True, or returning False if not found. Keep size consistent. Add tests.",
+        "acceptance_criteria": [
+          "Deleting head, middle, tail, and the only element works and returns True",
+          "len decreases by 1 after successful delete",
+          "Only first duplicate removed",
+          "Missing value or empty list returns False and list unchanged",
+          "Tests pass"
+        ],
+        "priority": "high",
+        "covers": [
+          "AC5",
+          "AC6",
+          "AC9"
+        ]
+      },
+      {
+        "task_id": "T5",
+        "title": "Implement reverse and integration tests",
+        "description": "Implement in-place reverse() returning None. Add tests for lengths 0,1,2,many, double reverse restoring the original, and a mixed sequence test of insert/delete/search after reverse (verifying append goes to the correct tail). Confirm every public method is exercised by the test suite.",
+        "acceptance_criteria": [
+          "Reverse works on lengths 0, 1, 2 and many and returns None",
+          "Reversing twice restores the original order",
+          "After reverse, append, delete and search behave correctly on the new order",
+          "len and iteration are correct after mixed operations",
+          "Full pytest run passes with all methods covered"
+        ],
+        "priority": "medium",
+        "covers": [
+          "AC8",
+          "AC9",
+          "AC10"
+        ]
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "task_id": "T1",
+      "title": "LinkedList skeleton with Node, len, iteration, to_list",
+      "description": "Create linked_list.py with a Node class (value, next) and LinkedList class with head, size tracking, __len__, __iter__, and to_list(). Create test_linked_list.py with tests for the empty list.",
+      "acceptance_criteria": [
+        "LinkedList() has len 0, to_list() == [], list(iter(ll)) == []",
+        "Node and LinkedList importable from linked_list",
+        "Tests for empty list pass with pytest"
+      ],
+      "priority": "high",
+      "covers": [
+        "AC1",
+        "AC9"
+      ]
+    },
+    {
+      "task_id": "T2",
+      "title": "Implement insert (append and positional) with validation",
+      "description": "Implement insert(value, index=None). No index appends to tail; index inserts at that position (0..len). Raise IndexError for negative or > len indexes without modifying the list; raise TypeError for non-int index (bool may be treated as invalid too). Add tests.",
+      "acceptance_criteria": [
+        "Appending 1,2,3 yields [1,2,3] and len 3",
+        "insert at index 0, middle, and len produce correct order",
+        "Negative index and index > len raise IndexError and list unchanged",
+        "Non-integer index ('a', 1.5) raises TypeError",
+        "Inserting into an empty list at index 0 works",
+        "Tests for all of the above pass"
+      ],
+      "priority": "high",
+      "covers": [
+        "AC2",
+        "AC3",
+        "AC4",
+        "AC9"
+      ]
+    },
+    {
+      "task_id": "T3",
+      "title": "Implement search",
+      "description": "Implement search(value) returning the zero-based index of the first node equal to value, or -1. Add tests.",
+      "acceptance_criteria": [
+        "Returns correct index for head, middle, tail values",
+        "Returns first index when duplicates exist",
+        "Returns -1 for missing value and for an empty list",
+        "Tests pass"
+      ],
+      "priority": "high",
+      "covers": [
+        "AC7"
+      ]
+    },
+    {
+      "task_id": "T4",
+      "title": "Implement delete",
+      "description": "Implement delete(value) removing the first matching node and returning True, or returning False if not found. Keep size consistent. Add tests.",
+      "acceptance_criteria": [
+        "Deleting head, middle, tail, and the only element works and returns True",
+        "len decreases by 1 after successful delete",
+        "Only first duplicate removed",
+        "Missing value or empty list returns False and list unchanged",
+        "Tests pass"
+      ],
+      "priority": "high",
+      "covers": [
+        "AC5",
+        "AC6",
+        "AC9"
+      ]
+    },
+    {
+      "task_id": "T5",
+      "title": "Implement reverse and integration tests",
+      "description": "Implement in-place reverse() returning None. Add tests for lengths 0,1,2,many, double reverse restoring the original, and a mixed sequence test of insert/delete/search after reverse (verifying append goes to the correct tail). Confirm every public method is exercised by the test suite.",
+      "acceptance_criteria": [
+        "Reverse works on lengths 0, 1, 2 and many and returns None",
+        "Reversing twice restores the original order",
+        "After reverse, append, delete and search behave correctly on the new order",
+        "len and iteration are correct after mixed operations",
+        "Full pytest run passes with all methods covered"
+      ],
+      "priority": "medium",
+      "covers": [
+        "AC8",
+        "AC9",
+        "AC10"
+      ]
+    }
+  ],
+  "consolidation": null,
+  "task_status": {
+    "T1": {
+      "task_id": "T1",
+      "status": "pending",
+      "coder_status": null,
+      "run_id": null,
+      "iterations": 0,
+      "files": [],
+      "summary": "",
+      "qa_rounds": 0,
+      "qa_outcome": null,
+      "unresolved": [],
+      "reflected": false,
+      "qa_test_file": null
+    },
+    "T2": {
+      "task_id": "T2",
+      "status": "pending",
+      "coder_status": null,
+      "run_id": null,
+      "iterations": 0,
+      "files": [],
+      "summary": "",
+      "qa_rounds": 0,
+      "qa_outcome": null,
+      "unresolved": [],
+      "reflected": false,
+      "qa_test_file": null
+    },
+    "T3": {
+      "task_id": "T3",
+      "status": "pending",
+      "coder_status": null,
+      "run_id": null,
+      "iterations": 0,
+      "files": [],
+      "summary": "",
+      "qa_rounds": 0,
+      "qa_outcome": null,
+      "unresolved": [],
+      "reflected": false,
+      "qa_test_file": null
+    },
+    "T4": {
+      "task_id": "T4",
+      "status": "pending",
+      "coder_status": null,
+      "run_id": null,
+      "iterations": 0,
+      "files": [],
+      "summary": "",
+      "qa_rounds": 0,
+      "qa_outcome": null,
+      "unresolved": [],
+      "reflected": false,
+      "qa_test_file": null
+    },
+    "T5": {
+      "task_id": "T5",
+      "status": "pending",
+      "coder_status": null,
+      "run_id": null,
+      "iterations": 0,
+      "files": [],
+      "summary": "",
+      "qa_rounds": 0,
+      "qa_outcome": null,
+      "unresolved": [],
+      "reflected": false,
+      "qa_test_file": null
+    }
+  },
+  "current_task_index": 0,
+  "handoff": null,
+  "artifacts": [],
+  "code_output": {},
+  "work_in_progress": [
+    "PM drafted spec 'Singly Linked List Module' with 5 task(s)"
+  ],
+  "error": null,
+  "status": "running",
+  "qa_round": 0,
+  "outstanding_request": null,
+  "task_files": {},
+  "qa_suite": null,
+  "approved_suites": {},
+  "regression": null,
+  "reflection_ok": false,
+  "coder_step": null,
+  "qa_reports": [],
+  "reflections": []
+}

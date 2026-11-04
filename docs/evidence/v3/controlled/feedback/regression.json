@@ -1,0 +1,46 @@
+{
+  "task_id": "regression",
+  "round": 0,
+  "test_file": "",
+  "suite_sha": "",
+  "suites_run": {
+    "T1": "c73e03c652535600db5aec32b21927d1b4fc4047c28a97dc67fc4914e63f2aae"
+  },
+  "tested_files": {},
+  "tests_run": 4,
+  "passed": 4,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [],
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_s": 0.714,
+  "results": [
+    {
+      "name": "test_qa_t1::test_insert",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_delete",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_search",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_reverse",
+      "outcome": "passed",
+      "message": ""
+    }
+  ],
+  "issues": [],
+  "tampered": false,
+  "qa_error": null,
+  "test_corrections": [],
+  "approved": true
+}

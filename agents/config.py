@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, Field, field_validator
 
 MAX_ITERATIONS_CAP = 10
+QA_MAX_ITERATIONS_CAP = 5  # the course caps the Coder <-> QA loop at five test runs
 
 # Settings field → environment variable
 _ENV_VARS = {
@@ -21,6 +22,7 @@ _ENV_VARS = {
     "memory_top_k": "MEMORY_TOP_K",
     "memory_max_distance": "MEMORY_MAX_DISTANCE",
     "max_tokens": "CODER_MAX_TOKENS",
+    "qa_max_iterations": "QA_MAX_ITERATIONS",
 }
 
 
@@ -33,6 +35,7 @@ class Settings(BaseModel):
     memory_top_k: int = Field(3, ge=1)
     memory_max_distance: float = Field(0.65, gt=0)
     max_tokens: int = Field(8192, ge=1)
+    qa_max_iterations: int = Field(5, ge=1, le=QA_MAX_ITERATIONS_CAP)
 
     @field_validator("max_iterations")
     @classmethod

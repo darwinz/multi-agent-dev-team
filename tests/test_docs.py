@@ -1,4 +1,4 @@
-"""The README's v2 Mermaid diagram must match the real team graph."""
+"""The README's team Mermaid diagram must match the real team graph."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 from agents.pm_agent import PMAgent
 from orchestration.team_graph import TeamDeps, build_team_graph
-from tests.fakes import ScriptedChatModel, agent
+from tests.fakes import ScriptedChatModel, agent, qa_agent
 
 README = Path(__file__).resolve().parent.parent / "README.md"
 ALIAS = {"__start__": "START", "__end__": "END"}
@@ -19,7 +19,8 @@ def _team_graph_blocks() -> list[str]:
 
 
 def test_readme_diagram_matches_graph(settings):
-    deps = TeamDeps(pm=PMAgent(settings, model=ScriptedChatModel(responses=[])), coder=agent(settings))
+    deps = TeamDeps(pm=PMAgent(settings, model=ScriptedChatModel(responses=[])), coder=agent(settings),
+                    qa=qa_agent(settings))
     graph = build_team_graph(deps).get_graph()
 
     blocks = _team_graph_blocks()
@@ -39,3 +40,11 @@ def test_readme_diagram_matches_graph(settings):
 
 def test_readme_has_no_local_notes():
     assert "LOCAL-NOTES" not in README.read_text()
+
+
+def test_readme_explains_protocol():
+    text = README.read_text()
+    for needle in ("## Why A2A", "QA_MAX_ITERATIONS", "correlation_id", "make team-linked-list",
+                   "scripted PM/Coder/QA models, real pytest subprocess execution",
+                   "docs/evidence/v3/linked-list/"):
+        assert needle in text, f"README is missing {needle!r}"

@@ -1,0 +1,52 @@
+{
+  "task_id": "T2",
+  "critique": {
+    "items": [
+      {
+        "kind": "edge_case",
+        "location": "linked_list.py: LinkedList.insert, type check (`isinstance(index, bool) or not isinstance(index, int)`)",
+        "concern": "Integer-like objects that implement `__index__`, such as `numpy.int64`, are rejected with TypeError even though they are valid positions. `operator.index` would accept them. The spec only says non-int raises TypeError, so rejecting them is defensible. But the choice is not documented or tested, and a caller passing an index computed by numpy gets a surprising error.",
+        "change": "Either keep the strict check and add a docstring line and a test saying that only real `int` (not bool) is accepted. Or switch to `operator.index(index)` inside try/except TypeError, keep the explicit bool rejection, and add a test for a small class with `__index__`."
+      },
+      {
+        "kind": "bug",
+        "location": "linked_list.py: LinkedList.insert, positional walk (`prev = prev.next` loop)",
+        "concern": "The walk trusts `_size` to match the chain. `head` and `_size` are public or semi-public and the tests set them by hand. If they disagree, for example `_size` is larger than the real chain, then `prev` becomes None. The result is an opaque `AttributeError: 'NoneType' has no attribute 'next'`, and a partially applied change is possible. The range check passes because it only looks at `_size`.",
+        "change": "Do not add defensive code in production. Add a test that documents the invariant, for example that `make_list` produces a list where `insert(x, len(ll))` works. Optionally, in the loop, `assert prev is not None, 'size/chain mismatch'` to give a clearer failure."
+      },
+      {
+        "kind": "edge_case",
+        "location": "linked_list.py: LinkedList.insert, append path (index=None \u2192 index = self._size)",
+        "concern": "Every append walks the whole list, so building a list of n items is O(n\u00b2). No tail pointer is kept. This is correct but slow for large lists. It also means other methods (delete and reverse in later tasks) must keep any future tail pointer in sync. For now the only risk is performance.",
+        "change": "Add a `_tail` reference updated in insert, delete and reverse, to make append O(1). Or accept O(n) and note it in the docstring. Add a test that appends about 10,000 items and checks `len` and the last value, to guard against regressions."
+      },
+      {
+        "kind": "edge_case",
+        "location": "test_linked_list.py: test_out_of_range_index_raises_and_leaves_list_unchanged / test_non_integer_index_raises_type_error",
+        "concern": "The tests check that values and size are unchanged after a failed insert. They do not check that the node chain itself is untouched, for example that `head` is the same object. A future implementation could relink nodes and then raise, and `to_list` could still look the same. Very large indexes (`10**100`), `None` passed through a variable, and error message content are also not covered.",
+        "change": "In the error tests, capture `old_head = ll.head` and `old_size = len(ll)` before the call. After the call, assert `ll.head is old_head` and `ll._size == old_size`. Add `10**100` and `-10**100` to the IndexError parametrize list."
+      },
+      {
+        "kind": "edge_case",
+        "location": "test_linked_list.py: test_non_integer_index_raises_type_error",
+        "concern": "The bool rejection is only tested on a non-empty list of length 2. `True` is a valid-looking index 1 and `False` is a valid-looking index 0. On an empty list, `insert(x, False)` could wrongly succeed if the bool check were removed. That case is not tested. Other non-int types such as `'0'`, `Decimal(1)` and `None`-like objects are also not covered.",
+        "change": "Add an empty-list case: `ll = LinkedList(); with pytest.raises(TypeError): ll.insert(1, False)`, then assert `ll.head is None`. Add `'0'` to the parametrize list."
+      }
+    ]
+  },
+  "before": {
+    "linked_list.py": "942a614236a45433be3107f06596732116e0d0133b85fd9bd78cd5248937d99c",
+    "test_linked_list.py": "cb7e09f2ed170cc5a86cfb4ff03e02e2d3c89bad801e20572f92e3c4086bb8ae"
+  },
+  "after": {
+    "linked_list.py": "aa3467b2ccba247518b9a9b4794f7fb03afa0e3da9eb6820587494d97b2dd0e1",
+    "test_linked_list.py": "12f6d7d4df6bef58b977c0b2658ee5ee5f2bf3a6eac213b9dc4a2a01dc386e1c"
+  },
+  "changed": [
+    "linked_list.py",
+    "test_linked_list.py"
+  ],
+  "revision_status": "success",
+  "error": null,
+  "dropped": []
+}

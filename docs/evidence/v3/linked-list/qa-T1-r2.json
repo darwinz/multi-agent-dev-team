@@ -1,0 +1,103 @@
+{
+  "task_id": "T1",
+  "round": 2,
+  "test_file": "test_qa_t1.py",
+  "suite_sha": "50fe06122325dc7ba7414602676b78e9d92b8c95fa6df1de5b74ad6b89884bd4",
+  "suites_run": {
+    "T1": "50fe06122325dc7ba7414602676b78e9d92b8c95fa6df1de5b74ad6b89884bd4"
+  },
+  "tested_files": {
+    "linked_list.py": "5d050e94a7b7f7e41f4bf87f74ff147c2ce5958687e976bc42a67b9d35328aa1",
+    "test_linked_list.py": "72eed1a87bba8898f8ef248eb94bb16b0c5b7c944b245458f9ff971bdc9648af"
+  },
+  "tests_run": 15,
+  "passed": 15,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [],
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_s": 1.199,
+  "results": [
+    {
+      "name": "test_qa_t1::test_empty_len_is_zero",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_empty_to_list_is_empty_list",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_empty_iter_yields_nothing",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_empty_head_is_none",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_separate_instances_independent",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_to_list_returns_fresh_list",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_node_value_and_next_defaults",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_node_next_link",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_nonempty_iteration_and_to_list_follow_head_chain",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_iter_yields_values_not_nodes",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_falsy_values_preserved",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_node_and_linkedlist_importable",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_classes_instantiable",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_delivered_test_file_exists_and_covers_empty_list",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_delivered_tests_pass_under_pytest",
+      "outcome": "passed",
+      "message": ""
+    }
+  ],
+  "issues": [],
+  "tampered": false,
+  "qa_error": null,
+  "approved": true
+}

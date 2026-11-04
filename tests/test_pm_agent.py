@@ -92,3 +92,7 @@ def test_structured_output_unsupported_raises_pm_error(settings):
 
     with pytest.raises(PMError, match="not supported"):
         PMAgent(settings, model=NoStructured(responses=[])).draft_spec("Build a REST API")
+
+
+def test_prompt_limits_criteria_to_stdlib_and_pytest():
+    assert "standard library and pytest" in PM_SYSTEM_PROMPT

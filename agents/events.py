@@ -17,8 +17,10 @@ class StepEvent(BaseModel):
 
 
 class TeamEvent(BaseModel):
-    """A team-run event: run milestones from TeamRunner, or a Coder StepEvent tagged with its task."""
+    """A team-run event: run milestones from TeamRunner, a Coder StepEvent tagged with its task,
+    a self-reflection record, a QA round's report, or an A2A broker record."""
 
-    kind: Literal["start", "spec", "consolidation", "handoff", "coder", "task_done", "final", "progress"]
+    kind: Literal["start", "spec", "consolidation", "handoff", "coder", "task_done", "final", "progress",
+                  "reflection", "qa_report", "a2a"]
     task_id: str | None = None
     data: dict = {}

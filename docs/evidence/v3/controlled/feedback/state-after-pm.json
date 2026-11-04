@@ -1,0 +1,83 @@
+{
+  "requirement": "Implement a Python module that contains a linked list class with insert, delete, search, and reverse methods. All methods must be covered by tests.",
+  "spec": {
+    "name": "Linked list",
+    "description": "A singly linked list with insert, delete, search and reverse.",
+    "acceptance_criteria": [
+      {
+        "id": "AC1",
+        "text": "The linked list supports insert, delete, search and reverse"
+      }
+    ],
+    "tasks": [
+      {
+        "task_id": "T1",
+        "title": "Linked list",
+        "description": "Implement LinkedList in linked_list.py.",
+        "acceptance_criteria": [
+          "insert(value) appends value to the end of the list",
+          "delete(value) removes the first node holding value and returns True, or returns False if it is absent",
+          "search(value) returns True if value is in the list, otherwise False",
+          "reverse() reverses the list in place"
+        ],
+        "priority": "high",
+        "covers": [
+          "AC1"
+        ]
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "task_id": "T1",
+      "title": "Linked list",
+      "description": "Implement LinkedList in linked_list.py.",
+      "acceptance_criteria": [
+        "insert(value) appends value to the end of the list",
+        "delete(value) removes the first node holding value and returns True, or returns False if it is absent",
+        "search(value) returns True if value is in the list, otherwise False",
+        "reverse() reverses the list in place"
+      ],
+      "priority": "high",
+      "covers": [
+        "AC1"
+      ]
+    }
+  ],
+  "consolidation": null,
+  "task_status": {
+    "T1": {
+      "task_id": "T1",
+      "status": "pending",
+      "coder_status": null,
+      "run_id": null,
+      "iterations": 0,
+      "files": [],
+      "summary": "",
+      "qa_rounds": 0,
+      "qa_outcome": null,
+      "unresolved": [],
+      "reflected": false,
+      "qa_test_file": null
+    }
+  },
+  "current_task_index": 0,
+  "handoff": null,
+  "artifacts": [],
+  "code_output": {},
+  "work_in_progress": [
+    "PM drafted spec 'Linked list' with 1 task(s)"
+  ],
+  "error": null,
+  "status": "running",
+  "qa_round": 0,
+  "outstanding_request": null,
+  "task_files": {},
+  "qa_suite": null,
+  "approved_suites": {},
+  "regression": null,
+  "reflection_ok": false,
+  "coder_step": null,
+  "qa_reports": [],
+  "reflections": []
+}

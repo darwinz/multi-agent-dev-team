@@ -1,6 +1,6 @@
 """Subprocess entry point for exec_python. Runs in the child process, never in the agent.
 
-    python -s _runner.py script|pytest <target> <workspace root> <record json>
+    python -s _runner.py script|pytest <target> <workspace root> <record json> [<junit xml>]
 
 Runs the target and records which workspace files it loaded (the target plus every
 module imported from the workspace), each with its SHA-256 at load time.
@@ -15,6 +15,7 @@ import shutil
 import sys
 
 mode, target, root, record_path = sys.argv[1:5]
+junit_path = sys.argv[5] if len(sys.argv) > 5 else None
 root = os.path.realpath(root)
 loaded = {}
 
@@ -58,7 +59,10 @@ try:
     if mode == "pytest":
         import pytest
 
-        sys.exit(pytest.main(["-q", "-p", "no:cacheprovider", f"--rootdir={root}", target]))
+        args = ["-q", "-p", "no:cacheprovider", f"--rootdir={root}"]
+        if junit_path:
+            args.append(f"--junitxml={junit_path}")
+        sys.exit(pytest.main([*args, target]))
     runpy.run_path(target, run_name="__main__")
 finally:
     # Modules loaded by other importers (pytest's assertion-rewriting hook sits ahead of ours and

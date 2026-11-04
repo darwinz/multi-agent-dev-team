@@ -99,6 +99,20 @@ def happy() -> list[AIMessage]:
     ]
 
 
+PAL_REVISED = 'def is_pal(s):\n    """True if s reads the same backwards."""\n    return s == s[::-1]\n'
+
+
+def revise_happy() -> list[AIMessage]:
+    """The revision run: rewrite the module (docstring added), rerun the test, finish."""
+    return [
+        ai("apply the self-review",
+           tool_call("write_file", path="palindrome.py", content=PAL_REVISED),
+           tool_call("exec_python", path="test_palindrome.py")),
+        ai("done", tool_call("finish", explanation="Checks palindromes, documented", plan=["revise"],
+                             entry_point="test_palindrome.py")),
+    ]
+
+
 def agent(settings: Any, *responses: Any) -> Any:
     from agents.coder_agent import CoderAgent
 
@@ -140,3 +154,49 @@ def structured(schema: str, payload: dict) -> AIMessage:
 
 def spec_response(spec: Any) -> AIMessage:
     return structured("Spec", spec.model_dump())
+
+
+# --- QA agent -----------------------------------------------------------------------
+
+QA_PAL_TESTS = (
+    "from palindrome import is_pal\n\n\n"
+    "def test_pal_qa():\n"
+    "    assert is_pal('abba')\n"
+    "    assert not is_pal('ab')\n"
+)
+
+
+def qa_suite_response(content: str = QA_PAL_TESTS, tests: tuple[tuple[str, int], ...] = (("test_pal_qa", 1),)) -> AIMessage:
+    return structured("QATestSuite", {"content": content, "tests": [{"name": n, "criterion": c} for n, c in tests]})
+
+
+def fix_plan_response(*fixes: tuple[str, str, str]) -> AIMessage:
+    return structured("FixPlan", {"fixes": [{"test": t, "root_cause": r, "fix": f} for t, r, f in fixes]})
+
+
+def audit_response(*verdicts: tuple[str, bool, str, str]) -> AIMessage:
+    """QA's round-1 check of its own failing tests: (test, test_is_wrong, reason, corrected source).
+    No verdicts means every failing test was judged correct."""
+    return structured("TestAudit", {"verdicts": [
+        {"test": t, "test_is_wrong": w, "reason": r, "corrected": c} for t, w, r, c in verdicts]})
+
+
+def qa_agent(settings: Any, *responses: Any) -> Any:
+    from agents.qa_agent import QAAgent
+
+    return QAAgent(settings, model=ScriptedChatModel(responses=list(responses)))
+
+
+# --- Coder self-reflection ------------------------------------------------------------
+
+def critique_response(*items: tuple[str, str, str, str]) -> AIMessage:
+    """items are (kind, location, concern, change); the default is one edge case about empty strings."""
+    items = items or (("edge_case", "palindrome.py:is_pal", "empty string is not covered by a test",
+                       "add a test that is_pal('') is True"),)
+    return structured("Critique", {"items": [
+        {"kind": k, "location": loc, "concern": c, "change": ch} for k, loc, c, ch in items]})
+
+
+def task_scripts() -> tuple[list, list]:
+    """(coder script, QA script) for one task that passes QA in round 1."""
+    return happy() + [critique_response()] + revise_happy(), [qa_suite_response()]

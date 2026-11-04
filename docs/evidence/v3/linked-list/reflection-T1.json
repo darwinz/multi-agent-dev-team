@@ -1,0 +1,46 @@
+{
+  "task_id": "T1",
+  "critique": {
+    "items": [
+      {
+        "kind": "edge_case",
+        "location": "LinkedList._size / __len__",
+        "concern": "Size is a separate counter that the later tasks (insert, delete, reverse) must keep in sync with the chain of nodes. Nothing checks this now. If a later task forgets to update `_size`, `len()` and `to_list()` will disagree and the empty-list tests won't catch it. Also, because `head` is public, a caller can change the chain without updating `_size`.",
+        "change": "Add a test helper that asserts `len(ll) == len(ll.to_list())`. Call it after every mutation in the T2\u2013T5 tests. Add a note in the docstring that `_size` must be updated by every mutator."
+      },
+      {
+        "kind": "edge_case",
+        "location": "LinkedList.__iter__",
+        "concern": "The iterator is a generator that walks live nodes. If the list is mutated during iteration (for example, `delete` inside a `for` loop), it silently skips or repeats items. If the chain has a cycle, `to_list()` never ends and uses unbounded memory. Neither behavior is documented or tested.",
+        "change": "Document that mutating during iteration is unsupported. Optionally add a test that iterating twice over the same list gives the same result: `assert list(ll) == list(ll)`."
+      },
+      {
+        "kind": "edge_case",
+        "location": "test_linked_list.py (coverage)",
+        "concern": "The tests only cover the empty list. Iteration order and `to_list` are not exercised on a non-empty list. A bug such as yielding nodes instead of values, or skipping the head, would pass. `__repr__` on both classes is untested. `Node.__init__` has a parameter named `next` that shadows the builtin; this is harmless but could confuse readers.",
+        "change": "Add a test that builds nodes manually: `ll.head = Node(1, Node(2, Node(3)))` and `ll._size = 3`. Assert `to_list() == [1,2,3]`, `list(ll) == [1,2,3]` and `len(ll) == 3`. Add a test that `repr(LinkedList()) == 'LinkedList([])'`. Optionally add a test that `to_list()` returns a new list on each call."
+      },
+      {
+        "kind": "edge_case",
+        "location": "test_linked_list.py::test_empty_is_falsy",
+        "concern": "The test relies on `__len__` for truthiness, with no `__bool__`. That is correct for now. But a list holding falsy values such as `[0]` or `[None]` is still truthy because its len is 1. This is untested, and the spec does not state the behavior.",
+        "change": "Once insert exists, add a test that `LinkedList` containing `0` or `None` is truthy and has `len == 1`. Also test that the values `None` and `0` round-trip through `to_list()` and are not mistaken for end-of-list."
+      }
+    ]
+  },
+  "before": {
+    "linked_list.py": "97b655c89216d2200b861262392b48a84426b0de141d4791e90a9a69d903cbef",
+    "test_linked_list.py": "83119f05d0d8bdd54a2a2a9b51b4e7ab6f4bbf4c4c7385b45742c9a433527ec5"
+  },
+  "after": {
+    "linked_list.py": "5d050e94a7b7f7e41f4bf87f74ff147c2ce5958687e976bc42a67b9d35328aa1",
+    "test_linked_list.py": "72eed1a87bba8898f8ef248eb94bb16b0c5b7c944b245458f9ff971bdc9648af"
+  },
+  "changed": [
+    "linked_list.py",
+    "test_linked_list.py"
+  ],
+  "revision_status": "success",
+  "error": null,
+  "dropped": []
+}

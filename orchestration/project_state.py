@@ -10,10 +10,13 @@ from typing import Annotated, Any, Literal, TypedDict
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from agents.result import CoderResult, Status
+from orchestration.review import QAReport, QATestSuite, Reflection
 
 Priority = Literal["high", "medium", "low"]
 TaskStatus = Literal["pending", "in_progress", "done", "failed"]
 RunStatus = Literal["running", "completed", "partial", "failed"]
+QAOutcome = Literal["approved", "unresolved", "qa_error", "no_revision", "regressed"]
+CoderStep = Literal["deliver", "revise", "close"]
 
 MAX_TASKS = 8
 
@@ -102,9 +105,14 @@ class TaskRecord(BaseModel):
     status: TaskStatus
     coder_status: Status | None = None  # the CoderResult status
     run_id: str | None = None
-    iterations: int = 0
+    iterations: int = 0  # Coder turns across all of the task's runs
     files: list[str] = []
-    summary: str = ""  # CoderResult.explanation, truncated
+    summary: str = ""  # the latest CoderResult.explanation, truncated
+    qa_rounds: int = 0
+    qa_outcome: QAOutcome | None = None
+    unresolved: list[str] = []  # the issues still open when the task closed
+    reflected: bool = False  # self-reflection recorded a revision
+    qa_test_file: str | None = None
 
 
 class Consolidation(BaseModel):
@@ -136,12 +144,23 @@ class ProjectState(TypedDict):
     consolidation: Consolidation | None
     task_status: Annotated[dict[str, TaskRecord], merge_dicts]
     current_task_index: int
-    handoff: TaskHandoff | None  # set by dispatch_node, cleared by coder_node
-    artifacts: Annotated[list[TaskArtifact], operator.add]  # one per finished task
+    handoff: TaskHandoff | None  # set by dispatch_node, cleared by coder_node when the task closes
+    artifacts: Annotated[list[TaskArtifact], operator.add]  # one per Coder run
     code_output: Annotated[dict[str, str], merge_dicts]  # accumulated path -> content, later tasks win
     work_in_progress: Annotated[list[str], operator.add]  # chronological progress log
     error: str | None
     status: RunStatus
+    # --- the per-task Coder <-> QA loop (reset by dispatch_node unless noted) ---
+    qa_round: int  # QA rounds completed for the current task
+    outstanding_request: str | None  # correlation id of the Coder's open review_request
+    task_files: dict[str, str]  # every file this task's Coder runs wrote; merged by the nodes, no reducer
+    qa_suite: QATestSuite | None
+    approved_suites: Annotated[dict[str, QATestSuite], merge_dicts]  # never reset within a run
+    regression: dict | None  # the finalize regression run (QAReport dump), None if no task was done
+    reflection_ok: bool  # the current task's reflection recorded a revision
+    coder_step: CoderStep | None
+    qa_reports: Annotated[list[QAReport], operator.add]
+    reflections: Annotated[list[Reflection], operator.add]
 
 
 def initial_project_state(requirement: str) -> ProjectState:
@@ -158,6 +177,16 @@ def initial_project_state(requirement: str) -> ProjectState:
         work_in_progress=[],
         error=None,
         status="running",
+        qa_round=0,
+        outstanding_request=None,
+        task_files={},
+        qa_suite=None,
+        approved_suites={},
+        regression=None,
+        reflection_ok=False,
+        coder_step=None,
+        qa_reports=[],
+        reflections=[],
     )
 
 
