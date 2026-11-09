@@ -18,6 +18,6 @@ Two probes whose model returns invalid structured output (`scenario_step` lines 
 - pm-probe: run status failed, tool_call events: 0
 - qa-probe: task outcome qa_error, tool_call events after QA's first llm_call: 0
 - qa-probe: Coder tool_call events before QA (legitimate): 5
-- WARNING/ERROR events in either run: 5
+- WARNING/ERROR events in either run: 10
 
 Files: `events.jsonl` is the captured JSON log (one object per line); `<project>` replaces the temporary project root.

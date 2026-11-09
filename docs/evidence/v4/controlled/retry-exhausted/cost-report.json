@@ -1,14 +1,14 @@
 {
-  "run_id": "d01eb9c02f9c",
-  "started_at": "2026-11-09T08:57:59.017491+00:00",
-  "finished_at": "2026-11-09T08:57:59.252915+00:00",
+  "run_id": "d4ccefacb22b",
+  "started_at": "2026-11-09T10:18:43.275922+00:00",
+  "finished_at": "2026-11-09T10:18:43.484776+00:00",
   "requirement": "Build a linked list",
   "outcome": "failed",
   "error": null,
   "models": {
-    "pm": "anthropic:claude-sonnet-5-5",
+    "pm": "scripted",
     "coder": "scripted",
-    "qa": "anthropic:claude-haiku-5-5"
+    "qa": "scripted"
   },
   "pricing": {
     "as_of": "2026-11-08"
