@@ -289,7 +289,9 @@ cp .env.example .env            # fill in ANTHROPIC_API_KEY (LANGSMITH_* are opt
 docker compose up --build
 ```
 
-Plain `docker compose up` runs `team --demo bst --reset-memory` once Chroma reports healthy (the health check is a `bash` `/dev/tcp` GET of `/api/v2/heartbeat` that must return 200, image `chromadb/chroma:1.5.9`), then the `team` container exits and Chroma keeps running. The run's cost report appears in `docs/cost_reports/` on the host, and its evidence in `.coder/runs/<run_id>/`. To start from nothing, run `docker compose down -v` first.
+Needs Docker Compose 2.24 or newer: the optional `.env` uses `env_file` with `required: false`.
+
+Plain `docker compose up` runs `team --demo bst --reset-memory` once Chroma reports healthy (the health check is a `bash` `/dev/tcp` GET of `/api/v2/heartbeat` that must return 200, image `chromadb/chroma:1.5.9`), then the `team` container exits and Chroma keeps running, so `docker compose up` does not return on its own: press Ctrl-C once you see `team-1 exited with code 0` (or the code the run ended with). For a one-shot run that stops Chroma when the team finishes, use `docker compose up --build --abort-on-container-exit team`. The run's cost report appears in `docs/cost_reports/` on the host, and its evidence in `.coder/runs/<run_id>/`. To start from nothing, run `docker compose down -v` first.
 
 With 1Password and no plaintext `.env`:
 
@@ -339,7 +341,7 @@ Set these in the environment or in `.env` (copy `.env.example`; `Settings.from_e
 | `LOG_LEVEL` | `INFO` | Level for the structured logs. |
 | `LANGSMITH_TRACING` | `false` | Set `true` to trace (also needs `LANGSMITH_API_KEY`). |
 | `LANGSMITH_API_KEY` | none | LangSmith key. Tracing is on only when both this and `LANGSMITH_TRACING=true` are set. |
-| `LANGSMITH_PROJECT` | `multi-agent-dev-team` | LangSmith project for the traces. |
+| `LANGSMITH_PROJECT` | unset (LangSmith uses `default`) | LangSmith project for the traces. `.env.example` sets `multi-agent-dev-team`. |
 | `OPENAI_API_KEY`, `OLLAMA_BASE_URL` | none | For `openai:` and `ollama:` models (install the matching extra). |
 | `CODER_WEB_HOST`, `CODER_WEB_PORT`, `CODER_WEB_ALLOWED_HOSTS` | `127.0.0.1`, `8000`, local names | `coder-web` only. |
 
@@ -426,8 +428,8 @@ The default suite scripts the model (`tests/fakes.py::ScriptedChatModel`) but ru
 | Exit code | Meaning |
 |---|---|
 | `0` | The run `completed` (every task done, approved by QA and still passing the final regression check). For `--demo api`, `--demo linked-list` and `--demo bst`, the demo's check also passed. The cost report's `outcome` is `success`. `--reset-memory` alone also exits 0. |
-| `1` | The run ended `partial` (cost-report `outcome: unresolved`) or `failed` (`failed`), or a demo's check failed. `partial` means at least one task could not be approved within the QA round limit, or regressed; the summary prints an `unresolved:` line per open issue, and `final-state.json` holds each task's `unresolved` list. `failed` means the run produced no usable result (for example the PM could not produce a valid spec, or a dependency stayed down and its circuit opened). |
-| `2` | Configuration error (invalid setting or a missing provider prerequisite), a busy workspace (another run holds the lock), or Chroma unreachable when `CHROMA_HOST` is set. Also applies to `coder` and `coder-web`. No model call was made and no report was written. |
+| `1` | The run ended `partial` (cost-report `outcome: unresolved`) or `failed` (`failed`), or a demo's check failed. `partial` means at least one task could not be approved within the QA round limit, or regressed; the summary prints an `unresolved:` line per open issue, and `final-state.json` holds each task's `unresolved` list. `failed` means the run produced no usable result (for example the PM could not produce a valid spec, or the PM's own dependency stayed down and its circuit opened; a Coder or QA outage ends the task as unresolved (`partial`)). |
+| `2` | Usage error (no requirement, or a requirement together with `--demo`), configuration error (invalid setting or a missing provider prerequisite), a busy workspace (another run holds the lock), or Chroma unreachable when `CHROMA_HOST` is set. Also applies to `coder` and `coder-web`. No model call was made and no report was written. |
 | `130` | Interrupted with Ctrl-C. The lock is released and the cost report is written with `outcome: aborted`. |
 
 A demo can fail its check while the run itself is `completed`, so read the "BST fixture check: PASSED/FAILED" line and `demo-check.txt` as well as the exit code. The cost report's `outcome` always matches: `completed` is `success`, `partial` is `unresolved`, `failed` is `failed`, and an exception or early close is `aborted`.
