@@ -45,8 +45,9 @@ class RateLimited(Exception):
 
 
 def _settings(project: Path, **overrides) -> Settings:
-    base = dict(project_dir=project, model="scripted", exec_timeout_s=15, retry_base_delay_s=0.05,
-                retry_max_delay_s=0.2, cache_ttl_s=0.0)
+    # Every role scripted: a PM_MODEL/QA_MODEL in the shell must not put a real model id in the evidence
+    base = dict(project_dir=project, model="scripted", pm_model="scripted", qa_model="scripted", exec_timeout_s=15,
+                retry_base_delay_s=0.05, retry_max_delay_s=0.2, cache_ttl_s=0.0)
     return Settings.from_env(**{**base, **overrides})
 
 
