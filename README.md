@@ -1,12 +1,12 @@
-# Multi-Agent Dev Team: PM → Coder ↔ QA (v3)
+# Multi-Agent Dev Team: PM → Coder ↔ QA (production v4)
 
-An autonomous **LangGraph** Coder agent that takes a coding task in plain language, then plans, writes, runs and verifies Python code with **Claude Sonnet**. It works in a bounded ReAct loop (at most 10 model calls), with two memory layers (a sliding window plus Chroma) and three confined tools. Every run ends in a **Pydantic-validated result** whose code is read back from disk and whose result comes from a real execution. It is Module 1 of a five-module capstone: a PM → Coder ↔ QA software team. Modules 2 and 3 add the PM and QA agents on top, with the Coder and QA talking over A2A (see [v3.0](#v30-pm--coder--qa) and [Why A2A](#why-a2a)).
+An autonomous **LangGraph** Coder agent that takes a coding task in plain language, then plans, writes, runs and verifies Python code with **Claude Sonnet**. It works in a bounded ReAct loop (at most 10 model calls), with two memory layers (a sliding window plus Chroma) and three confined tools. Every run ends in a **Pydantic-validated result** whose code is read back from disk and whose result comes from a real execution. It is Module 1 of a five-module capstone: a PM → Coder ↔ QA software team. Modules 2 and 3 add the PM and QA agents on top, with the Coder and QA talking over A2A (see [v3.0](#v30-pm--coder--qa) and [Why A2A](#why-a2a)). Module 4 hardens that team for production: retries, circuit breakers, a response cache, token and cost reports, LangSmith tracing, structured logs, a clean Docker start and a mocked end-to-end test. Start at [Production v4](#production-v4).
 
 ![The web UI: workspace tree, code viewer with terminal, live agent timeline and verified result](docs/images/web-ui.png)
 
 ## Quickstart
 
-You need Python 3.12+ and [uv](https://docs.astral.sh/uv/). The default model needs an Anthropic API key (see [other providers](docs/usage.md#other-providers)).
+You need Python 3.11+ and [uv](https://docs.astral.sh/uv/). The default model needs an Anthropic API key (see [other providers](docs/usage.md#other-providers)).
 
 **With 1Password** (the key is resolved at runtime from `.env.op`, never written to disk):
 
@@ -26,16 +26,16 @@ make demo
 **With pip instead of uv:**
 
 ```bash
-python3.12 -m venv .venv && . .venv/bin/activate
+python3.11 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt && pip install -e . --no-deps
 coder --demo --reset-memory
 ```
 
-**With Docker:**
+**With Docker:** plain `docker compose up --build` runs the whole team on the BST demo against a Chroma service. See [Quickstart (Docker)](#quickstart-docker). The single-Coder web UI and CLI are behind Compose profiles:
 
 ```bash
-ANTHROPIC_API_KEY=... docker compose up web               # http://127.0.0.1:8000
-ANTHROPIC_API_KEY=... docker compose run --rm coder "task"
+docker compose --profile web up web                       # http://127.0.0.1:8000
+docker compose run --rm coder "task"                      # the `cli` profile service
 ```
 
 The container runs as an unprivileged user (uid 1000). On Linux, build with `UID=$(id -u) GID=$(id -g) docker compose build` so files in the mounted `workspace/` stay owned by you.
@@ -49,7 +49,7 @@ uv run coder --max-iterations 5 --timeout 5 "…"
 uv run coder --reset-memory             # clear window, Chroma and workspace
 ```
 
-The terminal shows each step live, prefixed `[n/10]`: the memory retrieved, the model's thought, the plan, each action and each observation. It ends with a result panel. Exit codes: 0 success, 1 failed / iteration limit / error, 2 usage error or busy workspace. All flags are in [docs/usage.md](docs/usage.md).
+The terminal shows each step live, prefixed `[n/10]`: the memory retrieved, the model's thought, the plan, each action and each observation. It ends with a result panel. Exit codes: 0 success, 1 failed / iteration limit / error, 2 usage or settings error, busy workspace or Chroma unreachable. All flags are in [docs/usage.md](docs/usage.md).
 
 ## Web UI
 
@@ -93,7 +93,7 @@ Details are in [docs/architecture.md](docs/architecture.md).
 
 - **A hand-built LangGraph graph, not `create_react_agent`.** Memory retrieval before every call, the iteration counter, sequential tool execution and a no-LLM finaliser are each a few explicit lines that tests can drive with a scripted fake model.
 - **One iteration = one model call; `finish` is a tool.** The agent ends by calling `finish(explanation, plan, entry_point)`. `finalize` never calls the model, so there is no hidden 11th call. Tool calls requested on the 10th call are not executed, because their results could never be seen.
-- **Claude Sonnet through `init_chat_model`.** `CODER_MODEL=anthropic:claude-sonnet-5-5` by default. `openai:gpt-4o` or `ollama:<model>` work by changing one variable.
+- **Claude through `init_chat_model`, one model per role.** As of v4 the defaults are `PM_MODEL=anthropic:claude-sonnet-5-5`, `CODER_MODEL=anthropic:claude-haiku-5-5` and `QA_MODEL=anthropic:claude-haiku-5-5` (this changes the `coder` and `coder-web` default too). `openai:gpt-4o` or `ollama:<model>` work by changing one variable.
 - **Chroma with its default local embedding.** No second API key; Anthropic has no embeddings endpoint. After each run the agent stores what it did (task, outcome, files, plan, summary, defined functions). Retrieval keeps the top 3 within a cosine-distance threshold.
 - **Verification from execution records, not hashes alone.** A small runner inside the subprocess records which workspace files each run actually imported, with their hashes at load time. A file is verified only if a successful run after its last write loaded it in its current form. The Pydantic validator refuses `success` without that.
 - **One shared workspace with a cross-process lock.** Follow-up tasks build on earlier files. `filelock` makes a second concurrent run fail fast with "workspace busy" instead of corrupting the first.
@@ -112,7 +112,7 @@ Details are in [docs/architecture.md](docs/architecture.md).
 
 ## Known limitations
 
-- **The subprocess is not a security sandbox.** Paths and execution targets are confined to `./workspace/`, but code that `exec_python` runs is a normal host process with full filesystem and network access. Container isolation is the Module 4 work. Run the agent only on tasks you'd run yourself.
+- **The subprocess is not a security sandbox.** Paths and execution targets are confined to `./workspace/`, and since v4 generated code runs with an allowlisted environment (no API keys). It is still a normal process with the filesystem and network access of its user. The Docker image runs it as an unprivileged user, which limits but does not remove that. Run the agent only on tasks you'd run yourself.
 - **One run per workspace at a time.** A second concurrent run is refused, not queued.
 - **The web UI is local and read-only.** There is no authentication. It binds to 127.0.0.1 by default and refuses foreign `Host` headers (`CODER_WEB_ALLOWED_HOSTS`).
 - **The memory threshold (cosine distance 0.65) is tuned for the default embedding model.** Other embedding models may need `MEMORY_MAX_DISTANCE`.
@@ -203,19 +203,6 @@ The Coder ↔ QA exchange is peer agent-to-agent work, so it uses an A2A-style m
 
 `correlation_id` pairs and the rejected-message records are visible in the `a2a-log.jsonl` of any run.
 
-### Configuration
-
-Set these in the environment or `.env` (see `.env.example`). The model key is only needed for live runs.
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `ANTHROPIC_API_KEY` | none | API key for the default model. Not needed for tests. |
-| `CODER_MODEL` | `anthropic:claude-sonnet-5-5` | Provider-prefixed model used by the PM, Coder and QA. |
-| `CODER_MAX_ITERATIONS` | `10` | Model calls per Coder run, 1 to 10. |
-| `QA_MAX_ITERATIONS` | `5` | QA test rounds per task, 1 to 5 (the course cap). A round is one QA test run, so 5 rounds means up to 4 Coder fix runs. An invalid value exits with code 2. |
-| `EXEC_TIMEOUT_SECONDS` | `10` | Timeout for each `exec_python` run, including QA's pytest run. |
-| `MEMORY_WINDOW_TURNS` | `10` | Sliding-window turns kept by the Coder. |
-
 ### Running it
 
 ```bash
@@ -263,15 +250,219 @@ Each run writes its evidence to `.coder/runs/<id>/`: `requirement.txt`, `state-a
 
 In every run directory, `state-after-<id>.json` and the transcript `task_done` line show a task's status when it closed. The end-of-run regression check can later change a `done` task to `failed` (outcome `regressed`); the summary table, `regression.json` and `final-state.json` hold the final status.
 
+## Production v4
+
+Module 4 takes the v3 team and makes it operable: every call retried at its boundary, circuit breakers around every dependency, a response cache, token and cost accounting, one LangSmith trace per run, structured logs, validated outputs, a clean Docker start, and tests that run without a key. The agents, the graph above and the A2A protocol are unchanged. The evidence for each rubric criterion (C4.1 to C4.9) is mapped in [docs/evidence/v4/README.md](docs/evidence/v4/README.md).
+
+```mermaid
+flowchart LR
+    REQ([requirement]) --> TEAM[team graph<br/>PM, Coder and QA node spans]
+    TEAM --> CALL{every model or tool call}
+    CALL --> BRK[circuit breaker<br/>pm, coder, qa, tools, chroma]
+    BRK -->|"closed or half-open probe"| RETRY[retry<br/>at most 3, full jitter, transient only]
+    BRK -->|"open"| FALLBACK[cached result if fresh<br/>else CircuitOpenError]
+    RETRY --> CACHE{response cache<br/>structured PM and QA calls}
+    CACHE -->|"hit within TTL"| CALL
+    CACHE -->|"miss"| PROVIDER[(provider or tool<br/>Anthropic prompt caching)]
+    PROVIDER --> REC[call record<br/>tokens, USD, duration, attempts]
+    REC --> LOGS[events.jsonl and stderr<br/>JSON lines]
+    REC --> COST[cost report JSON<br/>docs/cost_reports and .coder/runs]
+    TEAM --> TRACE[LangSmith trace<br/>team-run:run_id root, node spans]
+```
+
+What v4 changed, in one place:
+
+- **One model per role.** `CODER_MODEL` now sets the Coder only and defaults to Haiku 5.5. `PM_MODEL` defaults to Sonnet 5.5 and `QA_MODEL` to Haiku 5.5. The v1 `coder` and `coder-web` commands use `CODER_MODEL`, so their default changed from Sonnet to Haiku too. Day to day, set `CODER_MODEL=anthropic:claude-sonnet-5-5` for a stronger Coder.
+- **Retry at the call boundary** (`resilience/retry.py`, wired in `agents/model.py` and the tool and Chroma call sites). At most 3 retries after the original attempt, full jitter: `uniform(0, min(RETRY_MAX_DELAY_S, RETRY_BASE_DELAY_S * 2**attempt))`, attempt 0-based. Only transient errors are retried (429, timeouts, 5xx and overloaded 529, connection errors, transient OS errors). Permanent errors fail at once, and a program's own exit code or timeout inside `exec_python` is a result, never a failure. Provider SDK retries are disabled (`max_retries=0`), so our wrapper is the only retry layer. A persistent failure stops at the bound without replaying the agent loop.
+- **Circuit breakers** (`resilience/breaker.py`): `pm`, `coder`, `qa`, `tools` and `chroma`. A breaker opens after `BREAKER_FAILURE_THRESHOLD` consecutive transient failures (each counted after its retries are exhausted), rejects calls while open, goes half-open after `BREAKER_COOLDOWN_S` and lets exactly one probe through: success closes it, failure reopens it. A success resets the count, a permanent error neither counts nor resets, and a nested `CircuitOpenError` neither counts nor resets. Every transition is logged at WARNING. An open circuit returns a fresh cached result when the call is cache-eligible (event `degraded_fallback_cached`), otherwise raises `CircuitOpenError`, which the agents turn into a reported failure (`failed` run, Coder `error`, QA `qa_error`) rather than a crash.
+- **Response cache** (`resilience/cache.py`): on disk under `.coder/cache/`, keyed by a hash of the model, messages, bound tools or schema and parameters, with TTL `CACHE_TTL_S` (default 3600; `0` disables). Only structured PM and QA calls are eligible (PM spec, PM consolidation, QA suite, QA fix plan, QA audit). The Coder's ReAct steps, critique and revision are never cached. **The cache survives `--reset-memory`**, so a second demo run within the TTL shows hits; delete `.coder/cache/` or set `CACHE_TTL_S=0` to bypass it. Separately, Anthropic prompt caching marks the first system message and the last tool, and cache read and write tokens are recorded in the cost report. Models that reject a forced `tool_choice` (sonnet-5-5, opus-5-5, fable-5-1) are called without one.
+- **Token and cost accounting** (`observability/costs.py`): one `CallRecord` per successful model call or cache hit, by agent. Prices are per million tokens, as of 2026-11-08 (Haiku cache read is derived as 0.1x input, and Haiku's above-100K-token tier is not modelled). An unknown model logs `unpriced_model` and is costed at $0, flagged in the report.
+- **Security.** Generated code and the API-check app run with an allowlisted environment (`tools/exec_python.py::child_env`), so no API key reaches them. Logs and cost-report errors are redacted. Every model output passes a Pydantic schema before it is acted on. The audit is in [docs/evidence/v4/validation-audit.md](docs/evidence/v4/validation-audit.md).
+- **Docker.** Compose now starts Chroma, waits for its health check, then runs the BST demo. The `.coder` directory is bind-mounted into the container, so the `reset_memory` cross-process sync (the `.coder/generation` counter) still works.
+
+### Quickstart (Docker)
+
+Grader path, with a plain `.env`:
+
+```bash
+cp .env.example .env            # fill in ANTHROPIC_API_KEY (LANGSMITH_* are optional)
+docker compose up --build
+```
+
+Plain `docker compose up` runs `team --demo bst --reset-memory` once Chroma reports healthy (the health check is a `bash` `/dev/tcp` GET of `/api/v2/heartbeat` that must return 200, image `chromadb/chroma:1.5.9`), then the `team` container exits and Chroma keeps running. The run's cost report appears in `docs/cost_reports/` on the host, and its evidence in `.coder/runs/<run_id>/`. To start from nothing, run `docker compose down -v` first.
+
+With 1Password and no plaintext `.env`:
+
+```bash
+op run --env-file=.env.op -- docker compose up --build
+```
+
+Compose passes variables by bare name, so a value set on the host wins, `.env` (optional) fills the gaps and an unset key stays unset. `OPENAI_API_KEY` is not passed through because the image does not install the `openai` extra. The other services sit behind profiles: `docker compose --profile web up web` (the single-Coder web UI on `127.0.0.1:8000`) and `docker compose run --rm coder "task"` (the `cli` profile). `workspace/`, `.coder/` and `docs/cost_reports/` ship with a `.gitkeep` and must be writable by the build user; on Linux build with `UID=$(id -u) GID=$(id -g) docker compose build`.
+
+### Quickstart (local, 1Password)
+
+```bash
+make setup                                  # uv sync
+op run --env-file=.env.op -- make team-bst  # = uv run team --demo bst --reset-memory
+```
+
+`.env.op` holds `op://` references that `op run` resolves at runtime, so no key is written to disk. Without 1Password, `cp .env.example .env`, set `ANTHROPIC_API_KEY`, and run `make team-bst`. Locally, memory uses an on-disk Chroma at `.chroma/`; set `CHROMA_HOST` (and `CHROMA_PORT`) to use a Chroma server instead.
+
+**The BST demo.** `--demo bst` sends the published task sentence verbatim, followed by an appended interface block titled "the supplied fixture's contract": module `bst.py` at the workspace root; class `BinarySearchTree` with `insert(value) -> None`, `search(value) -> bool` and `inorder() -> list` in ascending order; duplicate inserts ignored; values mutually comparable. After the run, the "BST fixture check" passes only if every task was approved with QA's tests run, and the supplied fixture (`tests/fixtures/bst_fixture.py`, run with `--noconftest`) passes 5 of 5 tests. Line coverage of `bst.py` under QA's tests is reported, not gated.
+
+### Configuration
+
+Set these in the environment or in `.env` (copy `.env.example`; `Settings.from_env` loads the project's own `.env`). Flags override variables. The key is only needed for live runs.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | none | Key for the default models. Not needed for tests. |
+| `CODER_MODEL` | `anthropic:claude-haiku-5-5` | Provider-prefixed model for the **Coder only** (flag `--model`). |
+| `PM_MODEL` | `anthropic:claude-sonnet-5-5` | Model for the PM (flag `--pm-model`). |
+| `QA_MODEL` | `anthropic:claude-haiku-5-5` | Model for QA (flag `--qa-model`). |
+| `CODER_PROJECT_DIR` | current directory | Project root that holds `workspace/`, `.coder/`, `.chroma/` and `docs/cost_reports/`. |
+| `CODER_MAX_ITERATIONS` | `10` | Model calls per Coder run, 1 to 10 (flag `--max-iterations`). |
+| `CODER_MAX_TOKENS` | `8192` | `max_tokens` for each model call. |
+| `QA_MAX_ITERATIONS` | `5` | QA test rounds per task, 1 to 5 (flag `--qa-max-iterations`). A round is one QA test run, so 5 rounds means up to 4 Coder fix runs. |
+| `EXEC_TIMEOUT_SECONDS` | `10` | Timeout for each `exec_python` run, including QA's pytest run (flag `--timeout`). |
+| `MEMORY_WINDOW_TURNS` | `10` | Sliding-window turns kept by the Coder. |
+| `MEMORY_TOP_K` | `3` | Semantic memories retrieved per call. |
+| `MEMORY_MAX_DISTANCE` | `0.65` | Cosine-distance cut-off for retrieval. |
+| `RETRY_MAX` | `3` | Retries after the original attempt, 0 to 3 (hard cap 3). |
+| `RETRY_BASE_DELAY_S` | `1.0` | Backoff base in seconds. |
+| `RETRY_MAX_DELAY_S` | `30.0` | Backoff ceiling in seconds. |
+| `BREAKER_FAILURE_THRESHOLD` | `3` | Consecutive transient failures that open a breaker. |
+| `BREAKER_COOLDOWN_S` | `30.0` | Seconds an open breaker waits before its half-open probe. |
+| `CACHE_TTL_S` | `3600` | Response-cache time to live in seconds; `0` disables the cache. |
+| `CHROMA_HOST` | unset (local store) | Chroma server host. Compose sets it to `chroma`. |
+| `CHROMA_PORT` | `8000` | Chroma server port. |
+| `LOG_LEVEL` | `INFO` | Level for the structured logs. |
+| `LANGSMITH_TRACING` | `false` | Set `true` to trace (also needs `LANGSMITH_API_KEY`). |
+| `LANGSMITH_API_KEY` | none | LangSmith key. Tracing is on only when both this and `LANGSMITH_TRACING=true` are set. |
+| `LANGSMITH_PROJECT` | `multi-agent-dev-team` | LangSmith project for the traces. |
+| `OPENAI_API_KEY`, `OLLAMA_BASE_URL` | none | For `openai:` and `ollama:` models (install the matching extra). |
+| `CODER_WEB_HOST`, `CODER_WEB_PORT`, `CODER_WEB_ALLOWED_HOSTS` | `127.0.0.1`, `8000`, local names | `coder-web` only. |
+
+An invalid value (for example `QA_MAX_ITERATIONS=6`) exits with code 2 and "invalid setting".
+
+### Callable interface
+
+**`team` CLI** (`app/team_cli.py`, `uv run team ...`):
+
+| Flag | Meaning |
+|---|---|
+| `requirement` | The free-text requirement. Give a requirement, `--demo` or `--reset-memory`, never a requirement together with `--demo`. |
+| `--demo api` | The Module 2 task (GET /health, POST /echo with FastAPI), then the Postman fixture check (`make team-demo`). |
+| `--demo large` | An 11-feature requirement, so the PM yields more than 8 tasks and consolidation runs (`make team-large`). |
+| `--demo linked-list` | The Module 3 task, then the linked-list check (`make team-linked-list`). |
+| `--demo bst` | The binary-search-tree task plus the fixture's contract, then the BST fixture check (`make team-bst`). This is the Docker default. |
+| `--model M` | Coder model, for example `anthropic:claude-haiku-5-5` or `openai:gpt-4o`. |
+| `--pm-model M`, `--qa-model M` | PM and QA models. |
+| `--max-iterations N` | Per-task Coder model-call limit, 1 to 10. |
+| `--qa-max-iterations N` | QA test rounds per task, 1 to 5. |
+| `--timeout S` | `exec_python` timeout in seconds. |
+| `--reset-memory` | Clear Chroma, the sliding window and the workspace first; alone, it does only that and exits 0. The response cache is kept. |
+| `--json` | Print only the final `ProjectState` JSON on stdout; progress goes to stderr. |
+
+The v1 commands are `coder` (`app/cli.py`) and `coder-web` (`app/web.py`); see [docs/usage.md](docs/usage.md).
+
+**Python API.**
+
+```python
+from agents.config import Settings
+from agents.model import make_model
+from orchestration.team_runner import TeamRunner
+
+settings = Settings.from_env()                 # env + the project's .env; keyword overrides win
+runner = TeamRunner(settings)                  # PM, Coder and QA built from settings
+state = runner.run("Build a CLI that converts CSV to JSON, with tests")   # final ProjectState as a dict
+for event in runner.stream("..."):             # TeamEvent(kind, task_id, data): start, spec, handoff,
+    ...                                        # coder, reflection, qa_report, a2a, task_done, final, ...
+runner.run_dir, runner.final_state, runner.cost_report_path   # set by run() and stream()
+model = make_model(settings, "pm")             # role in {"pm", "coder", "qa"}; a ResilientChatModel
+```
+
+- `TeamRunner.stream(requirement, *, api_check=None, demo_check=None)` yields events and writes the run's evidence under `.coder/runs/<run_id>/`. The optional checks are called after the graph finishes and recorded in the `final` event. `TeamRunner.reset_memory()` must not be called while a run is streaming.
+- `make_model(settings, role)` resolves the role's model, builds the provider model with SDK retries off, and wraps it with retry, the role's circuit breaker, the response cache (for eligible calls) and call recording. `agents.model.provider_prerequisite(model)` returns the reason a model cannot be called (a missing key, an unreachable Ollama), or `None`.
+
+**Cost report JSON** (`docs/cost_reports/<run_id>.json`, with an identical copy at `.coder/runs/<run_id>/cost-report.json`):
+
+| Key | Content |
+|---|---|
+| `run_id`, `started_at`, `finished_at`, `requirement` | Run identity and timing (UTC ISO 8601). |
+| `outcome` | `success`, `unresolved`, `failed` or `aborted`. |
+| `error` | `null`, or `{type, message}` (redacted) for an aborted run. |
+| `models` | The model used by each role. |
+| `pricing` | `as_of` plus the USD-per-million-token prices (`input`, `output`, `cache_read`, `cache_write`) of the models used. |
+| `trace_url` | The LangSmith root-trace URL, or `null` when tracing is off or the URL could not be resolved. |
+| `calls` | One record per successful model call or response-cache hit: `ts`, `role`, `agent`, `model`, `prompt_tokens`, `completion_tokens`, `cache_read_tokens`, `cache_write_tokens`, `cache_hit`, `cost_usd`, `priced`, `duration_ms`, `attempts`. |
+| `agents` | `pm`, `coder` and `qa`, each with `calls`, `prompt_tokens`, `completion_tokens`, `cache_read_tokens`, `cache_write_tokens`, `cache_hits`, `cost_usd`. |
+| `total` | The same fields over all calls. |
+| `unpriced_models` | Models with no price entry (costed at $0). |
+
+Totals are computed from `calls`, so they reconcile by construction. A failed LLM attempt that is retried produces no record, so `calls` counts successful model calls plus cache hits, and `attempts` on a record shows how many tries that call needed.
+
+**Log events** (JSON lines, see below): `run_start`, `llm_call`, `tool_call`, `retry_attempt`, `retry_exhausted`, `breaker_transition`, `cache_hit`, `cache_miss`, `cache_expired`, `degraded_fallback_cached`, `trace`, `agent_end`, `run_aborted`, `run_end`, `cost_report_failed`, `unpriced_model`, plus the `*_fallback` warnings for PM consolidation and QA's fix plan and audit.
+
+### Running the tests
+
+```bash
+make test        # uv run pytest: the mocked suite, no network and no paid calls (addopts: -m "not live")
+make verify      # REQUIRE_LIVE=1 uv run pytest -m live -rs: real-model tests, costs money; a skip counts as a failure
+uv run pytest tests/test_e2e_bst.py -v    # the deterministic full-pipeline E2E, mocked
+```
+
+The default suite scripts the model (`tests/fakes.py::ScriptedChatModel`) but runs the real graph, tools, `exec_python`, QA's pytest subprocess and the supplied BST fixture. Never run the live tests by accident: `tests/live/` needs a key and spends money. Controlled runs that need no key regenerate the committed evidence: `uv run python -m scripts.controlled_runs` (v3 scenarios) and `uv run python -m scripts.resilience_runs` (retry, breaker, cache, invalid output).
+
+### Traces, logs and cost reports
+
+- **Traces (LangSmith).** Tracing is on only when `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` are both set (`LANGCHAIN_API_KEY` alone is not recognised). Otherwise it is a silent no-op and the run is unaffected. Each team run has one root trace named `team-run:<run_id>` (type chain, metadata `run_id`), under which LangGraph's run and then each node execution appear as spans. Node spans carry `agent_name`, `token_count`, `tool_calls`, `tool_names` and `duration_ms`; `pm_node` and `consolidate_node` report as `pm`, `coder_node` and `reflect_node` as `coder`, `qa_node` as `qa`. The values come from the same call records as the cost report. The URL is resolved at run end (waiting at most 5 seconds), logged as the `trace` event and stored in the cost report's `trace_url`. The public share link for the graded BST run is pending Task 18 (see [docs/evidence/v4/README.md](docs/evidence/v4/README.md)).
+- **Logs.** Every event is one JSON line with `ts`, `level`, `run_id`, `agent`, `event` and event fields, written to stderr and to `.coder/runs/<run_id>/events.jsonl`. Secrets are redacted. Follow a run with `jq 'select(.run_id=="<run_id>")' .coder/runs/<run_id>/events.jsonl`, or `grep breaker_transition` for the breaker history.
+- **Cost reports.** `docs/cost_reports/<run_id>.json` and `.coder/runs/<run_id>/cost-report.json`, written automatically at the end of every run (success, unresolved, failed or aborted). The CLI prints `cost report: <path>` after the summary, or `cost report: unavailable (see events.jsonl)` if neither copy could be written (the event `cost_report_failed` says why).
+- **Other run evidence.** `.coder/runs/<run_id>/` also holds `requirement.txt`, `state-after-*.json`, `handoff-*`, `reflection-*`, `qa-*`, `a2a-log.jsonl`, `regression.json`, the demo's `demo-check.txt` or `api-check.txt`, and `final-state.json`.
+
+### Reading the outcome
+
+| Exit code | Meaning |
+|---|---|
+| `0` | The run `completed` (every task done, approved by QA and still passing the final regression check). For `--demo api`, `--demo linked-list` and `--demo bst`, the demo's check also passed. The cost report's `outcome` is `success`. `--reset-memory` alone also exits 0. |
+| `1` | The run ended `partial` (cost-report `outcome: unresolved`) or `failed` (`failed`), or a demo's check failed. `partial` means at least one task could not be approved within the QA round limit, or regressed; the summary prints an `unresolved:` line per open issue, and `final-state.json` holds each task's `unresolved` list. `failed` means the run produced no usable result (for example the PM could not produce a valid spec, or a dependency stayed down and its circuit opened). |
+| `2` | Configuration error (invalid setting or a missing provider prerequisite), a busy workspace (another run holds the lock), or Chroma unreachable when `CHROMA_HOST` is set. Also applies to `coder` and `coder-web`. No model call was made and no report was written. |
+| `130` | Interrupted with Ctrl-C. The lock is released and the cost report is written with `outcome: aborted`. |
+
+A demo can fail its check while the run itself is `completed`, so read the "BST fixture check: PASSED/FAILED" line and `demo-check.txt` as well as the exit code. The cost report's `outcome` always matches: `completed` is `success`, `partial` is `unresolved`, `failed` is `failed`, and an exception or early close is `aborted`.
+
+### Test map
+
+| Rubric item | Test file |
+|---|---|
+| PM agent unit | `tests/test_pm_agent.py` |
+| Coder agent unit | `tests/test_coder_agent.py` (with `tests/test_graph.py`, `tests/test_reflection.py`) |
+| QA agent unit | `tests/test_qa_agent.py` |
+| PM → Coder handoff (integration) | `tests/test_team_graph.py` |
+| Coder ↔ QA loop termination (integration) | `tests/test_team_loop.py` |
+| End to end, mocked (runs the generated BST against the supplied fixture) | `tests/test_e2e_bst.py` |
+| End to end, live | `tests/live/test_team_demo.py::test_bst_demo_passes_supplied_fixture` |
+| Retry | `tests/test_retry.py`, `tests/test_resilient_model.py` |
+| Circuit breaker | `tests/test_breaker.py` |
+| Response cache | `tests/test_cache.py` |
+| Token and cost accounting | `tests/test_costs.py` |
+| Tracing | `tests/test_tracing.py` |
+| Structured logs | `tests/test_logs.py` |
+| Security (env allowlist, invalid output never reaches tools) | `tests/test_security.py` |
+| Models per role, settings | `tests/test_model.py`, `tests/test_config.py` |
+| CLI, demo checks | `tests/test_team_cli.py`, `tests/test_demo_check.py` |
+| Docs (this README against the code) | `tests/test_docs.py` |
+
 ## Roadmap
 
 | Module | Adds |
 |---|---|
 | 2 | Product Manager agent: request → spec → Coder (`agents/pm_agent.py`) |
 | 3 (built, v3.0) | QA & Debugger agent: writes tests from the acceptance criteria, runs them, loops back with fix instructions over A2A (`agents/qa_agent.py`, `orchestration/a2a.py`) |
-| 4 | MCP tool interfaces; container-isolated execution (A2A is already used between Coder and QA) |
-| 5 | Observability, cost tracking and optimisation |
+| 4 (built, v4) | Production hardening: [retries, circuit breakers, response cache, cost reports, LangSmith tracing, structured logs, Docker clean start](#production-v4) (A2A is used between Coder and QA) |
+| 5 | Further optimisation (not built here) |
 
 ## LangSmith (optional)
 
-Set `LANGSMITH_TRACING=true`, `LANGSMITH_API_KEY` and `LANGSMITH_PROJECT`. In `.env.op` the key already points at 1Password. LangChain then traces every model call; no code changes are needed.
+See [Traces, logs and cost reports](#traces-logs-and-cost-reports). Tracing is off unless `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` are both set.

@@ -1,6 +1,6 @@
 # Usage
 
-All commands run from the repo root. With 1Password, prefix any command with `op run --env-file=.env.op --`. Otherwise, put your key in `.env` (copied from `.env.example`).
+All commands run from the repo root. With 1Password, prefix any command with `op run --env-file=.env.op --`. Otherwise, put your key in `.env` (copied from `.env.example`). The full settings table, the Python API and the cost-report schema are in the [README](../README.md#production-v4).
 
 ## CLI
 
@@ -11,7 +11,7 @@ uv run coder "Write fizzbuzz.py that prints FizzBuzz for 1..15, with pytest test
 | Flag | Meaning |
 |---|---|
 | `task` | The coding task, in plain language. |
-| `--model` | A provider-prefixed model: `anthropic:claude-sonnet-5-5` (default), `openai:gpt-4o`, `ollama:qwen2.5-coder`. Same as `CODER_MODEL`. |
+| `--model` | A provider-prefixed model: `anthropic:claude-haiku-5-5` (default since v4, was Sonnet), `anthropic:claude-sonnet-5-5`, `openai:gpt-4o`, `ollama:qwen2.5-coder`. Same as `CODER_MODEL`. |
 | `--max-iterations N` | Model-call limit, from 1 to 10 (default 10). Values above 10 are rejected. Same as `CODER_MAX_ITERATIONS`. |
 | `--timeout S` | `exec_python` timeout in seconds (default 10). Same as `EXEC_TIMEOUT_SECONDS`. |
 | `--reset-memory` | Clears the sliding window, Chroma and the workspace. Can be used alone or before a task. |
@@ -21,7 +21,7 @@ uv run coder "Write fizzbuzz.py that prints FizzBuzz for 1..15, with pytest test
 Exit codes:
 - **0**: every run succeeded.
 - **1**: a run ended `failed`, `iteration_limit` or `error`.
-- **2**: a usage or settings error, a busy workspace, or a missing provider prerequisite.
+- **2**: a usage or settings error, a busy workspace, a missing provider prerequisite, or Chroma unreachable (`CHROMA_HOST` set, server down).
 
 ## Demo
 
@@ -37,6 +37,7 @@ make demo        # = uv run coder --demo --reset-memory
 ```bash
 uv run team --demo api --reset-memory
 uv run team --demo linked-list --reset-memory    # = make team-linked-list
+uv run team --demo bst --reset-memory            # = make team-bst (the Docker default)
 uv run team "Build a CLI that converts CSV to JSON, with tests"
 ```
 
@@ -46,7 +47,10 @@ uv run team "Build a CLI that converts CSV to JSON, with tests"
 | `--demo api` | The published grading task (GET /health, POST /echo with FastAPI). After the run it checks the generated API against the Postman fixture. |
 | `--demo large` | An 11-feature to-do library requirement. The PM yields more than 8 tasks, so `consolidate_node` runs. |
 | `--demo linked-list` | The Module 3 grading task (a linked list with insert, delete, search and reverse, all covered by tests). After the run it checks that every task was approved with tests run, that QA's canonical suites call all four methods, and that the project regression check passed. |
-| `--model` | A provider-prefixed model, as for `coder`. Same as `CODER_MODEL`. |
+| `--demo bst` | The binary-search-tree grading task (`BinarySearchTree` with `insert`, `search` and `inorder`) plus an interface block titled "the supplied fixture's contract" (module `bst.py` at the workspace root; duplicate inserts ignored; values mutually comparable). After the run, the "BST fixture check" passes only if every task was approved with QA's tests run and the supplied fixture (`tests/fixtures/bst_fixture.py`, run with `--noconftest`) passes 5 of 5 tests. Coverage of `bst.py` under QA's tests is reported, not gated. |
+| `--model` | The **Coder** model, provider-prefixed, as for `coder`. Same as `CODER_MODEL` (default `anthropic:claude-haiku-5-5`). |
+| `--pm-model` | The PM model. Same as `PM_MODEL` (default `anthropic:claude-sonnet-5-5`). |
+| `--qa-model` | The QA model. Same as `QA_MODEL` (default `anthropic:claude-haiku-5-5`). |
 | `--max-iterations N` | Per-task Coder model-call limit, from 1 to 10 (default 10). |
 | `--qa-max-iterations N` | QA test rounds per task, from 1 to 5 (default 5). Same as `QA_MAX_ITERATIONS`. A round is one QA test run, so 5 rounds means up to 4 Coder fix runs. A bad value (`0`, `6`, `abc`), from the flag or the variable, exits 2 with "invalid setting". |
 | `--timeout S` | `exec_python` timeout in seconds (default 10). |
@@ -54,10 +58,10 @@ uv run team "Build a CLI that converts CSV to JSON, with tests"
 | `--json` | Prints only the final `ProjectState` JSON on stdout. Progress goes to stderr. |
 
 Exit codes:
-- **0**: the run `completed` (every task done, approved by QA and still passing the final regression check). With `--demo api` or `--demo linked-list`, that demo's check must also pass. `--reset-memory` alone also exits 0.
-- **1**: the run ended `partial` or `failed` (including a task QA could not approve within the round limit), or a demo's check failed.
-- **2**: a usage or settings error, a missing provider prerequisite, or a busy workspace (another `coder` or `team` run holds the lock).
-- **130**: interrupted with Ctrl-C (the lock is released).
+- **0**: the run `completed` (every task done, approved by QA and still passing the final regression check). With `--demo api`, `--demo linked-list` or `--demo bst`, that demo's check must also pass. `--reset-memory` alone also exits 0. The cost report's `outcome` is `success`.
+- **1**: the run ended `partial` (cost-report `outcome: unresolved`; a task QA could not approve within the round limit, or one that regressed, with an `unresolved:` line per open issue) or `failed`, or a demo's check failed.
+- **2**: a usage or settings error, a missing provider prerequisite, a busy workspace (another `coder` or `team` run holds the lock), or Chroma unreachable.
+- **130**: interrupted with Ctrl-C (the lock is released; the cost report has `outcome: aborted`).
 
 Each run writes its evidence to `.coder/runs/<run id>/`:
 
@@ -67,10 +71,27 @@ Each run writes its evidence to `.coder/runs/<run id>/`:
 - `a2a-log.jsonl`: every Coder ↔ QA message sent, received or rejected
 - `regression.json` (when at least one task is done): the end-of-run regression check
 - `api-check.txt` or `demo-check.txt`, and `final-state.json`
+- `events.jsonl`: the run's structured log, one JSON object per line (`ts`, `level`, `run_id`, `agent`, `event`, fields)
+- `cost-report.json`: a copy of `docs/cost_reports/<run id>.json`; the terminal ends with `cost report: <path>`, or `cost report: unavailable (see events.jsonl)` if neither copy could be written
 
 `state-after-<task>.json` and the `task_done` line in the terminal show a task's status when it closed. The regression check can later change a `done` task to `failed` (outcome `regressed`); the summary table, `regression.json` and `final-state.json` hold the final status.
 
-`make team-demo`, `make team-large` and `make team-linked-list` run the three demos. The linked-list demo needs a live model; run it with `op run --env-file=.env.op -- make team-linked-list`.
+`make team-demo`, `make team-large`, `make team-linked-list` and `make team-bst` run the four demos. They need a live model; run one with `op run --env-file=.env.op -- make team-bst`.
+
+### Resilience, cache and logging settings
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `RETRY_MAX` | 3 | Retries after the original attempt, 0 to 3. Only transient errors (429, timeouts, 5xx and 529, connection errors) are retried, with full-jitter backoff. |
+| `RETRY_BASE_DELAY_S` / `RETRY_MAX_DELAY_S` | 1.0 / 30.0 | Backoff: `uniform(0, min(max, base * 2**attempt))`. |
+| `BREAKER_FAILURE_THRESHOLD` | 3 | Consecutive transient failures (after retries) that open the `pm`, `coder`, `qa`, `tools` or `chroma` breaker. |
+| `BREAKER_COOLDOWN_S` | 30.0 | Wait before one half-open probe. |
+| `CACHE_TTL_S` | 3600 | Response-cache TTL for structured PM and QA calls; `0` disables. The cache lives in `.coder/cache/` and survives `--reset-memory`. |
+| `LOG_LEVEL` | INFO | Level of the JSON logs. |
+| `CHROMA_HOST` / `CHROMA_PORT` | unset / 8000 | Use a Chroma server instead of the local `.chroma/` store. |
+| `LANGSMITH_TRACING` + `LANGSMITH_API_KEY` | off | Both must be set for tracing. Each run is one `team-run:<run id>` trace; its URL is in the cost report's `trace_url` and the `trace` log event. |
+
+To start a run without any cached PM or QA answers, delete `.coder/cache/` or set `CACHE_TTL_S=0`.
 
 ### QA settings
 
@@ -128,11 +149,11 @@ uv sync --extra ollama   # needs a running Ollama server with the model pulled
 uv run coder --model ollama:qwen2.5-coder "task"
 ```
 
-The live smoke tests use whatever `CODER_MODEL` selects. A skip message names the missing prerequisite.
+The live smoke tests use whatever `CODER_MODEL` selects (default Haiku 5.5). A skip message names the missing prerequisite.
 
 ## Tests
 
 ```bash
-make test     # unit tests; live tests skip without a provider
-make verify   # REQUIRE_LIVE=1: a skipped live test is a failure
+make test     # the mocked suite (addopts -m "not live"): no network, no paid calls
+make verify   # REQUIRE_LIVE=1, live tests: real model calls cost money; a skipped live test is a failure
 ```
