@@ -31,7 +31,7 @@ class JsonFormatter(logging.Formatter):
             agent=getattr(record, "agent", current_agent()),
             event=record.getMessage(),
         )
-        return json.dumps(out, default=str)
+        return redact(json.dumps(out, default=str))
 
 
 def redact(text: str) -> str:
@@ -65,6 +65,10 @@ def run_log_file(path: Path) -> Iterator[None]:
     path.parent.mkdir(parents=True, exist_ok=True)
     handler = logging.FileHandler(path, encoding="utf-8")
     handler.setFormatter(JsonFormatter())
+    run = current_run()
+    if run is not None:  # only this run's records; overlapping runs share the process-global logger
+        run_id = run.run_id
+        handler.addFilter(lambda record: getattr(record, "run_id", None) == run_id)
     logger = logging.getLogger(LOGGER_NAME)
     logger.addHandler(handler)
     try:

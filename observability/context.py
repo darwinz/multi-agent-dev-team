@@ -26,13 +26,22 @@ _run: ContextVar[RunContext | None] = ContextVar("mad_run", default=None)
 _agent: ContextVar[str | None] = ContextVar("mad_agent", default=None)
 
 
+def _reset(var: ContextVar, token, prev) -> None:
+    """Restore var; tolerate teardown from a different Context (generator-held scopes)."""
+    try:
+        var.reset(token)
+    except ValueError:
+        var.set(prev)
+
+
 @contextmanager
 def run_scope(ctx: RunContext) -> Iterator[RunContext]:
+    prev = _run.get()
     token = _run.set(ctx)
     try:
         yield ctx
     finally:
-        _run.reset(token)
+        _reset(_run, token, prev)
 
 
 def current_run() -> RunContext | None:
@@ -41,11 +50,12 @@ def current_run() -> RunContext | None:
 
 @contextmanager
 def agent_scope(name: str) -> Iterator[None]:
+    prev = _agent.get()
     token = _agent.set(name)
     try:
         yield
     finally:
-        _agent.reset(token)
+        _reset(_agent, token, prev)
 
 
 def current_agent() -> str | None:

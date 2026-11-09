@@ -60,3 +60,40 @@ def test_retry_logs_attempts(caplog):
         call_with_retry(fn, policy=P, classify=classify_llm_error, name="t", sleep=lambda s: None)
     recs = [r for r in caplog.records if r.getMessage() == "retry_attempt"]
     assert [r.fields["attempt"] for r in recs] == [1, 2]
+
+
+def test_non_string_fields_redacted(tmp_path, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-supersecret-123")
+    secret = "sk-ant-supersecret-123"
+    with run_log_file(tmp_path / "e.jsonl"):
+        log_event("llm_error", error=RuntimeError(f"401 {secret}"), args=[secret],
+                  body={"detail": secret})
+    text = (tmp_path / "e.jsonl").read_text()
+    assert "supersecret" not in text and "[redacted]" in text
+
+
+def test_overlapping_run_logs_are_separate(tmp_path):
+    a, b = RunContext(run_id="A"), RunContext(run_id="B")
+    with run_scope(a), run_log_file(tmp_path / "a.jsonl"):
+        with run_scope(b), run_log_file(tmp_path / "b.jsonl"):
+            log_event("from_b")
+        log_event("from_a")
+    ta, tb = (tmp_path / "a.jsonl").read_text(), (tmp_path / "b.jsonl").read_text()
+    assert "from_a" in ta and "from_b" not in ta
+    assert "from_b" in tb and "from_a" not in tb
+
+
+def test_scope_teardown_tolerates_other_context():
+    import contextvars
+
+    from observability.context import current_agent, current_run
+
+    def gen():
+        with run_scope(RunContext(run_id="g")), agent_scope("x"):
+            yield
+
+    g = gen()
+    contextvars.copy_context().run(next, g)
+    # closing from another Context would raise ValueError without tolerant teardown
+    contextvars.copy_context().run(g.close)
+    assert current_run() is None and current_agent() is None
