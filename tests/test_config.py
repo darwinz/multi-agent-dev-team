@@ -83,3 +83,10 @@ def test_resilience_defaults(tmp_path, monkeypatch):
     assert (s.breaker_failure_threshold, s.breaker_cooldown_s, s.cache_ttl_s) == (3, 30.0, 3600.0)
     assert s.cache_dir == tmp_path / ".coder" / "cache"
     assert s.cost_reports_dir == tmp_path / "docs" / "cost_reports"
+
+
+def test_qa_max_tokens_default_and_env(tmp_path, monkeypatch):
+    monkeypatch.delenv("QA_MAX_TOKENS", raising=False)
+    assert Settings.from_env(project_dir=tmp_path).qa_max_tokens == 16384
+    monkeypatch.setenv("QA_MAX_TOKENS", "12000")
+    assert Settings.from_env(project_dir=tmp_path).qa_max_tokens == 12000

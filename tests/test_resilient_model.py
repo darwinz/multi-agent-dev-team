@@ -143,6 +143,16 @@ def test_structured_reply_without_tool_call_is_not_cached(settings_with_cache, c
     assert not cache_dir.exists() or not [p for p in cache_dir.rglob("*") if p.is_file()]
 
 
+def test_reply_cut_off_at_max_tokens_is_not_cached(settings_with_cache, caplog):
+    caplog.set_level(logging.INFO, logger="mad")
+    cut = spec_response(make_spec())
+    cut.response_metadata = {"stop_reason": "max_tokens"}
+    m = wrap(settings_with_cache, cut, spec_response(make_spec()))
+    for _ in range(2):
+        structured_call(m, "same")
+    assert len(m.inner.calls) == 2 and not events(caplog, "cache_hit")
+
+
 def test_uncached_calls_never_hit_cache(settings_with_cache):
     ctx = RunContext(run_id="r")
     inner = ScriptedChatModel(responses=[spec_response(make_spec()), spec_response(make_spec())])
@@ -293,6 +303,8 @@ def test_make_model_uses_role_model_and_disables_sdk_retries(settings, monkeypat
     m = make_model(settings, "pm")
     assert isinstance(m, ResilientChatModel) and m.role == "pm" and m.model_id == settings.model_for("pm")
     assert captured == {"model": settings.model_for("pm"), "max_tokens": settings.max_tokens, "max_retries": 0}
+    make_model(settings.model_copy(update={"qa_max_tokens": 16000}), "qa")
+    assert captured["max_tokens"] == 16000  # QA writes whole test modules: its own output budget
     make_model(settings.model_copy(update={"model": "ollama:llama3"}), "coder")
     assert captured["model"] == "ollama:llama3" and "max_retries" not in captured
 

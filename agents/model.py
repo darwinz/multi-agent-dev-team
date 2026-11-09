@@ -170,7 +170,8 @@ class ResilientChatModel(BaseChatModel):
         self._record(msg, cache_hit=False, duration_ms=duration_ms, attempts=attempts)
 
         # A tools-bound call that came back without a tool call is unusable: don't replay it for the TTL
-        if key is not None and isinstance(msg, AIMessage) and (not fwd.get("tools") or msg.tool_calls):
+        if (key is not None and isinstance(msg, AIMessage) and (not fwd.get("tools") or msg.tool_calls)
+                and not cut_off(msg)):  # a reply cut off at the token limit is never replayed
             assert self.response_cache is not None
             try:
                 self.response_cache.put(key, msg)
@@ -189,12 +190,19 @@ def resilient(model: BaseChatModel, settings: Settings, role: Role, model_id: st
                               response_cache=ResponseCache(settings.cache_dir, settings.cache_ttl_s))
 
 
+def cut_off(msg: Any) -> bool:
+    """True when the provider stopped the reply at the output-token limit (Anthropic and OpenAI wording)."""
+    meta = getattr(msg, "response_metadata", None) or {}
+    return meta.get("stop_reason") == "max_tokens" or meta.get("finish_reason") == "length"
+
+
 def make_model(settings: Settings, role: Role = "coder") -> ResilientChatModel:
     model = settings.model_for(role)
     provider = model.partition(":")[0]
     # Our wrapper is the only retry layer, so its attempt counts are honest
     sdk = {"max_retries": 0} if provider in {"anthropic", "openai"} else {}
-    return resilient(init_chat_model(model, max_tokens=settings.max_tokens, **sdk), settings, role)
+    max_tokens = settings.qa_max_tokens if role == "qa" else settings.max_tokens
+    return resilient(init_chat_model(model, max_tokens=max_tokens, **sdk), settings, role)
 
 
 def provider_prerequisite(model: str) -> str | None:

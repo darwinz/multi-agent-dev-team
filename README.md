@@ -324,7 +324,8 @@ Set these in the environment or in `.env` (copy `.env.example`; `Settings.from_e
 | `QA_MODEL` | `anthropic:claude-haiku-5-5` | Model for QA (flag `--qa-model`). |
 | `CODER_PROJECT_DIR` | current directory | Project root that holds `workspace/`, `.coder/`, `.chroma/` and `docs/cost_reports/`. |
 | `CODER_MAX_ITERATIONS` | `10` | Model calls per Coder run, 1 to 10 (flag `--max-iterations`). |
-| `CODER_MAX_TOKENS` | `8192` | `max_tokens` for each model call. |
+| `CODER_MAX_TOKENS` | `8192` | `max_tokens` for each PM and Coder model call. |
+| `QA_MAX_TOKENS` | `16384` | `max_tokens` for each QA call: QA writes a whole test module in one reply. A reply cut off at this limit is never cached, and QA retries once, asking for a shorter suite. |
 | `QA_MAX_ITERATIONS` | `5` | QA test rounds per task, 1 to 5 (flag `--qa-max-iterations`). A round is one QA test run, so 5 rounds means up to 4 Coder fix runs. |
 | `EXEC_TIMEOUT_SECONDS` | `10` | Timeout for each `exec_python` run, including QA's pytest run (flag `--timeout`). |
 | `MEMORY_WINDOW_TURNS` | `10` | Sliding-window turns kept by the Coder. |

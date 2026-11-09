@@ -20,7 +20,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel
 
 from agents.config import Settings
-from agents.model import make_model, resilient
+from agents.model import cut_off, make_model, resilient
 from agents.prompts import QA_CHECK_PROMPT, QA_FIX_PROMPT, QA_TESTS_PROMPT
 from observability.logs import error_class, log_event
 from orchestration.a2a import ReviewRequest
@@ -200,7 +200,11 @@ class QAAgent:
             except Exception as e:
                 raise QAError(f"QA model call failed: {type(e).__name__}: {e}") from e
             suite = out.get("parsed")
-            if out.get("parsing_error") is not None or suite is None:
+            if cut_off(out.get("raw")):  # the parse error of a truncated reply would mislead the retry
+                problems = ["your reply hit the output-token limit and was cut off before it was complete. "
+                            "Write a shorter suite: fewer, compact tests (pytest.mark.parametrize for "
+                            "similar cases), no long docstrings or comments"]
+            elif out.get("parsing_error") is not None or suite is None:
                 problems = [str(out.get("parsing_error") or "the model returned no structured suite")]
             else:
                 problems = suite.check(len(handoff.acceptance_criteria))

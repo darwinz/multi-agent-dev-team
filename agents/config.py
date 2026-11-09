@@ -24,6 +24,7 @@ _ENV_VARS = {
     "memory_top_k": "MEMORY_TOP_K",
     "memory_max_distance": "MEMORY_MAX_DISTANCE",
     "max_tokens": "CODER_MAX_TOKENS",
+    "qa_max_tokens": "QA_MAX_TOKENS",
     "qa_max_iterations": "QA_MAX_ITERATIONS",
     "pm_model": "PM_MODEL",
     "qa_model": "QA_MODEL",
@@ -50,6 +51,7 @@ class Settings(BaseModel):
     memory_top_k: int = Field(3, ge=1)
     memory_max_distance: float = Field(0.65, gt=0)
     max_tokens: int = Field(8192, ge=1)
+    qa_max_tokens: int = Field(16384, ge=1)  # QA writes whole test modules in one reply
     qa_max_iterations: int = Field(5, ge=1, le=QA_MAX_ITERATIONS_CAP)
     retry_max: int = Field(3, ge=0, le=3)
     retry_base_delay_s: float = Field(1.0, ge=0)

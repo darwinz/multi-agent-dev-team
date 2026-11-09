@@ -13,7 +13,9 @@ from agents.qa_agent import QAAgent, QAError, canonical_suite_path
 from orchestration.a2a import ReviewRequest
 from orchestration.project_state import Task, TaskHandoff
 from orchestration.review import QAReport, QATestSuite, TestCorrection
-from tests.fakes import ScriptedChatModel, audit_response, fix_plan_response, qa_agent, qa_suite_response
+from tests.fakes import (
+    ScriptedChatModel, audit_response, fix_plan_response, qa_agent, qa_suite_response, structured,
+)
 from tests.scenarios import STACK_TESTS
 from tools.workspace import ToolError, sha256_file
 
@@ -147,6 +149,17 @@ def test_invalid_suite_retried_once(settings):
     report, suite = agent.review(handoff(), request(files), 1, None, {})
     retry = "\n".join(str(m.content) for m in agent.model.inner.calls[1])
     assert "test_nope" in retry
+    assert suite is not None and report.approved is True
+
+
+def test_suite_cut_off_at_max_tokens_retried_with_a_shorter_ask(settings):
+    files = put(settings, **{"stack.py": FIXED_STACK})
+    cut = structured("QATestSuite", {"content": STACK_TESTS})  # the manifest never arrived
+    cut.response_metadata = {"stop_reason": "max_tokens"}
+    agent = qa_agent(settings, cut, qa_suite_response(STACK_TESTS, STACK_MAP))
+    report, suite = agent.review(handoff(), request(files), 1, None, {})
+    retry = str(agent.model.inner.calls[1][-1].content)
+    assert "cut off" in retry and "shorter" in retry and "Field required" not in retry
     assert suite is not None and report.approved is True
 
 
