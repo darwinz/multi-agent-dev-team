@@ -7,6 +7,7 @@ import logging
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
+from langchain_core.utils.function_calling import convert_to_openai_tool
 
 from agents.coder_agent import CoderAgent
 from agents.config import Settings
@@ -17,7 +18,7 @@ from resilience.breaker import BreakerState
 from resilience.cache import ResponseCache
 from resilience.errors import CircuitOpenError, TransientError
 from resilience.runtime import runtime
-from tests.fakes import FakeEmbedding, ScriptedChatModel, ai, happy, make_spec, spec_response
+from tests.fakes import FakeEmbedding, ScriptedChatModel, ai, happy, make_spec, spec_response, tool_call
 from tools.specs import TOOL_SPECS
 
 
@@ -123,6 +124,25 @@ def test_expired_entry_is_refetched(settings_with_cache, caplog):
     assert len(m.inner.calls) == 2 and len(events(caplog, "cache_expired")) == 1
 
 
+class ToolBindingScripted(ScriptedChatModel):
+    """Binds formatted tools like a real provider, so the wrapper sees `tools` in its bound kwargs."""
+
+    def bind_tools(self, tools, **kwargs):
+        return self.bind(tools=[convert_to_openai_tool(t) for t in tools], **kwargs)
+
+
+def test_structured_reply_without_tool_call_is_not_cached(settings_with_cache, caplog):
+    caplog.set_level(logging.INFO, logger="mad")
+    m = resilient(ToolBindingScripted(responses=[ai("not a spec"), ai("not a spec")]), settings_with_cache, "pm")
+    for _ in range(2):
+        out = structured_call(m, "same")
+        assert out["parsed"] is None
+    assert len(m.inner.calls) == 2 and len(events(caplog, "cache_miss")) == 2
+    assert not events(caplog, "cache_hit")
+    cache_dir = settings_with_cache.cache_dir
+    assert not cache_dir.exists() or not [p for p in cache_dir.rglob("*") if p.is_file()]
+
+
 def test_uncached_calls_never_hit_cache(settings_with_cache):
     ctx = RunContext(run_id="r")
     inner = ScriptedChatModel(responses=[spec_response(make_spec()), spec_response(make_spec())])
@@ -216,7 +236,8 @@ def test_anthropic_prompt_caching_marks_system_prompt_and_last_tool(settings_wit
     class Offline(ChatAnthropic):
         def _generate(self, messages, stop=None, run_manager=None, **kwargs):
             payloads.append(self._get_request_payload(messages, stop=stop, **kwargs))
-            return ChatResult(generations=[ChatGeneration(message=AIMessage("ok"))])
+            # A tools-bound reply must carry a tool call to be cached
+            return ChatResult(generations=[ChatGeneration(message=ai("ok", tool_call("finish", explanation="x")))])
 
     # model_id explicit: a leaked CODER_MODEL from another test must not turn prompt caching off
     m = resilient(Offline(model="claude-haiku-5-5", max_retries=0), settings_with_cache, "coder",
@@ -286,3 +307,23 @@ def test_agents_wrap_injected_models_with_their_role(settings):
         assert isinstance(a.model, ResilientChatModel) and a.model.role == role and a.model.inner is inner
     c = CoderAgent(settings, model=inner, embedding_function=FakeEmbedding())
     assert c.model.role == "coder" and c.model.inner is inner
+
+
+def test_trace_params_report_the_inner_model(settings, monkeypatch):
+    from langchain_anthropic import ChatAnthropic
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-dummy")
+    inner = ChatAnthropic(model="claude-haiku-5-5", max_retries=0, api_key="sk-ant-dummy")
+    params = resilient(inner, settings, "coder", "anthropic:claude-haiku-5-5")._get_ls_params()
+    assert params["ls_model_name"] == "claude-haiku-5-5" and params["ls_provider"] == "anthropic"
+
+
+def test_trace_params_fall_back_when_inner_raises(settings, monkeypatch):
+    inner = ScriptedChatModel(responses=[])
+
+    def boom(*a, **k):
+        raise RuntimeError("no params")
+
+    object.__setattr__(inner, "_get_ls_params", boom)
+    params = resilient(inner, settings, "pm")._get_ls_params()
+    assert params["ls_model_type"] == "chat"

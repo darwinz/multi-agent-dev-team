@@ -91,6 +91,16 @@ class ResilientChatModel(BaseChatModel):
     def _llm_type(self) -> str:
         return "resilient"
 
+    def _get_ls_params(self, stop: list[str] | None = None, **kwargs: Any) -> Any:
+        """The inner model's trace params, so LangSmith LLM spans name the real provider and model."""
+        inner_params = getattr(self.inner, "_get_ls_params", None)
+        if callable(inner_params):
+            try:
+                return inner_params(stop=stop, **kwargs)
+            except Exception:  # tracing metadata never fails a call
+                pass
+        return super()._get_ls_params(stop=stop, **kwargs)
+
     def bind_tools(self, tools: Sequence[Any], **kwargs: Any) -> ResilientChatModel:
         """Let the inner model format tools and tool_choice; keep its bound kwargs so calls still pass here."""
         anthropic = _chat_anthropic()
@@ -159,7 +169,8 @@ class ResilientChatModel(BaseChatModel):
         msg = result.generations[0].message
         self._record(msg, cache_hit=False, duration_ms=duration_ms, attempts=attempts)
 
-        if key is not None and isinstance(msg, AIMessage):
+        # A tools-bound call that came back without a tool call is unusable: don't replay it for the TTL
+        if key is not None and isinstance(msg, AIMessage) and (not fwd.get("tools") or msg.tool_calls):
             assert self.response_cache is not None
             try:
                 self.response_cache.put(key, msg)
