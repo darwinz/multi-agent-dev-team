@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 from collections.abc import Callable, Iterator
@@ -19,6 +18,7 @@ from agents.qa_agent import QAAgent, canonical_suite_path
 from observability.context import RunContext, run_scope
 from observability.costs import build_cost_report, write_cost_report
 from observability.logs import log_event, redact, run_log_file
+from observability.tracing import root_trace
 from orchestration.a2a import CODER_ACCEPTS, QA_ACCEPTS, Broker
 from orchestration.project_state import initial_project_state, state_to_jsonable
 from orchestration.team_graph import TeamDeps, build_team_graph, team_recursion_limit
@@ -30,11 +30,6 @@ DemoCheck = Callable[[Path, dict], tuple[bool, str]]  # (workspace, final state 
 A2A_LOG = "a2a-log.jsonl"
 ROLES: tuple[Role, ...] = get_args(Role)
 OUTCOME = {"completed": "success", "partial": "unresolved", "failed": "failed"}  # final status → report outcome
-
-
-def root_trace(run_id: str, requirement: str) -> contextlib.AbstractContextManager[str | None]:
-    """Stand-in until Task 12's observability.tracing.root_trace: no tracing, so no trace URL."""
-    return contextlib.nullcontext(None)
 
 
 def _now() -> str:

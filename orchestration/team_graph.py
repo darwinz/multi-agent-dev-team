@@ -18,6 +18,7 @@ from agents.events import TeamEvent
 from agents.pm_agent import PMAgent, PMError
 from agents.qa_agent import QAAgent
 from agents.result import CoderResult
+from observability.tracing import agent_node
 from orchestration.a2a import (
     CODER_ACCEPTS,
     QA_ACCEPTS,
@@ -358,12 +359,12 @@ def build_team_graph(deps: TeamDeps) -> CompiledStateGraph:
                 "work_in_progress": [*notes, f"Run {status}"]}
 
     g = StateGraph(ProjectState)
-    g.add_node("pm_node", pm_node)
-    g.add_node("consolidate_node", consolidate_node)
+    g.add_node("pm_node", agent_node("pm", pm_node))
+    g.add_node("consolidate_node", agent_node("pm", consolidate_node))
     g.add_node("dispatch_node", dispatch_node)
-    g.add_node("coder_node", coder_node)
-    g.add_node("reflect_node", reflect_node)
-    g.add_node("qa_node", qa_node)
+    g.add_node("coder_node", agent_node("coder", coder_node))
+    g.add_node("reflect_node", agent_node("coder", reflect_node))
+    g.add_node("qa_node", agent_node("qa", qa_node))
     g.add_node("finalize", finalize)
     g.add_edge(START, "pm_node")
     g.add_conditional_edges("pm_node", route_after_pm, ["consolidate_node", "dispatch_node", "finalize"])
