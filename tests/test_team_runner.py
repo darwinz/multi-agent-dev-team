@@ -396,3 +396,51 @@ def test_events_jsonl_has_run_start_llm_calls_run_end(settings):
     llm = [e for e in events if e["event"] == "llm_call"]
     assert len(llm) == report_of(runner)["total"]["calls"] >= 1
     assert {e["run_id"] for e in events} == {runner.run_dir.name}
+
+
+def block_docs_dir(settings) -> None:
+    """A file where docs/ should be, so the docs/cost_reports copy can't be written."""
+    settings.project_dir.mkdir(parents=True, exist_ok=True)
+    (settings.project_dir / "docs").write_text("not a directory")
+
+
+def test_report_write_failure_never_masks_interrupt(settings, monkeypatch):
+    block_docs_dir(settings)
+    runner = scripted_runner(settings, passing_scripts())
+    monkeypatch.setattr(runner.qa, "review", lambda *a, **k: (_ for _ in ()).throw(KeyboardInterrupt()))
+    with pytest.raises(KeyboardInterrupt):
+        runner.run(REQ)
+    assert runner.cost_report_path == runner.run_dir / "cost-report.json"
+    assert report_of(runner)["outcome"] == "aborted"
+    events = events_of(runner)
+    failed = [e for e in events if e["event"] == "cost_report_failed"]
+    assert len(failed) == 1 and failed[0]["level"] == "ERROR"
+    assert events[-1]["event"] == "run_end" and events[-1]["outcome"] == "aborted"
+    assert not RunLock.is_running(settings.state_dir)
+
+
+def test_report_write_failure_on_success_completes(settings):
+    block_docs_dir(settings)
+    runner = scripted_runner(settings, passing_scripts())
+    state = runner.run(REQ)  # no exception
+    assert state["status"] == "completed"
+    assert (runner.run_dir / "final-state.json").is_file()
+    assert runner.cost_report_path == runner.run_dir / "cost-report.json"
+    assert report_of(runner)["outcome"] == "success"
+    assert "cost_report_failed" in [e["event"] for e in events_of(runner)]
+
+
+def test_abort_error_message_is_redacted(settings, monkeypatch):  # Review Focus 4
+    dummy = "sk-dummy-12345678"  # a dummy value only; real environment values are never read or printed
+    monkeypatch.setenv("FAKE_API_KEY", dummy)
+    runner = scripted_runner(settings, passing_scripts())
+    monkeypatch.setattr(runner.pm, "draft_spec",  # pm_node catches PMError only, so this escapes the node
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError(f"provider said {dummy}")))
+    with pytest.raises(RuntimeError):
+        runner.run(REQ)
+    report_text = runner.cost_report_path.read_text()
+    events_text = (runner.run_dir / "events.jsonl").read_text()
+    assert dummy not in report_text and dummy not in (runner.run_dir / "cost-report.json").read_text()
+    assert dummy not in events_text
+    error = json.loads(report_text)["error"]
+    assert error["type"] == "RuntimeError" and "[redacted]" in error["message"]

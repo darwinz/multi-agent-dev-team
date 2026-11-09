@@ -316,3 +316,16 @@ def test_team_ctrl_c_exits_130_with_report(tmp_path, monkeypatch, capsys):  # Re
     assert runner.cost_report_path.parent == tmp_path / "docs" / "cost_reports"
     assert report["outcome"] == "aborted" and report["error"]["type"] == "KeyboardInterrupt"
     assert not RunLock.is_running(runner.settings.state_dir)
+
+
+def test_prints_cost_report_unavailable(settings, capsys):
+    r = two_tasks(settings)
+    original = TeamRunner.stream
+
+    def stream(self, *a, **k):  # as if neither copy of the report could be written
+        yield from original(self, *a, **k)
+        self.cost_report_path = None
+
+    r.stream = stream.__get__(r)
+    assert main(["Build X"], runner=r) == 0
+    assert "cost report: unavailable (see events.jsonl)" in capsys.readouterr().out.replace("\n", "")

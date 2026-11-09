@@ -169,7 +169,9 @@ def main(argv: list[str] | None = None, *, runner: TeamRunner | None = None) -> 
                                            style="bold green" if check["passed"] else "bold red"))
                         console.print(Text(check["report"]), soft_wrap=True)
         # The report is written as the stream ends, after the final event
-        console.print(Text(f"cost report: {runner.cost_report_path}", style="dim"), soft_wrap=True)
+        path = runner.cost_report_path
+        console.print(Text(f"cost report: {path if path else 'unavailable (see events.jsonl)'}", style="dim"),
+                      soft_wrap=True)
     except WorkspaceBusyError as e:
         err.print(f"team: {e}", markup=False)
         return 2

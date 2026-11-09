@@ -126,10 +126,20 @@ def build_cost_report(*, run_id: str, started_at: str, finished_at: str, require
     }
 
 
-def write_cost_report(report: dict, reports_dir: Path, run_dir: Path) -> Path:
+def write_cost_report(report: dict, reports_dir: Path, run_dir: Path) -> tuple[list[Path], list[OSError]]:
+    """Write the run-dir copy, then docs/cost_reports/<run_id>.json, each attempted on its own.
+
+    Returns (paths written, in that order; the OSErrors of the copies that failed). Never raises OSError,
+    so a failed write can't mask the run's own outcome or exception.
+    """
     text = json.dumps(report, indent=2)
-    first = reports_dir / f"{report['run_id']}.json"
-    for path in (first, run_dir / "cost-report.json"):
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(text, encoding="utf-8")
-    return first
+    written: list[Path] = []
+    errors: list[OSError] = []
+    for path in (run_dir / "cost-report.json", reports_dir / f"{report['run_id']}.json"):
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+            written.append(path)
+        except OSError as e:
+            errors.append(e)
+    return written, errors

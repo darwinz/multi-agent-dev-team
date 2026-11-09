@@ -158,7 +158,12 @@ class TeamRunner:
                         run_id=run_id, started_at=started, finished_at=_now(), requirement=requirement,
                         outcome=outcome or "aborted", models={r: s.model_for(r) for r in ROLES},
                         calls=list(ctx.calls), trace_url=ctx.trace_url, error=error)
-                    self.cost_report_path = write_cost_report(report, s.cost_reports_dir, run_dir)
+                    written, errors = write_cost_report(report, s.cost_reports_dir, run_dir)
+                    for e in errors:  # logged, never raised: the run's own outcome or exception proceeds
+                        log_event("cost_report_failed", level=logging.ERROR, type=type(e).__name__,
+                                  message=redact(str(e)))
+                    docs_copy, run_copy = s.cost_reports_dir / f"{run_id}.json", run_dir / "cost-report.json"
+                    self.cost_report_path = next((p for p in (docs_copy, run_copy) if p in written), None)
                     log_event("run_end", outcome=report["outcome"], cost_usd=report["total"]["cost_usd"],
                               report=str(self.cost_report_path))
 

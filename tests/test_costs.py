@@ -73,8 +73,22 @@ def test_write_cost_report_two_copies(tmp_path):
     r = build_cost_report(run_id="r1", started_at="a", finished_at="b", requirement="q", outcome="success",
                           models={}, calls=[rec("pm", 1, 1, 0.01)], trace_url=None)
     reports, run_dir = tmp_path / "docs" / "cost_reports", tmp_path / ".coder" / "runs" / "r1"
-    path = write_cost_report(r, reports, run_dir)
-    assert path == reports / "r1.json"
+    written, errors = write_cost_report(r, reports, run_dir)
     copy = run_dir / "cost-report.json"
-    assert path.read_text() == copy.read_text()
-    assert json.loads(path.read_text())["run_id"] == "r1"
+    assert written == [copy, reports / "r1.json"] and errors == []  # run-dir copy first
+    assert written[1].read_text() == copy.read_text()
+    assert json.loads(written[1].read_text())["run_id"] == "r1"
+
+
+def test_write_cost_report_copies_are_independent(tmp_path):
+    r = build_cost_report(run_id="r1", started_at="a", finished_at="b", requirement="q", outcome="success",
+                          models={}, calls=[], trace_url=None)
+    (tmp_path / "docs").write_text("a file, so docs/cost_reports can't be created")
+    run_dir = tmp_path / ".coder" / "runs" / "r1"
+    written, errors = write_cost_report(r, tmp_path / "docs" / "cost_reports", run_dir)
+    assert written == [run_dir / "cost-report.json"] and len(errors) == 1 and isinstance(errors[0], OSError)
+
+    blocked = tmp_path / "blocked"
+    blocked.write_text("a file, so the run dir can't be created")
+    written, errors = write_cost_report(r, tmp_path / "reports", blocked / "r1")
+    assert written == [tmp_path / "reports" / "r1.json"] and len(errors) == 1  # docs copy still attempted
