@@ -38,7 +38,7 @@ docker compose --profile web up web                       # http://127.0.0.1:800
 docker compose run --rm coder "task"                      # the `cli` profile service
 ```
 
-The container runs as an unprivileged user (uid 1000). On Linux, build with `UID=$(id -u) GID=$(id -g) docker compose build` so files in the mounted `workspace/` stay owned by you.
+The container runs as an unprivileged user (uid 1000). On Linux, build with `APP_UID=$(id -u) APP_GID=$(id -g) docker compose build` so files in the mounted `workspace/` stay owned by you.
 
 ## CLI
 
@@ -297,7 +297,7 @@ With 1Password and no plaintext `.env`:
 op run --env-file=.env.op -- docker compose up --build
 ```
 
-Compose passes variables by bare name, so a value set on the host wins, `.env` (optional) fills the gaps and an unset key stays unset. `OPENAI_API_KEY` is not passed through because the image does not install the `openai` extra. The other services sit behind profiles: `docker compose --profile web up web` (the single-Coder web UI on `127.0.0.1:8000`) and `docker compose run --rm coder "task"` (the `cli` profile). `workspace/`, `.coder/` and `docs/cost_reports/` ship with a `.gitkeep` and must be writable by the build user; on Linux build with `UID=$(id -u) GID=$(id -g) docker compose build`.
+Compose passes variables by bare name, so a value set on the host wins, `.env` (optional) fills the gaps and an unset key stays unset. `OPENAI_API_KEY` is not passed through because the image does not install the `openai` extra. The other services sit behind profiles: `docker compose --profile web up web` (the single-Coder web UI on `127.0.0.1:8000`) and `docker compose run --rm coder "task"` (the `cli` profile). `workspace/`, `.coder/` and `docs/cost_reports/` ship with a `.gitkeep` and must be writable by the build user; on Linux build with `APP_UID=$(id -u) APP_GID=$(id -g) docker compose build`.
 
 ### Quickstart (local, 1Password)
 

@@ -72,6 +72,19 @@ def test_dockerfile_installs_project_editable():
     assert re.search(r"pip install [^\n]*--no-deps -e \.", dockerfile), "the project install must be editable"
 
 
+def test_build_ids_avoid_shell_readonly_names():
+    # UID is readonly in bash and protected in zsh, so `UID=$(id -u) docker compose build` fails there
+    dockerfile = (ROOT / "Dockerfile").read_text()
+    assert "ARG APP_UID=" in dockerfile and "ARG APP_GID=" in dockerfile
+    args = yaml.safe_load((ROOT / "docker-compose.yml").read_text())["x-app"]["build"]["args"]
+    assert set(args) == {"APP_UID", "APP_GID"}
+    command = "APP_UID=$(id -u) APP_GID=$(id -g) docker compose build"
+    for doc in ("README.md", "docker-compose.yml", "docs/usage.md", "docs/architecture.md"):
+        text = (ROOT / doc).read_text()
+        assert not re.search(r"(?<![A-Z_])[UG]ID=\$\(id", text), f"{doc} still builds with UID/GID"
+    assert command in README.read_text() and command in (ROOT / "docker-compose.yml").read_text()
+
+
 def test_bind_mount_dirs_ship_with_gitkeep():
     # Pre-created so dockerd doesn't create them root-owned on Linux (the container user couldn't write)
     for d in ("workspace", ".coder", "docs/cost_reports"):

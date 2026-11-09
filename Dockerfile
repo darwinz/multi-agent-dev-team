@@ -2,9 +2,9 @@ FROM python:3.11-slim
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PIP_ROOT_USER_ACTION=ignore PYTHONUNBUFFERED=1
 # Run as an unprivileged user so files in the mounted workspace aren't root-owned on the host
-ARG UID=1000
-ARG GID=1000
-RUN groupadd -g "$GID" coder && useradd -m -u "$UID" -g "$GID" coder \
+ARG APP_UID=1000
+ARG APP_GID=1000
+RUN groupadd -g "$APP_GID" coder && useradd -m -u "$APP_UID" -g "$APP_GID" coder \
     && mkdir /app && chown coder:coder /app
 WORKDIR /app
 
