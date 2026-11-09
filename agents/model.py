@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from langchain.chat_models import init_chat_model
-from langchain_core.callbacks import AsyncCallbackManagerForLLMRun, CallbackManagerForLLMRun
+from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
@@ -82,7 +82,8 @@ class ResilientChatModel(BaseChatModel):
     inner: BaseChatModel
     role: Role
     model_id: str
-    cache: ResponseCache | None = None  # shadows BaseChatModel.cache; see _generate_with_cache
+    # Not `cache`: that is BaseChatModel's LangChain-cache field, left at None (no global cache is set)
+    response_cache: ResponseCache | None = None
     bound: dict = {}
     cacheable: bool = False
 
@@ -104,17 +105,6 @@ class ResilientChatModel(BaseChatModel):
         """A copy whose calls use the response cache: only for side-effect-free, run-stable calls."""
         return self.model_copy(update={"cacheable": True})
 
-    # BaseChatModel's own LLM-cache step treats a truthy `cache` that isn't a BaseCache as "use the
-    # global langchain cache" and raises when none is set. Our cache is handled in _generate instead.
-    def _generate_with_cache(self, messages: list[BaseMessage], stop: list[str] | None = None,
-                             run_manager: CallbackManagerForLLMRun | None = None, **kwargs: Any) -> ChatResult:
-        return self._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
-
-    async def _agenerate_with_cache(self, messages: list[BaseMessage], stop: list[str] | None = None,
-                                    run_manager: AsyncCallbackManagerForLLMRun | None = None,
-                                    **kwargs: Any) -> ChatResult:
-        return await self._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs)
-
     def _record(self, msg: AIMessage, *, cache_hit: bool, duration_ms: float, attempts: int) -> None:
         tokens = (0, 0, 0, 0) if cache_hit else usage_from_message(msg)
         cost, priced = cost_usd(self.model_id, *tokens)
@@ -128,10 +118,10 @@ class ResilientChatModel(BaseChatModel):
                   cost_usd=cost, cache_hit=cache_hit, duration_ms=duration_ms, attempts=attempts)
 
     def _cache_key(self, messages: list[BaseMessage], fwd: dict, stop: list[str] | None) -> str | None:
-        if not (self.cacheable and self.cache is not None and self.cache.enabled):
+        if not (self.cacheable and self.response_cache is not None and self.response_cache.enabled):
             return None
         try:
-            return self.cache.key(self.model_id, messages, fwd, stop)
+            return self.response_cache.key(self.model_id, messages, fwd, stop)
         except (TypeError, ValueError) as e:  # an unserializable bound value: just don't cache this call
             log_event("cache_key_failed", level=logging.WARNING, role=self.role, error=str(e))
             return None
@@ -144,8 +134,8 @@ class ResilientChatModel(BaseChatModel):
         breaker = rt.breakers.get(self.role)
 
         if key is not None:
-            assert self.cache is not None
-            status, cached = self.cache.get(key)
+            assert self.response_cache is not None
+            status, cached = self.response_cache.get(key)
             if status == "hit" and cached is not None:
                 degraded = breaker.state is BreakerState.OPEN
                 log_event("degraded_fallback_cached" if degraded else "cache_hit",
@@ -170,9 +160,9 @@ class ResilientChatModel(BaseChatModel):
         self._record(msg, cache_hit=False, duration_ms=duration_ms, attempts=attempts)
 
         if key is not None and isinstance(msg, AIMessage):
-            assert self.cache is not None
+            assert self.response_cache is not None
             try:
-                self.cache.put(key, msg)
+                self.response_cache.put(key, msg)
             except Exception as e:  # a cache write never fails the call
                 log_event("cache_write_failed", level=logging.WARNING, role=self.role,
                           error=f"{type(e).__name__}: {e}")
@@ -185,7 +175,7 @@ def resilient(model: BaseChatModel, settings: Settings, role: Role, model_id: st
         return model
     resilience_runtime.configure(settings)
     return ResilientChatModel(inner=model, role=role, model_id=model_id or settings.model_for(role),
-                              cache=ResponseCache(settings.cache_dir, settings.cache_ttl_s))
+                              response_cache=ResponseCache(settings.cache_dir, settings.cache_ttl_s))
 
 
 def make_model(settings: Settings, role: Role = "coder") -> ResilientChatModel:

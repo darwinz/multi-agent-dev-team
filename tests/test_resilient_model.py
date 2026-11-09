@@ -14,6 +14,7 @@ from agents.model import ResilientChatModel, make_model, resilient
 from observability.context import RunContext, agent_scope, run_scope
 from orchestration.project_state import Spec
 from resilience.breaker import BreakerState
+from resilience.cache import ResponseCache
 from resilience.errors import CircuitOpenError, TransientError
 from resilience.runtime import runtime
 from tests.fakes import FakeEmbedding, ScriptedChatModel, ai, happy, make_spec, spec_response
@@ -117,7 +118,7 @@ def test_expired_entry_is_refetched(settings_with_cache, caplog):
     caplog.set_level(logging.INFO, logger="mad")
     m = wrap(settings_with_cache, spec_response(make_spec()), spec_response(make_spec()))
     structured_call(m, "same")
-    m.cache.clock = lambda: 10**12  # far past the TTL
+    m.response_cache.clock = lambda: 10**12  # far past the TTL
     structured_call(m, "same")
     assert len(m.inner.calls) == 2 and len(events(caplog, "cache_expired")) == 1
 
@@ -182,7 +183,7 @@ def test_cache_write_failure_never_fails_the_call(settings_with_cache, monkeypat
     def broken_put(key, message):
         raise OSError("disk full")
 
-    monkeypatch.setattr(m.cache, "put", broken_put)
+    monkeypatch.setattr(m.response_cache, "put", broken_put)
     assert isinstance(structured_call(m, "x")["parsed"], Spec)
     assert len(events(caplog, "cache_write_failed")) == 1
 
@@ -230,8 +231,8 @@ def test_anthropic_prompt_caching_marks_system_prompt_and_last_tool(settings_wit
     assert all("cache_control" not in t for t in p["tools"][:-1])
     assert system.content == "You are the coder." and "cache_control" not in b.bound["tools"][-1]  # caller's copies
     # the response-cache key is computed before cache_control is added
-    key = b.cache.key(b.model_id, msgs, b.bound, None)
-    assert b.cache.get(key)[0] == "hit"
+    key = b.response_cache.key(b.model_id, msgs, b.bound, None)
+    assert b.response_cache.get(key)[0] == "hit"
 
 
 def test_no_prompt_caching_for_non_anthropic_models(settings):
@@ -244,6 +245,14 @@ def test_no_prompt_caching_for_non_anthropic_models(settings):
 
     resilient(Recording(responses=[ai("ok")]), settings, "pm").invoke([SystemMessage("sys"), HumanMessage("x")])
     assert seen[0][0].content == "sys"
+
+
+def test_langchain_cache_stays_off(settings):
+    from langchain_core.globals import get_llm_cache
+
+    m = wrap(settings, ai("x"))
+    assert m.cache is None and get_llm_cache() is None  # base _generate_with_cache goes straight to _generate
+    assert isinstance(m.response_cache, ResponseCache)
 
 
 def test_resilient_is_idempotent(settings):
