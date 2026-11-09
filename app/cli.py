@@ -14,6 +14,7 @@ from agents.config import Settings
 from agents.model import provider_prerequisite
 from agents.result import CoderResult
 from app.render import render_event, render_result
+from memory.semantic import MemoryUnavailableError
 from tools.workspace import WorkspaceBusyError
 
 DEMO_TASK_1 = (
@@ -62,7 +63,11 @@ def main(argv: list[str] | None = None, *, agent: CoderAgent | None = None) -> i
         if tasks and (reason := provider_prerequisite(settings.model)):
             err.print(f"coder: cannot run: {reason}", markup=False)
             return 2
-        agent = CoderAgent(settings)
+        try:
+            agent = CoderAgent(settings)
+        except MemoryUnavailableError as e:  # CHROMA_HOST set but the server is down: say so, no traceback
+            err.print(f"coder: cannot run: {e}", markup=False)
+            return 2
 
     try:
         if args.reset_memory:

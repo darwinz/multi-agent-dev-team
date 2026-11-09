@@ -5,11 +5,14 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import yaml
+
 from agents.pm_agent import PMAgent
 from orchestration.team_graph import TeamDeps, build_team_graph
 from tests.fakes import ScriptedChatModel, agent, qa_agent
 
-README = Path(__file__).resolve().parent.parent / "README.md"
+ROOT = Path(__file__).resolve().parent.parent
+README = ROOT / "README.md"
 ALIAS = {"__start__": "START", "__end__": "END"}
 
 
@@ -48,3 +51,16 @@ def test_readme_explains_protocol():
                    "scripted PM/Coder/QA models, real pytest subprocess execution",
                    "docs/evidence/v3/linked-list/"):
         assert needle in text, f"README is missing {needle!r}"
+
+
+def test_compose_shape():
+    services = yaml.safe_load((ROOT / "docker-compose.yml").read_text())["services"]
+    team, chroma = services["team"], services["chroma"]
+    assert team["depends_on"]["chroma"]["condition"] == "service_healthy"
+    assert "healthcheck" in chroma
+    assert team.get("env_file"), "team must read .env via env_file"
+    assert services["web"].get("profiles") and services["coder"].get("profiles")
+
+    dockerfile = (ROOT / "Dockerfile").read_text()
+    for needle in ("FROM python:3.11-slim", "-r requirements.txt", 'ENTRYPOINT ["team"]'):
+        assert needle in dockerfile, f"Dockerfile is missing {needle!r}"

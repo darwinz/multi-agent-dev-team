@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import queue
+import sys
 import threading
 from collections.abc import Generator, AsyncIterator
 from pathlib import Path
@@ -17,6 +18,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from agents.coder_agent import CoderAgent
 from agents.events import StepEvent
+from memory.semantic import MemoryUnavailableError
 from tools.file_tools import read_file
 from tools.workspace import RunLock, ToolError, WorkspaceBusyError, WorkspaceError
 
@@ -112,4 +114,9 @@ def main() -> None:
 
     host = os.environ.get("CODER_WEB_HOST", "127.0.0.1")
     port = int(os.environ.get("CODER_WEB_PORT", "8000"))
-    uvicorn.run(create_app(CoderAgent()), host=host, port=port)
+    try:
+        agent = CoderAgent()
+    except MemoryUnavailableError as e:  # CHROMA_HOST set but the server is down: say so, no traceback
+        print(f"coder-web: cannot run: {e}", file=sys.stderr)
+        sys.exit(2)
+    uvicorn.run(create_app(agent), host=host, port=port)

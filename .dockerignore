@@ -1,9 +1,13 @@
 .git
 .venv
 .env
+.env.*
+!.env.example
 .superpowers
 workspace
 .chroma
 .coder
+docs/cost_reports
+docs/evidence
 **/__pycache__
 .pytest_cache

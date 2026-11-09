@@ -52,3 +52,13 @@ def test_ctrl_c_exits_130_without_traceback(settings, capsys):  # review M10
     assert main(["task"], agent=a) == 130
     err = capsys.readouterr()
     assert "Traceback" not in err.out + err.err and "interrupted" in err.err
+
+
+def test_exits_2_when_chroma_unreachable(tmp_path, monkeypatch, capsys):  # Compose points `coder` at a Chroma server
+    monkeypatch.setenv("CHROMA_HOST", "127.0.0.1")
+    monkeypatch.setenv("CHROMA_PORT", "9")  # discard port: nothing listens, so the connect is refused at once
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("CODER_PROJECT_DIR", str(tmp_path))
+    assert main(["do x"]) == 2
+    err = capsys.readouterr().err
+    assert "coder: cannot run" in err and "Chroma" in err and "127.0.0.1:9" in err and "Traceback" not in err

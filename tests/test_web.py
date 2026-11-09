@@ -1,7 +1,9 @@
 import json
 
+import pytest
 from fastapi.testclient import TestClient
 
+from app import web
 from app.web import create_app
 from tests.fakes import agent, ai, happy, tool_call
 from tools.workspace import RunLock
@@ -99,3 +101,14 @@ def test_disconnect_mid_stream_closes_the_run(settings):  # review M4
 
     anyio.run(consume_then_disconnect)
     assert closed.wait(2), "agent stream not closed after the client went away"
+
+
+def test_startup_exits_2_when_chroma_unreachable(tmp_path, monkeypatch, capsys):  # Compose's `web` service
+    monkeypatch.setenv("CHROMA_HOST", "127.0.0.1")
+    monkeypatch.setenv("CHROMA_PORT", "9")  # discard port: nothing listens, so the connect is refused at once
+    monkeypatch.setenv("CODER_PROJECT_DIR", str(tmp_path))
+    with pytest.raises(SystemExit) as raised:
+        web.main()
+    assert raised.value.code == 2
+    err = capsys.readouterr().err
+    assert "coder-web: cannot run" in err and "Chroma" in err and "127.0.0.1:9" in err and "Traceback" not in err
