@@ -13,6 +13,7 @@ from pathlib import Path
 from orchestration.handoff import qa_test_file
 from orchestration.project_state import state_to_jsonable
 from tools.exec_python import child_env
+from tools.junit import parse_junit
 
 METHODS = ("insert", "delete", "search", "reverse")
 
@@ -130,18 +131,42 @@ def _run(args: list[str], cwd: Path, workspace: Path, tmp: Path, **env: str) -> 
                           capture_output=True, text=True, timeout=FIXTURE_TIMEOUT_S)
 
 
+def _fixture_tests() -> set[str]:
+    """The supplied fixture's test function names, read from its source."""
+    tree = ast.parse(FIXTURE_PATH.read_text(encoding="utf-8"))
+    return {n.name for n in tree.body if isinstance(n, ast.FunctionDef) and n.name.startswith("test_")}
+
+
 def _fixture_line(workspace: Path, tmp: Path) -> tuple[bool, str]:
     what = "supplied BST fixture"
     if not workspace.is_dir():
         return False, _line(False, what, f"no workspace at {workspace}")
+    junit = tmp / "fixture.xml"
     # --noconftest: neither a workspace conftest.py nor the repo's test conftest can reshape the run
-    args = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--noconftest", str(FIXTURE_PATH)]
+    args = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--noconftest",
+            f"--junitxml={junit}", str(FIXTURE_PATH)]
     try:
         out = _run(args, workspace, workspace, tmp)
     except subprocess.TimeoutExpired:
         return False, _line(False, what, f"timed out after {FIXTURE_TIMEOUT_S} s")
-    ok = out.returncode == 0
-    return ok, _line(ok, what, f"exit {out.returncode}: {_tail(out.stdout + out.stderr)}")
+    tail = _tail(out.stdout + out.stderr)
+    if out.returncode != 0:
+        return False, _line(False, what, f"exit {out.returncode}: {tail}")
+    # Exit 0 alone is not proof: a workspace pytest.py or a module the fixture imports can shadow the real
+    # one, or the code can end the process early. Only pytest's own result file, with every fixture test
+    # passed, counts.
+    result = parse_junit(junit)
+    if result is None:
+        return False, _line(False, what, f"pytest exited 0 but no result file (did the fixture run?): {tail}")
+    expected = _fixture_tests()
+    ran = {c.name for c in result.cases}
+    passed = {c.name for c in result.cases if c.outcome == "passed"}
+    if (len(result.cases) != len(expected) or ran != expected or passed != expected
+            or result.failures or result.errors or result.skipped):
+        return False, _line(False, what, f"pytest exited 0 but the result file shows {len(passed)}/{len(expected)} "
+                                         f"fixture tests passed ({len(result.cases)} cases, {result.failures} failed, "
+                                         f"{result.errors} errors, {result.skipped} skipped): {tail}")
+    return True, _line(True, what, f"{len(passed)}/{len(expected)} fixture tests passed: {tail}")
 
 
 def _coverage(workspace: Path, state: dict, tmp: Path) -> str:

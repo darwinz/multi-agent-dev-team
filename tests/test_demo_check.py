@@ -204,3 +204,25 @@ def test_bst_check_children_get_no_secrets(settings, monkeypatch):
         "if k.endswith(('_KEY', '_TOKEN')))))\n" + BST_SRC)
     assert check_bst(settings.workspace_dir, {})[1].splitlines()[1].startswith("PASS")
     assert (settings.workspace_dir / "seen.txt").read_text() == ""
+
+
+BROKEN_BST = UNSORTED_BST
+
+
+@pytest.mark.parametrize("trick", ["shadow_pytest", "random_exit", "os_exit_on_import"])
+def test_bst_fixture_exit_0_without_a_real_run_fails(settings, trick):
+    """A workspace file can stand in for pytest or a module the fixture imports, or end the process with
+    exit 0 before any test runs. Without a JUnit result showing the fixture's 5 tests passed, it is FAIL."""
+    ws = settings.workspace_dir
+    ws.mkdir(parents=True, exist_ok=True)
+    (ws / "bst.py").write_text(BROKEN_BST)
+    if trick == "shadow_pytest":
+        (ws / "pytest.py").write_text("import sys\nsys.exit(0)\n")
+    elif trick == "random_exit":
+        (ws / "random.py").write_text("raise SystemExit(0)\n")
+    else:
+        (ws / "bst.py").write_text("import os\nos._exit(0)\n" + BROKEN_BST)
+    passed, report = check_bst(ws, {})
+    fixture = lines(report)[1]
+    assert not passed
+    assert fixture.startswith("FAIL supplied BST fixture"), fixture
