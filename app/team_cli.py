@@ -60,7 +60,9 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--demo", choices=list(DEMOS), help="api: the Module 2 grading task; "
                    "large: a requirement that yields more than 8 tasks (exercises consolidation); "
                    "linked-list: the Module 3 grading task, then the linked-list check")
-    p.add_argument("--model", help="provider-prefixed model, e.g. anthropic:claude-sonnet-5-5 or openai:gpt-4o")
+    p.add_argument("--model", help="Coder model, provider-prefixed, e.g. anthropic:claude-haiku-5-5 or openai:gpt-4o")
+    p.add_argument("--pm-model", help="PM model, provider-prefixed (default anthropic:claude-sonnet-5-5)")
+    p.add_argument("--qa-model", help="QA model, provider-prefixed (default anthropic:claude-haiku-5-5)")
     p.add_argument("--max-iterations", type=int, help="per-task model-call limit, 1 to 10 (default 10)")
     p.add_argument("--timeout", type=float, help="exec_python timeout in seconds (default 10)")
     # A string, so a bad value gets the same "invalid setting" report from Settings as the env var
@@ -98,16 +100,19 @@ def main(argv: list[str] | None = None, *, runner: TeamRunner | None = None) -> 
 
     if runner is None:
         try:
-            settings = Settings.from_env(model=args.model, max_iterations=args.max_iterations,
+            settings = Settings.from_env(model=args.model, pm_model=args.pm_model, qa_model=args.qa_model,
+                                         max_iterations=args.max_iterations,
                                          exec_timeout_s=args.timeout, qa_max_iterations=args.qa_max_iterations)
         except ValidationError as e:
             for problem in e.errors():
                 err.print(f"team: invalid setting {'.'.join(map(str, problem['loc']))}: {problem['msg']}",
                           markup=False)
             return 2
-        if requirement and (reason := provider_prerequisite(settings.model)):
-            err.print(f"team: cannot run: {reason}", markup=False)
-            return 2
+        if requirement:
+            for model in dict.fromkeys(settings.model_for(r) for r in ("pm", "coder", "qa")):
+                if reason := provider_prerequisite(model):
+                    err.print(f"team: cannot run: {reason}", markup=False)
+                    return 2
         runner = TeamRunner(settings)
 
     try:
