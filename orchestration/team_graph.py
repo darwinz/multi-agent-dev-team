@@ -6,6 +6,7 @@ pm_node → [consolidate_node] → dispatch_node → coder_node (deliver) → re
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -18,6 +19,7 @@ from agents.events import TeamEvent
 from agents.pm_agent import PMAgent, PMError
 from agents.qa_agent import QAAgent
 from agents.result import CoderResult
+from observability.logs import log_event
 from observability.tracing import agent_node
 from orchestration.a2a import (
     CODER_ACCEPTS,
@@ -340,7 +342,20 @@ def build_team_graph(deps: TeamDeps) -> CompiledStateGraph:
         regressed: dict[str, TaskRecord] = {}
         if done:
             # Project regression check (spec §4): every done task's canonical suite, against the final workspace
-            report = deps.qa.run_suites({i: state["approved_suites"][i] for i in done}, task_id="regression", round=0)
+            try:
+                report = deps.qa.run_suites({i: state["approved_suites"][i] for i in done},
+                                            task_id="regression", round=0)
+            except Exception as e:  # like qa_node: a crash (e.g. an open tools circuit) is recorded, not raised
+                report = _qa_crash("regression", 0, e)
+                log_event("regression_check_failed", level=logging.WARNING, tasks=done, error=report.qa_error)
+                # Unverified tasks can't stay done: "completed" promises they still pass the regression check
+                line = f"regression check unavailable: {report.qa_error}"
+                regressed = {i: records[i].model_copy(update={"status": "failed", "qa_outcome": "qa_error",
+                                                              "unresolved": [line]}) for i in done}
+                notes.append(f"Regression check over {', '.join(done)} unavailable: {report.qa_error}")
+                records.update(regressed)
+                return {"status": "partial", "task_status": regressed, "regression": report.model_dump(mode="json"),
+                        "work_in_progress": [*notes, "Run partial"]}
             regression = report.model_dump(mode="json")
             unowned = [i for i in report.issues if not i.assertion.startswith("regression in ")]
             for task_id in done:
