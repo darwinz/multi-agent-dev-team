@@ -14,3 +14,10 @@ def live_settings(tmp_path) -> Settings:
             pytest.fail(f"live test required but {reason}")
         pytest.skip(reason)
     return settings
+
+
+@pytest.fixture(autouse=True)
+def _real_resilience(monkeypatch):
+    """Live runs use the real retry delays and the default cache TTL."""
+    for name in ("RETRY_BASE_DELAY_S", "RETRY_MAX_DELAY_S", "CACHE_TTL_S"):
+        monkeypatch.delenv(name, raising=False)

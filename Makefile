@@ -1,4 +1,4 @@
-.PHONY: setup test verify demo web requirements team-demo team-large team-linked-list
+.PHONY: setup test verify demo web requirements team-demo team-large team-linked-list team-bst
 
 setup:
 	uv sync
@@ -7,7 +7,7 @@ test:
 	uv run pytest
 
 verify:
-	REQUIRE_LIVE=1 uv run pytest -rs
+	REQUIRE_LIVE=1 uv run pytest -m live -rs
 
 demo:
 	uv run coder --demo --reset-memory
@@ -26,3 +26,6 @@ team-large:
 
 team-linked-list:
 	uv run team --demo linked-list --reset-memory
+
+team-bst:
+	uv run team --demo bst --reset-memory

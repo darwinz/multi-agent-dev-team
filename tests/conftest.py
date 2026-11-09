@@ -6,3 +6,13 @@ from agents.config import Settings
 @pytest.fixture
 def settings(tmp_path) -> Settings:
     return Settings.from_env(project_dir=tmp_path, exec_timeout_s=5)
+
+
+@pytest.fixture(autouse=True)
+def _fast_resilience(monkeypatch, request):
+    """Mocked tests never sleep on retry back-off or hit the response cache."""
+    if request.node.get_closest_marker("live"):
+        return
+    monkeypatch.setenv("RETRY_BASE_DELAY_S", "0")
+    monkeypatch.setenv("RETRY_MAX_DELAY_S", "0")
+    monkeypatch.setenv("CACHE_TTL_S", "0")
