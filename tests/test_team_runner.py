@@ -7,6 +7,7 @@ import json
 import pytest
 
 from agents.config import Settings
+from agents.events import TeamEvent
 from agents.pm_agent import PMAgent
 from agents.qa_agent import canonical_suite_path
 from orchestration.a2a import CODER_ACCEPTS, QA_ACCEPTS
@@ -25,7 +26,7 @@ from tests.fakes import (
     task_scripts,
     tool_call,
 )
-from tests.scenarios import nonconverging_scripts, scripted_runner
+from tests.scenarios import nonconverging_scripts, passing_scripts, scripted_runner
 from tools.workspace import RunLock, WorkspaceBusyError
 
 REQ = "Build a small demo API"
@@ -79,7 +80,7 @@ def test_evidence_files_written(settings):
                  ("state-after", ".json")]]
     assert sorted(p.name for p in runner.run_dir.iterdir()) == sorted([
         "requirement.txt", "state-after-pm.json", *per_task, "a2a-log.jsonl", "regression.json",
-        "final-state.json",
+        "final-state.json", "events.jsonl", "cost-report.json",
     ])
     assert (runner.run_dir / "requirement.txt").read_text() == REQ
     assert load(runner, "final-state.json") == runner.final_state
@@ -218,6 +219,9 @@ def test_busy_lock_no_run_dir(settings):
     runs = settings.state_dir / "runs"
     assert not runs.exists() or not any(runs.iterdir())
     assert runner.run_dir is None
+    reports = settings.cost_reports_dir
+    assert not reports.exists() or not any(reports.iterdir())
+    assert runner.cost_report_path is None
 
 
 def test_lock_held_across_tasks(settings):
@@ -294,3 +298,101 @@ def test_pm_setup_failure_writes_failed_state(settings):
     assert state["status"] == "failed"
     assert "not supported" in state["error"]
     assert load(runner, "final-state.json")["status"] == "failed"
+
+
+def report_of(runner) -> dict:  # also imported by tests/test_tracing.py
+    return json.loads(runner.cost_report_path.read_text())
+
+
+def events_of(runner) -> list[dict]:
+    return [json.loads(line) for line in (runner.run_dir / "events.jsonl").read_text().splitlines()]
+
+
+def test_cost_report_written_on_success_and_reconciles(settings):
+    runner = scripted_runner(settings, passing_scripts())
+    runner.run(REQ)
+    r = report_of(runner)
+    assert runner.cost_report_path == settings.cost_reports_dir / f"{r['run_id']}.json"
+    assert r["run_id"] == runner.run_dir.name
+    assert (runner.run_dir / "cost-report.json").read_text() == runner.cost_report_path.read_text()
+    assert r["outcome"] == "success" and r["error"] is None and r["total"]["calls"] == len(r["calls"]) > 0
+    assert {c["role"] for c in r["calls"]} == {"pm", "coder", "qa"}  # records made inside graph nodes
+    assert r["models"] == {role: settings.model_for(role) for role in ("pm", "coder", "qa")}
+    assert r["requirement"] == REQ and r["started_at"] <= r["finished_at"]
+
+
+def test_cost_report_on_unresolved(settings):
+    s = settings.model_copy(update={"qa_max_iterations": 2})
+    runner = scripted_runner(s, nonconverging_scripts(2))
+    assert runner.run(REQ)["status"] == "partial"
+    r = report_of(runner)
+    assert r["outcome"] == "unresolved" and r["total"]["calls"] == len(r["calls"]) > 0
+
+
+def test_cost_report_on_failed_pm(settings):
+    runner = scripted_runner(settings, (bad_spec_responses(), [], []))
+    assert runner.run(REQ)["status"] == "failed"
+    r = report_of(runner)
+    assert r["outcome"] == "failed" and r["total"]["calls"] == len(r["calls"]) > 0
+    assert {c["role"] for c in r["calls"]} == {"pm"}
+
+
+@pytest.mark.parametrize("where", ["node", "stream", "post_check"])
+def test_cost_report_on_abort(settings, where, monkeypatch):
+    runner = scripted_runner(settings, passing_scripts())
+    if where == "node":  # Review Focus 1: qa_node catches Exception, so KeyboardInterrupt escapes the graph
+        monkeypatch.setattr(runner.qa, "review", lambda *a, **k: (_ for _ in ()).throw(KeyboardInterrupt()))
+    elif where == "stream":
+        monkeypatch.setattr(TeamEvent, "model_validate",
+                            classmethod(lambda cls, d: (_ for _ in ()).throw(RuntimeError("bad event"))))
+    kw = {"demo_check": lambda ws, st: (_ for _ in ()).throw(RuntimeError("check crashed"))} if where == "post_check" else {}
+    expected = KeyboardInterrupt if where == "node" else RuntimeError
+    with pytest.raises(expected):
+        for _ in runner.stream(REQ, **kw):
+            pass
+    r = report_of(runner)
+    assert r["outcome"] == "aborted" and r["error"]["type"] == expected.__name__
+    assert r["total"]["calls"] == len(r["calls"]) > 0
+    assert (runner.run_dir / "final-state.json").is_file()
+    assert (runner.run_dir / "cost-report.json").read_text() == runner.cost_report_path.read_text()
+    events = events_of(runner)
+    assert [e["event"] for e in events if e["event"] == "run_aborted"] == ["run_aborted"]
+    assert events[-1]["event"] == "run_end" and events[-1]["outcome"] == "aborted"
+    assert not RunLock.is_running(settings.state_dir)
+
+
+def test_generator_closed_early_is_aborted(settings):
+    runner = scripted_runner(settings, passing_scripts())
+    gen = runner.stream(REQ)
+    for _ in range(3):
+        next(gen)
+    gen.close()
+    r = report_of(runner)
+    assert r["outcome"] == "aborted" and r["error"]["type"] == "GeneratorExit"
+    assert r["total"]["calls"] == len(r["calls"])
+    assert (runner.run_dir / "final-state.json").is_file()
+    assert not RunLock.is_running(settings.state_dir)
+
+
+def test_generator_closed_after_final_is_not_aborted(settings):
+    runner = scripted_runner(settings, passing_scripts())
+    gen = runner.stream(REQ)
+    for event in gen:
+        if event.kind == "final":
+            break
+    gen.close()
+    assert report_of(runner)["outcome"] == "success"
+    assert "run_aborted" not in [e["event"] for e in events_of(runner)]
+
+
+def test_events_jsonl_has_run_start_llm_calls_run_end(settings):
+    runner = scripted_runner(settings, passing_scripts())
+    runner.run(REQ)
+    events = events_of(runner)
+    assert events[0]["event"] == "run_start" and events[0]["requirement_chars"] == len(REQ)
+    assert events[-1]["event"] == "run_end" and events[-1]["outcome"] == "success"
+    assert events[-1]["report"] == str(runner.cost_report_path)
+    assert events[-1]["cost_usd"] == report_of(runner)["total"]["cost_usd"]
+    llm = [e for e in events if e["event"] == "llm_call"]
+    assert len(llm) == report_of(runner)["total"]["calls"] >= 1
+    assert {e["run_id"] for e in events} == {runner.run_dir.name}

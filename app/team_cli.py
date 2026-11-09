@@ -28,6 +28,7 @@ from app.render import (
     render_team_summary,
 )
 from memory.semantic import MemoryUnavailableError
+from observability.logs import configure_logging
 from orchestration.team_runner import TeamRunner
 from tools.workspace import WorkspaceBusyError
 
@@ -119,6 +120,9 @@ def main(argv: list[str] | None = None, *, runner: TeamRunner | None = None) -> 
         except MemoryUnavailableError as e:  # CHROMA_HOST set but the server is down: say so, no traceback
             err.print(f"team: cannot run: {e}", markup=False)
             return 2
+    else:
+        settings = runner.settings
+    configure_logging(settings.log_level)
 
     try:
         if args.reset_memory:
@@ -164,6 +168,8 @@ def main(argv: list[str] | None = None, *, runner: TeamRunner | None = None) -> 
                         console.print(Text(f"{title}: " + ("PASSED" if check["passed"] else "FAILED"),
                                            style="bold green" if check["passed"] else "bold red"))
                         console.print(Text(check["report"]), soft_wrap=True)
+        # The report is written as the stream ends, after the final event
+        console.print(Text(f"cost report: {runner.cost_report_path}", style="dim"), soft_wrap=True)
     except WorkspaceBusyError as e:
         err.print(f"team: {e}", markup=False)
         return 2

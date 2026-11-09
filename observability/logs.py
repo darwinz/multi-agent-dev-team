@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -34,6 +35,18 @@ class JsonFormatter(logging.Formatter):
         return redact(json.dumps(out, default=str))
 
 
+class _StderrHandler(logging.StreamHandler):
+    """Writes to whatever sys.stderr is at emit time, so a replaced stderr (pytest capture) never goes stale."""
+
+    @property
+    def stream(self):  # type: ignore[override]
+        return sys.stderr
+
+    @stream.setter
+    def stream(self, value) -> None:  # StreamHandler.__init__ assigns it; the property ignores that
+        pass
+
+
 def redact(text: str) -> str:
     secrets = [v for k, v in os.environ.items() if _SECRET_NAME.search(k) and len(v) >= 8]
     for v in sorted(secrets, key=len, reverse=True):
@@ -46,7 +59,7 @@ def configure_logging(level: str = "INFO") -> None:
     logger.setLevel(level.upper())
     logger.propagate = True  # so caplog sees records
     if not any(getattr(h, "_mad_stderr", False) for h in logger.handlers):
-        handler = logging.StreamHandler()
+        handler = _StderrHandler()
         handler.setFormatter(JsonFormatter())
         handler._mad_stderr = True  # type: ignore[attr-defined]
         logger.addHandler(handler)

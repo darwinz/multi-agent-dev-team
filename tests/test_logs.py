@@ -1,10 +1,12 @@
 """JSON event logs, run/agent context and secret redaction."""
 
+import io
 import json
 import logging
+import sys
 
 from observability.context import RunContext, agent_scope, run_scope
-from observability.logs import log_event, redact, run_log_file
+from observability.logs import configure_logging, log_event, redact, run_log_file
 from resilience.errors import classify_llm_error
 from resilience.retry import RetryPolicy, call_with_retry
 
@@ -97,3 +99,15 @@ def test_scope_teardown_tolerates_other_context():
     # closing from another Context would raise ValueError without tolerant teardown
     contextvars.copy_context().run(g.close)
     assert current_run() is None and current_agent() is None
+
+
+def test_stderr_handler_follows_replaced_stderr(monkeypatch):
+    """configure_logging is called once per CLI run; a later sys.stderr (pytest capture) must not go stale."""
+    first, second = io.StringIO(), io.StringIO()
+    monkeypatch.setattr(sys, "stderr", first)
+    configure_logging("INFO")
+    monkeypatch.setattr(sys, "stderr", second)
+    first.close()  # the first stream is gone: writing to it would print a "Logging error" traceback
+    configure_logging("INFO")
+    log_event("probe_event")
+    assert json.loads(second.getvalue().strip().splitlines()[-1])["event"] == "probe_event"

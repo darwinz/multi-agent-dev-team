@@ -20,7 +20,7 @@ from tests.fakes import (
     task_scripts,
     tool_call,
 )
-from tests.scenarios import feedback_scripts, nonconverging_scripts, scripted_runner
+from tests.scenarios import feedback_scripts, nonconverging_scripts, passing_scripts, scripted_runner
 from tools.workspace import RunLock
 
 
@@ -285,3 +285,34 @@ def test_team_exits_2_when_chroma_unreachable(tmp_path, monkeypatch, capsys):  #
     assert team_cli.main(["do x"]) == 2
     err = capsys.readouterr().err
     assert "cannot run" in err and "Chroma" in err and "127.0.0.1:9" in err and "Traceback" not in err
+
+
+def test_prints_cost_report_path(settings, capsys):
+    r = two_tasks(settings)
+    assert main(["Build X"], runner=r) == 0
+    out = capsys.readouterr().out.replace("\n", "")
+    assert f"cost report: {r.cost_report_path}" in out
+    assert json.loads(r.cost_report_path.read_text())["outcome"] == "success"
+
+
+def test_team_ctrl_c_exits_130_with_report(tmp_path, monkeypatch, capsys):  # Review Focus 1
+    monkeypatch.setenv("CODER_PROJECT_DIR", str(tmp_path))
+    monkeypatch.delenv("CHROMA_HOST", raising=False)
+    monkeypatch.setattr(team_cli, "provider_prerequisite", lambda model: None)  # scripted models: no key needed
+    built = []
+
+    def offline_runner(settings):  # the real Settings path, but scripted models: no network call is possible
+        runner = scripted_runner(settings, passing_scripts())
+        runner.qa.review = lambda *a, **k: (_ for _ in ()).throw(KeyboardInterrupt())
+        built.append(runner)
+        return runner
+
+    monkeypatch.setattr(team_cli, "TeamRunner", offline_runner)
+    assert main(["Build X"]) == 130
+    err = capsys.readouterr().err
+    assert "interrupted" in err and "Traceback" not in err
+    (runner,) = built
+    report = json.loads(runner.cost_report_path.read_text())
+    assert runner.cost_report_path.parent == tmp_path / "docs" / "cost_reports"
+    assert report["outcome"] == "aborted" and report["error"]["type"] == "KeyboardInterrupt"
+    assert not RunLock.is_running(runner.settings.state_dir)
