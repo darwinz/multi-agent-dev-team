@@ -14,6 +14,28 @@ from typing import Literal
 from langchain_core.messages import AIMessage, BaseMessage, messages_from_dict, messages_to_dict
 
 
+def _stable_default(o: object) -> str:
+    """JSON fallback for `bound`: classes and callables by qualified name, never an address repr."""
+    if isinstance(o, type) or callable(o):
+        return f"{getattr(o, '__module__', '')}.{getattr(o, '__qualname__', type(o).__qualname__)}"
+    raise TypeError(f"cache key: unserializable {type(o).__name__} in bound")
+
+
+def _strip_volatile(d: dict) -> dict:
+    """Drop per-response random ids and metadata so equal histories key equally across processes."""
+    data = dict(d.get("data", {}))
+    for f in ("id", "response_metadata", "usage_metadata", "tool_call_id"):
+        data.pop(f, None)
+    for f in ("tool_calls", "invalid_tool_calls"):
+        if isinstance(data.get(f), list):
+            data[f] = [{k: v for k, v in tc.items() if k != "id"} for tc in data[f]]
+    ak = data.get("additional_kwargs")
+    if isinstance(ak, dict) and isinstance(ak.get("tool_calls"), list):
+        data["additional_kwargs"] = {**ak, "tool_calls": [
+            {k: v for k, v in tc.items() if k != "id"} for tc in ak["tool_calls"]]}
+    return {**d, "data": data}
+
+
 class ResponseCache:
     def __init__(self, root: Path, ttl_s: float, clock: Callable[[], float] = time.time):
         self.root = Path(root)
@@ -26,9 +48,9 @@ class ResponseCache:
 
     def key(self, model_id: str, messages: list[BaseMessage], bound: dict,
             stop: list[str] | None) -> str:
-        payload = {"model": model_id, "messages": messages_to_dict(messages),
+        payload = {"model": model_id, "messages": [_strip_volatile(m) for m in messages_to_dict(messages)],
                    "bound": bound, "stop": stop}
-        blob = json.dumps(payload, sort_keys=True, default=str)
+        blob = json.dumps(payload, sort_keys=True, default=_stable_default)
         return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
     def _path(self, key: str) -> Path:

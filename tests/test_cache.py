@@ -1,6 +1,11 @@
 """On-disk response cache: TTL, key sensitivity, round-trip fidelity, corrupt files."""
 
-from langchain_core.messages import AIMessage, HumanMessage
+import json
+
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from pydantic import BaseModel
+
+import resilience.cache as cache_mod
 
 from resilience.cache import ResponseCache
 
@@ -47,7 +52,7 @@ def test_disabled_when_ttl_zero(tmp_path):
 
 def test_round_trip_preserves_tool_calls_and_usage(tmp_path):
     c = ResponseCache(tmp_path, ttl_s=60)
-    k = c.key("m", [HumanMessage("hi")], {"tool_choice": object()}, ["x"])
+    k = c.key("m", [HumanMessage("hi")], {"tool_choice": "any"}, ["x"])
     msg = AIMessage("", tool_calls=[{"name": "Spec", "args": {"a": 1}, "id": "c1", "type": "tool_call"}],
                     usage_metadata={"input_tokens": 3, "output_tokens": 4, "total_tokens": 7})
     c.put(k, msg)
@@ -84,3 +89,57 @@ def test_put_leaves_no_temp_files(tmp_path):
     k = c.key("m", [HumanMessage("hi")], {}, None)
     c.put(k, AIMessage("ok"))
     assert [p.name for p in tmp_path.rglob("*") if p.is_file()] == [f"{k}.json"]
+
+
+def _hist(ai_id, call_id, usage):
+    return [HumanMessage("hi", id=ai_id + "h"),
+            AIMessage("", id=ai_id,
+                      tool_calls=[{"name": "Spec", "args": {"a": 1}, "id": call_id, "type": "tool_call"}],
+                      response_metadata={"x": call_id}, usage_metadata=usage),
+            ToolMessage("done", tool_call_id=call_id, id=ai_id + "t")]
+
+
+def test_key_ignores_random_ids_and_metadata(tmp_path):
+    c = ResponseCache(tmp_path, ttl_s=60)
+    u1 = {"input_tokens": 1, "output_tokens": 2, "total_tokens": 3}
+    u2 = {"input_tokens": 9, "output_tokens": 9, "total_tokens": 18}
+    assert c.key("m", _hist("lc_run--aaa-0", "toolu_1", u1), {}, None) == \
+        c.key("m", _hist("lc_run--bbb-0", "toolu_2", u2), {}, None)
+    plain = [HumanMessage("hi"), AIMessage("x"), ToolMessage("done", tool_call_id="q")]
+    assert c.key("m", plain, {}, None) == c.key(
+        "m", [HumanMessage("hi", id="r"), AIMessage("x", id="s"), ToolMessage("done", tool_call_id="z", id="y")], {}, None)
+
+
+def test_key_still_depends_on_tool_call_name_and_args(tmp_path):
+    c = ResponseCache(tmp_path, ttl_s=60)
+    a = _hist("i", "c", None)
+    b = _hist("i", "c", None)
+    b[1].tool_calls[0]["args"] = {"a": 2}
+    assert c.key("m", a, {}, None) != c.key("m", b, {}, None)
+
+
+class _Schema(BaseModel):
+    x: int
+
+
+def _tool_fn(x):
+    return x
+
+
+def test_bound_class_and_function_keys_are_stable(tmp_path, monkeypatch):
+    c = ResponseCache(tmp_path, ttl_s=60)
+    seen = []
+    real = json.dumps
+    monkeypatch.setattr(cache_mod.json, "dumps", lambda *a, **k: seen.append(real(*a, **k)) or seen[-1])
+    bound = {"tools": [_Schema, _tool_fn], "tool_choice": "any"}
+    k1 = c.key("m", [HumanMessage("hi")], bound, None)
+    k2 = c.key("m", [HumanMessage("hi")], {"tools": [_Schema, _tool_fn], "tool_choice": "any"}, None)
+    assert k1 == k2
+    assert "0x" not in seen[0]
+    assert f"{__name__}._Schema" in seen[0] and f"{__name__}._tool_fn" in seen[0]
+
+
+def test_unserializable_bound_object_raises(tmp_path):
+    import pytest
+    with pytest.raises(TypeError):
+        ResponseCache(tmp_path, ttl_s=60).key("m", [], {"x": object()}, None)
