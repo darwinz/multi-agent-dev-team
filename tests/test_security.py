@@ -16,11 +16,13 @@ def test_generated_code_cannot_see_api_keys(settings, monkeypatch):
 
 def test_child_env_is_allowlist_only(tmp_path, monkeypatch):
     monkeypatch.setenv("SOME_TOKEN", "x" * 20)
-    assert "SOME_TOKEN" not in child_env(tmp_path)
+    names = set(child_env(tmp_path))
+    assert "SOME_TOKEN" not in names
 
 
 def test_child_env_keeps_locale_and_pycache_prefix(tmp_path, monkeypatch):
     monkeypatch.setenv("LC_CTYPE", "C.UTF-8")
     env = child_env(tmp_path)
+    assert "LC_CTYPE" in set(env) and "PYTHONPYCACHEPREFIX" in set(env)
     assert env["LC_CTYPE"] == "C.UTF-8"
     assert env["PYTHONPYCACHEPREFIX"] == str(tmp_path / "pycache")

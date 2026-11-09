@@ -146,5 +146,6 @@ def test_check_api_app_runs_without_api_keys(tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, "Popen", recording_popen)
     check_api("env_app:app", tmp_path, startup_timeout=5)
     assert len(envs) == 1 and envs[0] is not None
-    assert "ANTHROPIC_API_KEY" not in envs[0] and "LANGSMITH_API_KEY" not in envs[0]
-    assert "PATH" in envs[0]
+    names = set(envs[0])  # compare names only so a failure never renders values
+    assert not names & {"ANTHROPIC_API_KEY", "LANGSMITH_API_KEY"}
+    assert "PATH" in names
