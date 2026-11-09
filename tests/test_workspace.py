@@ -97,3 +97,14 @@ def test_running_marker_reflects_holder_without_locking(tmp_path):  # review M3
         holder.kill()
         holder.wait()
     assert not RunLock.is_running(tmp_path)  # a dead holder's marker doesn't count
+
+
+def test_clear_keeps_gitkeep(tmp_path):  # the committed workspace/.gitkeep must survive --reset-memory
+    ws = Workspace(tmp_path)
+    (tmp_path / ".gitkeep").touch()
+    (tmp_path / "a.py").write_text("x = 1\n")
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "b.py").write_text("")
+    ws.clear()
+    assert sorted(p.name for p in tmp_path.iterdir()) == [".gitkeep"]
+    assert ws.list_files() == []

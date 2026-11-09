@@ -64,3 +64,15 @@ def test_compose_shape():
     dockerfile = (ROOT / "Dockerfile").read_text()
     for needle in ("FROM python:3.11-slim", "-r requirements.txt", 'ENTRYPOINT ["team"]'):
         assert needle in dockerfile, f"Dockerfile is missing {needle!r}"
+
+
+def test_dockerfile_installs_project_editable():
+    # A plain wheel drops tests/fixtures and web/, which the BST grading check and coder-web read from the source tree
+    dockerfile = (ROOT / "Dockerfile").read_text()
+    assert re.search(r"pip install [^\n]*--no-deps -e \.", dockerfile), "the project install must be editable"
+
+
+def test_bind_mount_dirs_ship_with_gitkeep():
+    # Pre-created so dockerd doesn't create them root-owned on Linux (the container user couldn't write)
+    for d in ("workspace", ".coder", "docs/cost_reports"):
+        assert (ROOT / d / ".gitkeep").is_file(), f"{d}/.gitkeep is missing"

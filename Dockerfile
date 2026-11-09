@@ -13,7 +13,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY --chown=coder:coder . .
-RUN pip install --no-cache-dir --no-deps . && rm -rf build
+# Editable: the BST grading fixture (tests/fixtures), the API collection and web/ are read from the source tree
+RUN pip install --no-cache-dir --no-deps -e .
+RUN python -c "from app.demo_check import FIXTURE_PATH; from app.web import WEB_DIR; from app.api_check import DEFAULT_COLLECTION; assert FIXTURE_PATH.is_file() and WEB_DIR.is_dir() and DEFAULT_COLLECTION.is_file(), 'source-tree assets missing'"
 
 USER coder
 # Bake Chroma's default local embedding model into the image (no download at first run)

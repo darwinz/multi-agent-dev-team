@@ -2,6 +2,7 @@
 #   or, with no plaintext keys on disk: op run --env-file=.env.op -- docker compose up --build
 # Chroma starts first and must report healthy before the team runs; it keeps running after the team exits.
 # Web UI:   docker compose --profile web up web          CLI: docker compose run --rm coder "your task"
+# workspace/, .coder/ and docs/cost_reports/ ship with a .gitkeep and must be writable by the build UID.
 # On Linux, build with your own ids so the mounted dirs stay yours: UID=$(id -u) GID=$(id -g) docker compose build
 x-app: &app
   build:
