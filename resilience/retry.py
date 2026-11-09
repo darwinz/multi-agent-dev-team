@@ -47,6 +47,8 @@ def call_with_retry(fn: Callable[[], T], *, policy: RetryPolicy,
         try:
             return fn(), attempt + 1
         except Exception as e:
+            if isinstance(e, CircuitOpenError):
+                raise  # breaker open: fail fast, no retry, no sleep
             if classify(e) == "permanent":
                 if isinstance(e, PermanentError):
                     raise
@@ -54,8 +56,6 @@ def call_with_retry(fn: Callable[[], T], *, policy: RetryPolicy,
             if attempt >= policy.max_retries:
                 _log("retry_exhausted", level=logging.WARNING, name=name, attempt=attempt + 1,
                      error_class=type(e).__name__)
-                if isinstance(e, CircuitOpenError):
-                    raise
                 raise TransientError(original=e, attempts=attempt + 1) from e
             delay = policy.delay(attempt, rng)
             _log("retry_attempt", level=logging.WARNING, name=name, attempt=attempt + 1,

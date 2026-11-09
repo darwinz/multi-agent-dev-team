@@ -88,7 +88,16 @@ def test_classify_chroma_error():
 
 def test_error_str_keeps_original_text_and_circuit_open_reraised():
     assert str(PermanentError(original=RuntimeError("boom"))) == "RuntimeError: boom"
+
+
+@pytest.mark.parametrize("max_retries", [3, 0])
+def test_circuit_open_fails_fast(max_retries):
+    err = CircuitOpenError("open", breaker="pm")
+    calls, slept = {"n": 0}, []
     def fn():
-        raise CircuitOpenError("open", breaker="pm")
-    with pytest.raises(CircuitOpenError):
-        call_with_retry(fn, policy=P, classify=classify_llm_error, name="t", sleep=lambda s: None)
+        calls["n"] += 1
+        raise err
+    with pytest.raises(CircuitOpenError) as ei:
+        call_with_retry(fn, policy=RetryPolicy(max_retries, 1.0, 30.0), classify=classify_llm_error,
+                        name="t", sleep=slept.append)
+    assert ei.value is err and calls["n"] == 1 and slept == []
