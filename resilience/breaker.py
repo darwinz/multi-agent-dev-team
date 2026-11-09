@@ -57,6 +57,8 @@ class CircuitBreaker:
                 self._transition(BreakerState.HALF_OPEN)
         try:
             result = fn()
+        except CircuitOpenError:
+            raise  # a nested breaker's rejection: neither counts nor resets this one
         except TransientError:
             with self._lock:
                 self.failures += 1

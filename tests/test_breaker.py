@@ -222,3 +222,30 @@ def test_runtime_configure_from_settings(settings):
     runtime.reset()
     assert runtime.runtime().policy.base_delay_s == 0
     assert runtime.runtime().breakers.get("coder").state is BreakerState.CLOSED
+
+
+def _nested_open():
+    raise CircuitOpenError("other open", breaker="other")
+
+
+def test_nested_circuit_open_neither_counts_nor_resets_in_closed():
+    b = _breaker()
+    with pytest.raises(TransientError):
+        b.call(fail)
+    with pytest.raises(CircuitOpenError) as ei:
+        b.call(_nested_open)
+    assert ei.value.breaker == "other"
+    assert b.failures == 1
+    assert b.state is BreakerState.CLOSED
+
+
+def test_nested_circuit_open_in_half_open_probe_releases_slot_unchanged():
+    b = _breaker()
+    _open(b)
+    t[0] = 30.0
+    with pytest.raises(CircuitOpenError):
+        b.call(_nested_open)
+    assert b.failures == 3
+    assert b.state is BreakerState.HALF_OPEN
+    assert b.call(ok) == "ok"  # slot was released
+    assert b.state is BreakerState.CLOSED
