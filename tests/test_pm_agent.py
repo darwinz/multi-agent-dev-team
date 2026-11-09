@@ -77,7 +77,7 @@ def test_unsafe_task_id_is_repaired(settings):
 
 def test_model_init_error_raises_pm_error(settings, monkeypatch):
     # A missing provider package fails inside make_model, before any call
-    def no_provider(_settings):
+    def no_provider(_settings, _role):
         raise ImportError("langchain_openai is not installed")
 
     monkeypatch.setattr("agents.pm_agent.make_model", no_provider)
@@ -87,7 +87,7 @@ def test_model_init_error_raises_pm_error(settings, monkeypatch):
 
 def test_structured_output_unsupported_raises_pm_error(settings):
     class NoStructured(ScriptedChatModel):
-        def with_structured_output(self, *a, **kw):
+        def bind_tools(self, *a, **kw):  # the wrapper's with_structured_output binds the schema as a tool
             raise NotImplementedError("structured output not supported")
 
     with pytest.raises(PMError, match="not supported"):

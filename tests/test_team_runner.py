@@ -285,7 +285,7 @@ def test_api_check_skipped_when_pm_failed(settings):
 
 def test_pm_setup_failure_writes_failed_state(settings):
     class NoStructured(ScriptedChatModel):
-        def with_structured_output(self, *a, **kw):
+        def bind_tools(self, *a, **kw):  # the wrapper's with_structured_output binds the schema as a tool
             raise NotImplementedError("structured output not supported")
 
     runner = TeamRunner(settings, pm=PMAgent(settings, model=NoStructured(responses=[])), coder=agent(settings),

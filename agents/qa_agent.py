@@ -19,7 +19,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel
 
 from agents.config import Settings
-from agents.model import make_model
+from agents.model import make_model, resilient
 from agents.prompts import QA_CHECK_PROMPT, QA_FIX_PROMPT, QA_TESTS_PROMPT
 from orchestration.a2a import ReviewRequest
 from orchestration.handoff import qa_test_file
@@ -157,12 +157,13 @@ def _later_tasks(later: Sequence[Task]) -> str:
 class QAAgent:
     def __init__(self, settings: Settings | None = None, *, model: BaseChatModel | None = None) -> None:
         self.settings = settings or Settings.from_env()
-        self.model = model
+        self.model = resilient(model, self.settings, "qa") if model is not None else None
 
     def _structured(self, schema: type) -> Any:
         if self.model is None:
-            self.model = make_model(self.settings)
-        return self.model.with_structured_output(schema, include_raw=True)
+            self.model = make_model(self.settings, "qa")
+        # suite, fix plan and audit are side-effect free and run-stable: response-cache eligible
+        return self.model.cached().with_structured_output(schema, include_raw=True)
 
     @property
     def _ws(self) -> Workspace:

@@ -157,7 +157,7 @@ def test_feedback_drives_revision(settings):
     (fix,) = sent(chunks, "fix_instruction")
     assertion = FixInstruction(**fix["payload"]).issues[0].assertion
     # coder calls: deliver (2), critique (1), revision (2), then the fix run's first call
-    assert assertion in human_text(deps.coder.model.calls[5])
+    assert assertion in human_text(deps.coder.model.inner.calls[5])
 
     req1, req2 = sent(chunks, "review_request")
     assert req1["payload"]["round"] == 1 and req2["payload"]["round"] == 2
@@ -193,7 +193,7 @@ def test_qa_error_ends_task(settings):
     assert report.qa_error
     (msg,) = sent(chunks, "final_report")
     assert msg["payload"]["reason"] == "qa_error"
-    assert len(deps.coder.model.calls) == 5  # deliver 2 + critique 1 + revision 2; nothing after the report
+    assert len(deps.coder.model.inner.calls) == 5  # deliver 2 + critique 1 + revision 2; nothing after the report
     rec = end["task_status"]["T1"]
     assert rec.status == "failed" and rec.qa_outcome == "qa_error"
 
@@ -308,8 +308,8 @@ def test_noop_revision_blocks_done(settings):
     end = final(chunks)
     (reflection,) = end["reflections"]
     assert reflection.changed == [] and reflection.error and reflection.critique is not None
-    retry = human_text(deps.coder.model.calls[5])  # deliver 2, critique, revision 1, critique, then the retry
-    assert NOOP_RETRY not in human_text(deps.coder.model.calls[3])
+    retry = human_text(deps.coder.model.inner.calls[5])  # deliver 2, critique, revision 1, critique, then the retry
+    assert NOOP_RETRY not in human_text(deps.coder.model.inner.calls[3])
     assert "Your previous revision changed no files; make the changes now." in retry
     (msg,) = [m for m in sent(chunks) if m["sender"] == "qa"]
     assert msg["payload"]["reason"] == "no_revision"

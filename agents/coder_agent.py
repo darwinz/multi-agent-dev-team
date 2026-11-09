@@ -15,7 +15,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from agents.config import Settings
 from agents.events import StepEvent
-from agents.model import make_model
+from agents.model import make_model, resilient
 from agents.prompts import CRITIQUE_PROMPT
 from agents.result import CoderResult, ExecutionResult
 from memory.semantic import SemanticMemory
@@ -70,7 +70,7 @@ class CoderAgent:
         embedding_function: Any = None,
     ) -> None:
         self.settings = settings or Settings.from_env()
-        self.model = model
+        self.model = resilient(model, self.settings, "coder") if model is not None else None
         self.workspace = Workspace(self.settings.workspace_dir)
         self.window = SlidingWindow(self.settings.window_turns)
         self.semantic = SemanticMemory(self.settings.chroma_dir, embedding_function=embedding_function)
@@ -80,14 +80,14 @@ class CoderAgent:
 
     def _bound_model(self) -> Any:
         if self.model is None:
-            self.model = make_model(self.settings)
-        return self.model.bind_tools(TOOL_SPECS)
+            self.model = make_model(self.settings, "coder")
+        return self.model.bind_tools(TOOL_SPECS)  # ReAct steps are never response-cached
 
     def critique(self, task_text: str, files: dict[str, str]) -> Critique:
         """One structured call on the unbound model (no tools); one retry with the parse error appended."""
         try:
             if self.model is None:
-                self.model = make_model(self.settings)
+                self.model = make_model(self.settings, "coder")
             structured = self.model.with_structured_output(Critique, include_raw=True)
         except Exception as e:  # missing provider package, bad model id
             raise ReflectionError(f"critique model setup failed: {type(e).__name__}: {e}") from e

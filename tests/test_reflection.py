@@ -31,7 +31,7 @@ def test_critique_returns_items(settings):
 def test_critique_prompt_sees_task_and_files(settings):
     a = agent(settings, critique_response())
     a.critique(TASK, {"palindrome.py": PAL})
-    text = "\n".join(str(m.content) for m in a.model.calls[0])
+    text = "\n".join(str(m.content) for m in a.model.inner.calls[0])
     assert TASK in text and PAL in text and "palindrome.py" in text
 
 
@@ -41,8 +41,8 @@ def test_critique_retries_then_raises(settings):
     a = agent(settings, bad, bad)
     with pytest.raises(ReflectionError):
         a.critique(TASK, {"palindrome.py": PAL})
-    assert len(a.model.calls) == 2
-    assert "invalid" in [m for m in a.model.calls[1] if isinstance(m, HumanMessage)][-1].content
+    assert len(a.model.inner.calls) == 2
+    assert "invalid" in [m for m in a.model.inner.calls[1] if isinstance(m, HumanMessage)][-1].content
 
 
 def test_critique_retry_can_succeed(settings):

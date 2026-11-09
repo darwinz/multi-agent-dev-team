@@ -160,7 +160,7 @@ def test_invalid_suite_retried_once(settings):
     bad = qa_suite_response(STACK_TESTS, (("test_push_then_pop", 1), ("test_nope", 2)))
     agent = qa_agent(settings, bad, qa_suite_response(STACK_TESTS, STACK_MAP))
     report, suite = agent.review(handoff(), request(files), 1, None, {})
-    retry = "\n".join(str(m.content) for m in agent.model.calls[1])
+    retry = "\n".join(str(m.content) for m in agent.model.inner.calls[1])
     assert "test_nope" in retry
     assert suite is not None and report.approved is True
 
@@ -299,7 +299,7 @@ def test_unmapped_extra_test_retried(settings):
     files = put(settings, **{"stack.py": FIXED_STACK})
     agent = qa_agent(settings, qa_suite_response(UNMAPPED_EXTRA, STACK_MAP), qa_suite_response(STACK_TESTS, STACK_MAP))
     report, suite = agent.review(handoff(), request(files), 1, None, {})
-    assert "test_extra" in "\n".join(str(m.content) for m in agent.model.calls[1])
+    assert "test_extra" in "\n".join(str(m.content) for m in agent.model.inner.calls[1])
     assert suite.content == STACK_TESTS and report.approved is True
 
 
@@ -369,7 +369,7 @@ def later_task(task_id: str = "T2") -> Task:
 
 
 def suite_prompt(agent: QAAgent) -> str:
-    return "\n".join(m.content for m in agent.model.calls[0] if isinstance(m, HumanMessage))
+    return "\n".join(m.content for m in agent.model.inner.calls[0] if isinstance(m, HumanMessage))
 
 
 def test_suite_prompt_lists_later_tasks(settings):
@@ -458,5 +458,5 @@ def test_no_test_check_after_round_one(settings):
     files = put(settings, **{"stack.py": FIXED_STACK})
     agent = qa_agent(settings, fix_plan_response())
     report, again = agent.review(handoff(), request(files, round=2), 2, suite, {})
-    assert len(agent.model.calls) == 1  # the fix plan only
+    assert len(agent.model.inner.calls) == 1  # the fix plan only
     assert report.approved is False and again == suite
