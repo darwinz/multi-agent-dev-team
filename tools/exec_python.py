@@ -27,12 +27,13 @@ _ENV_KEEP = (
 )
 
 
-def child_env(record_dir: Path) -> dict[str, str]:
+def child_env(record_dir: Path | None = None) -> dict[str, str]:
     """Allowlisted environment for a subprocess that runs model-written code: no secrets."""
     env = {k: v for k, v in os.environ.items() if k in _ENV_KEEP or k.startswith("LC_")}
-    # Bytecode goes to a cache outside the workspace; the runner drops the workspace's part of it
-    # before importing anything (see _runner.py), so workspace code always compiles from source
-    env["PYTHONPYCACHEPREFIX"] = str(record_dir / "pycache")
+    if record_dir is not None:
+        # Bytecode goes to a cache outside the workspace; the runner drops the workspace's part of it
+        # before importing anything (see _runner.py), so workspace code always compiles from source
+        env["PYTHONPYCACHEPREFIX"] = str(record_dir / "pycache")
     return env
 
 

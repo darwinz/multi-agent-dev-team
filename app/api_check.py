@@ -16,6 +16,8 @@ from pathlib import Path
 import httpx
 from pydantic import BaseModel
 
+from tools.exec_python import child_env
+
 DEFAULT_COLLECTION = (
     Path(__file__).resolve().parent.parent / "tests" / "fixtures" / "demo_api.postman_collection.json"
 )
@@ -138,7 +140,7 @@ def check_api(
         proc = subprocess.Popen(
             [sys.executable, "-m", "uvicorn", app_spec, "--app-dir", str(app_dir),
              "--host", "127.0.0.1", "--port", str(port)],
-            stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, env=child_env(),
         )
         try:
             deadline = time.monotonic() + startup_timeout

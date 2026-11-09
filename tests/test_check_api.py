@@ -130,3 +130,21 @@ def test_main_exit_codes(capsys):
     assert out.count("PASS") == 5
     assert main(["--app", "broken_api:app", "--app-dir", str(FIXTURES)]) == 1
     assert "FAIL echo non-object" in capsys.readouterr().out
+
+
+def test_check_api_app_runs_without_api_keys(tmp_path, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-should-not-leak")
+    monkeypatch.setenv("LANGSMITH_API_KEY", "lsv2-should-not-leak")
+    (tmp_path / "env_app.py").write_text("raise ImportError('stop early')\n")
+    envs: list[dict] = []
+    real_popen = subprocess.Popen
+
+    def recording_popen(*args, **kwargs):
+        envs.append(kwargs.get("env"))
+        return real_popen(*args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "Popen", recording_popen)
+    check_api("env_app:app", tmp_path, startup_timeout=5)
+    assert len(envs) == 1 and envs[0] is not None
+    assert "ANTHROPIC_API_KEY" not in envs[0] and "LANGSMITH_API_KEY" not in envs[0]
+    assert "PATH" in envs[0]
