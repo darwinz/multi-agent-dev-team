@@ -1,6 +1,6 @@
 # Multi-Agent Dev Team: PM → Coder ↔ QA (production v4)
 
-An autonomous **LangGraph** Coder agent that takes a coding task in plain language, then plans, writes, runs and verifies Python code with **Claude Sonnet**. It works in a bounded ReAct loop (at most 10 model calls), with two memory layers (a sliding window plus Chroma) and three confined tools. Every run ends in a **Pydantic-validated result** whose code is read back from disk and whose result comes from a real execution. It is Module 1 of a five-module capstone: a PM → Coder ↔ QA software team. Modules 2 and 3 add the PM and QA agents on top, with the Coder and QA talking over A2A (see [v3.0](#v30-pm--coder--qa) and [Why A2A](#why-a2a)). Module 4 hardens that team for production: retries, circuit breakers, a response cache, token and cost reports, LangSmith tracing, structured logs, a clean Docker start and a mocked end-to-end test. Start at [Production v4](#production-v4).
+An autonomous **LangGraph** Coder agent that takes a coding task in plain language, then plans, writes, runs and verifies Python code with **Claude** (Haiku 5.5 by default; the PM defaults to Sonnet 5.5). It works in a bounded ReAct loop (at most 10 model calls), with two memory layers (a sliding window plus Chroma) and three confined tools. Every run ends in a **Pydantic-validated result** whose code is read back from disk and whose result comes from a real execution. It is Module 1 of a five-module capstone: a PM → Coder ↔ QA software team. Modules 2 and 3 add the PM and QA agents on top, with the Coder and QA talking over A2A (see [v3.0](#v30-pm--coder--qa) and [Why A2A](#why-a2a)). Module 4 hardens that team for production: retries, circuit breakers, a response cache, token and cost reports, LangSmith tracing, structured logs, a clean Docker start and a mocked end-to-end test. Start at [Production v4](#production-v4).
 
 ![The web UI: workspace tree, code viewer with terminal, live agent timeline and verified result](docs/images/web-ui.png)
 
@@ -258,12 +258,12 @@ Module 4 takes the v3 team and makes it operable: every call retried at its boun
 flowchart LR
     REQ([requirement]) --> TEAM[team graph<br/>PM, Coder and QA node spans]
     TEAM --> CALL{every model or tool call}
-    CALL --> BRK[circuit breaker<br/>pm, coder, qa, tools, chroma]
+    CALL --> CACHE{response cache<br/>structured PM and QA calls only}
+    CACHE -->|"hit within TTL"| REC
+    CACHE -->|"miss or ineligible"| BRK[circuit breaker<br/>pm, coder, qa, tools, chroma]
+    BRK -->|"open"| OPENERR[fresh cached result if eligible<br/>else CircuitOpenError]
     BRK -->|"closed or half-open probe"| RETRY[retry<br/>at most 3, full jitter, transient only]
-    BRK -->|"open"| FALLBACK[cached result if fresh<br/>else CircuitOpenError]
-    RETRY --> CACHE{response cache<br/>structured PM and QA calls}
-    CACHE -->|"hit within TTL"| CALL
-    CACHE -->|"miss"| PROVIDER[(provider or tool<br/>Anthropic prompt caching)]
+    RETRY --> PROVIDER[(provider or tool<br/>Anthropic prompt caching)]
     PROVIDER --> REC[call record<br/>tokens, USD, duration, attempts]
     REC --> LOGS[events.jsonl and stderr<br/>JSON lines]
     REC --> COST[cost report JSON<br/>docs/cost_reports and .coder/runs]
