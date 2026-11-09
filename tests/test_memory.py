@@ -1,5 +1,7 @@
 from memory.context import format_memory_context
-from memory.semantic import MemoryHit, SemanticMemory
+import pytest
+
+from memory.semantic import MemoryHit, MemoryUnavailableError, SemanticMemory, memory_id
 from memory.window import SlidingWindow, Turn
 from tests.fakes import FakeEmbedding
 
@@ -37,3 +39,36 @@ def test_context_formatting():
     ctx = format_memory_context([Turn("t1", "a1")], [MemoryHit(id="m1", text="Task: p", distance=0.2)])
     assert "## Recent conversation" in ctx and "t1" in ctx and "Task: p" in ctx
     assert format_memory_context([], []).strip() != ""
+
+
+def test_add_is_idempotent_when_response_lost_after_commit(tmp_path):
+    mem = SemanticMemory(tmp_path / "c", embedding_function=FakeEmbedding())
+    real = mem._collection
+    state = {"n": 0}
+
+    class LossyCollection:
+        def __getattr__(self, a):
+            return getattr(real, a)
+
+        def upsert(self, **kw):
+            real.upsert(**kw)
+            state["n"] += 1
+            if state["n"] == 1:
+                raise ConnectionError("response lost")
+
+    mem._collection = LossyCollection()
+    doc_id = mem.add("Task: x", {"run_id": "r1"})
+    assert state["n"] == 2 and mem.count() == 1 and doc_id == memory_id("Task: x", {"run_id": "r1"})
+
+
+def test_add_with_same_content_is_one_entry(tmp_path):
+    mem = SemanticMemory(tmp_path / "c", embedding_function=FakeEmbedding())
+    assert mem.add("Task: x", {"run_id": "r1"}) == mem.add("Task: x", {"run_id": "r1"})
+    assert mem.add("Task: x", {"run_id": "r2"}, doc_id="given") == "given"
+    assert mem.count() == 2
+
+
+def test_chroma_unreachable_raises_memory_unavailable(tmp_path):
+    with pytest.raises(MemoryUnavailableError, match="Chroma server unreachable at 127.0.0.1:9") as raised:
+        SemanticMemory(tmp_path / "c", host="127.0.0.1", port=9)
+    assert raised.value.attempts == 4  # the refused connect is transient: original attempt + 3 retries

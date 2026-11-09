@@ -81,10 +81,24 @@ def classify_tool_error(exc: BaseException) -> ErrorKind:
     return "permanent"
 
 
+_CHROMA_CONNECT_FAILURE = "Could not connect to a Chroma server"
+
+
+def _is_chroma_connect_failure(exc: BaseException) -> bool:
+    """chromadb's HttpClient reports a refused/failed connection as a bare ValueError raised while
+    handling the httpx transport error (chromadb 1.5.9, api/client.py get_user_identity)."""
+    if not isinstance(exc, ValueError):
+        return False
+    inner = exc.__cause__ or exc.__context__
+    return (_CHROMA_CONNECT_FAILURE in str(exc)
+            or (inner is not None and (_is_httpx_transport(inner) or isinstance(inner, ConnectionError))))
+
+
 def classify_chroma_error(exc: BaseException) -> ErrorKind:
     s = _status(exc)
     if (isinstance(exc, (TransientError, TimeoutError, ConnectionError))
             or _is_httpx_transport(exc)
+            or _is_chroma_connect_failure(exc)
             or (s is not None and (s >= 500 or s == 429))):
         return "transient"
     return "permanent"

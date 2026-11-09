@@ -7,8 +7,10 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
+from resilience.errors import TransientError
 from tools.exec_python import ExecOutcome, exec_python
 from tools.file_tools import WriteOutcome, read_file, write_file
+from tools.guarded import guarded_tool
 from tools.specs import ACTION_TOOLS, ARG_MODELS
 from tools.workspace import ToolError, Workspace, sha256_file
 
@@ -37,9 +39,11 @@ def run_action(ctx: ToolContext, name: str, args: dict) -> ActionOutcome:
         raise ToolError(f"invalid arguments for {name}: {e}") from None
 
     try:
-        return _dispatch(ctx, name, a)
+        return guarded_tool(name, lambda: _dispatch(ctx, name, a))
     except ToolError:
         raise
+    except TransientError as e:  # retries exhausted or the tools breaker is open: an observation, not a crash
+        raise ToolError(f"{name} unavailable: {e}") from None
     except (OSError, ValueError) as e:  # e.g. a directory in the way, an unencodable character
         raise ToolError(f"{name} failed: {type(e).__name__}: {e}") from None
 

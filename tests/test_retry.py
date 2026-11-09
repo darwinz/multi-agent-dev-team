@@ -86,6 +86,25 @@ def test_classify_chroma_error():
     assert classify_chroma_error(Flaky()) == "transient"
     assert classify_chroma_error(ValueError("bad")) == "permanent"
 
+
+def test_classify_chroma_connect_failure_is_transient():
+    """chromadb 1.5.9's HttpClient turns a refused connection into a bare ValueError raised while
+    handling the httpx.ConnectError; that is an outage, so it is retried and counts on the breaker."""
+    import httpx
+
+    def chroma_like() -> ValueError:
+        try:
+            try:
+                raise httpx.ConnectError("[Errno 61] Connection refused")
+            except httpx.ConnectError:
+                raise ValueError("Could not connect to a Chroma server. Are you sure it is running?")
+        except ValueError as e:
+            return e
+
+    assert classify_chroma_error(chroma_like()) == "transient"
+    assert classify_chroma_error(ValueError("Could not connect to a Chroma server. Are you sure it is running?")) \
+        == "transient"
+
 def test_error_str_keeps_original_text_and_circuit_open_reraised():
     assert str(PermanentError(original=RuntimeError("boom"))) == "RuntimeError: boom"
 

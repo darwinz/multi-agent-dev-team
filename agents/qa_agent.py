@@ -27,7 +27,9 @@ from orchestration.project_state import Task, TaskHandoff
 from orchestration.review import Issue, QAReport, QATestSuite, TestCorrection, TestOutcome
 from tools.exec_python import ExecOutcome, exec_python
 from tools.file_tools import write_file
+from tools.guarded import guarded_tool
 from tools.junit import CaseResult, parse_junit
+from tools.specs import ARG_MODELS
 from tools.workspace import ToolError, Workspace, sha256_file
 
 MAX_ASSERTION = 500
@@ -216,17 +218,25 @@ class QAAgent:
         ws, shas, tampered = self._ws, {}, False
         for task_id, suite in suites.items():
             content = suite.content
+            path = self._checked_write_args(qa_test_file(task_id), content)
             canonical = canonical_suite_path(self.settings, task_id)
             if not canonical.is_file() or canonical.read_text(encoding="utf-8", errors="replace") != content:
                 tampered = True
                 canonical.parent.mkdir(parents=True, exist_ok=True)
                 canonical.write_text(content, encoding="utf-8")
-            target = ws.root / qa_test_file(task_id)
+            target = ws.resolve(path)
             if not target.is_file() or target.read_text(encoding="utf-8", errors="replace") != content:
                 tampered = True
-            write_file(ws, qa_test_file(task_id), content)
+            guarded_tool("write_file", lambda: write_file(ws, path, content))
             shas[task_id] = _sha(content)
         return shas, tampered
+
+    def _checked_write_args(self, path: str, content: str) -> str:
+        """QA's direct write_file calls get the Coder's argument model plus the workspace check up front
+        (spec §5.7), so a bad path never reaches write_file. Raises ToolError (or ValidationError)."""
+        a = ARG_MODELS["write_file"].model_validate({"path": path, "content": content})
+        self._ws.resolve(a.path)  # WorkspaceError if it escapes the workspace
+        return a.path
 
     def _pytest(self, files: list[str], junit: Path) -> ExecOutcome:
         """One sandboxed pytest call over every suite file. exec_python's pytest mode takes a single
@@ -238,8 +248,11 @@ class QAAgent:
         args = ["-q", "-p", "no:cacheprovider", "-c", str(ini), f"--rootdir={self._ws.root}",
                 "--continue-on-collection-errors", f"--junitxml={junit}", *files]
         code = f"import sys\nimport pytest\n\nsys.exit(int(pytest.main({json.dumps(args)})))\n"
-        return exec_python(self._ws, record_dir=self._qa_dir / "exec", code=code, mode="script",
-                           timeout=self.settings.exec_timeout_s)
+        mode, timeout = "script", self.settings.exec_timeout_s
+        if mode != "script" or not 0 < timeout <= self.settings.exec_timeout_s:
+            raise ToolError(f"QA exec_python needs mode 'script' and 0 < timeout <= {self.settings.exec_timeout_s:g}")
+        return guarded_tool("exec_python", lambda: exec_python(
+            self._ws, record_dir=self._qa_dir / "exec", code=code, mode=mode, timeout=timeout))
 
     def run_suites(self, suites: dict[str, QATestSuite], *, task_id: str, round: int) -> QAReport:
         """Restore every suite from canonical, run them in one pytest call, reconcile with the manifests.
@@ -363,10 +376,11 @@ class QAAgent:
 
     def _save_suite(self, task_id: str, suite: QATestSuite) -> None:
         """The canonical copy (replacing any left by an earlier run) and its workspace copy."""
+        path = self._checked_write_args(qa_test_file(task_id), suite.content)
         canonical = canonical_suite_path(self.settings, task_id)
         canonical.parent.mkdir(parents=True, exist_ok=True)
         canonical.write_text(suite.content, encoding="utf-8")
-        write_file(self._ws, qa_test_file(task_id), suite.content)
+        guarded_tool("write_file", lambda: write_file(self._ws, path, suite.content))
 
     def _check_tests(self, handoff: TaskHandoff, suite: QATestSuite, issues: list[Issue],
                      contents: dict[str, str]) -> tuple[QATestSuite, list[TestCorrection]]:

@@ -73,7 +73,8 @@ class CoderAgent:
         self.model = resilient(model, self.settings, "coder") if model is not None else None
         self.workspace = Workspace(self.settings.workspace_dir)
         self.window = SlidingWindow(self.settings.window_turns)
-        self.semantic = SemanticMemory(self.settings.chroma_dir, embedding_function=embedding_function)
+        self.semantic = SemanticMemory(self.settings.chroma_dir, embedding_function=embedding_function,
+                                       host=self.settings.chroma_host, port=self.settings.chroma_port)
         self._generation = ResetGeneration(self.settings.state_dir)
         self.generation_seen = self._generation.read()
         self.last_written: set[str] = set()

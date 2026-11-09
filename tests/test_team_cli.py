@@ -275,3 +275,13 @@ def test_render_a2a_lines():
         "A2A qa rejected review_request #1a2b3c4d from coder: stale",
         "A2A qa → coder final_report #ffffffff round 2 · max_iterations · 1 unresolved",
     ]
+
+
+def test_team_exits_2_when_chroma_unreachable(tmp_path, monkeypatch, capsys):  # Review Focus 3
+    monkeypatch.setenv("CHROMA_HOST", "127.0.0.1")
+    monkeypatch.setenv("CHROMA_PORT", "9")  # discard port: nothing listens, so the connect is refused at once
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("CODER_PROJECT_DIR", str(tmp_path))
+    assert team_cli.main(["do x"]) == 2
+    err = capsys.readouterr().err
+    assert "cannot run" in err and "Chroma" in err and "127.0.0.1:9" in err and "Traceback" not in err

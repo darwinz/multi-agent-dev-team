@@ -14,7 +14,7 @@ from orchestration.a2a import ReviewRequest
 from orchestration.project_state import Task, TaskHandoff
 from orchestration.review import QAReport, QATestSuite, TestCorrection
 from tests.fakes import ScriptedChatModel, audit_response, fix_plan_response, qa_agent, qa_suite_response
-from tools.workspace import sha256_file
+from tools.workspace import ToolError, sha256_file
 
 CRITERIA = ["push adds an item that pop can return", "pop returns the most recently pushed item"]
 
@@ -460,3 +460,30 @@ def test_no_test_check_after_round_one(settings):
     report, again = agent.review(handoff(), request(files, round=2), 2, suite, {})
     assert len(agent.model.inner.calls) == 1  # the fix plan only
     assert report.approved is False and again == suite
+
+
+def test_qa_direct_tool_args_validated(settings, monkeypatch):
+    """A suite file path that escapes the workspace is rejected before write_file runs (spec §5.7);
+    the error takes QA's existing crash path, which reports qa_error."""
+    from orchestration.team_graph import _qa_crash
+
+    files = put(settings, **{"stack.py": FIXED_STACK})
+    writes = []
+    monkeypatch.setattr("agents.qa_agent.qa_test_file", lambda task_id: "../escaped_test_qa.py")
+    monkeypatch.setattr("agents.qa_agent.write_file", lambda *a, **kw: writes.append(a))
+    agent = qa_agent(settings, qa_suite_response(STACK_TESTS, STACK_MAP))
+    with pytest.raises(ToolError, match="outside the workspace") as raised:
+        agent.review(handoff(), request(files), 1, None, {})
+    assert writes == []
+    assert not (settings.workspace_dir.parent / "escaped_test_qa.py").exists()
+    report = _qa_crash("T1", 1, raised.value)
+    assert report.qa_error.startswith("QA crashed: WorkspaceError") and report.approved is False
+
+
+def test_qa_pytest_args_validated(settings, monkeypatch):
+    agent = qa_agent(settings.model_copy(update={"exec_timeout_s": 0}))  # not a usable exec timeout
+    ran = []
+    monkeypatch.setattr("agents.qa_agent.exec_python", lambda *a, **kw: ran.append(kw))
+    with pytest.raises(ToolError, match="timeout"):
+        agent._pytest(["test_qa_t1.py"], settings.project_dir / "j.xml")
+    assert ran == []

@@ -27,6 +27,7 @@ from app.render import (
     render_task_header,
     render_team_summary,
 )
+from memory.semantic import MemoryUnavailableError
 from orchestration.team_runner import TeamRunner
 from tools.workspace import WorkspaceBusyError
 
@@ -113,7 +114,11 @@ def main(argv: list[str] | None = None, *, runner: TeamRunner | None = None) -> 
                 if reason := provider_prerequisite(model):
                     err.print(f"team: cannot run: {reason}", markup=False)
                     return 2
-        runner = TeamRunner(settings)
+        try:
+            runner = TeamRunner(settings)
+        except MemoryUnavailableError as e:  # CHROMA_HOST set but the server is down: say so, no traceback
+            err.print(f"team: cannot run: {e}", markup=False)
+            return 2
 
     try:
         if args.reset_memory:
