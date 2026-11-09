@@ -9,17 +9,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, TypeVar
 
+from observability.logs import log_event
 from resilience.errors import CircuitOpenError, ErrorKind, PermanentError, TransientError
 
 if TYPE_CHECKING:
     from agents.config import Settings
 
 T = TypeVar("T")
-
-
-def _log(event: str, *, level: int = logging.INFO, **fields) -> None:
-    # Task 5 rewires this to observability.logs.log_event (same signature).
-    logging.getLogger("mad").log(level, "%s %s", event, fields)
 
 
 @dataclass(frozen=True)
@@ -54,11 +50,11 @@ def call_with_retry(fn: Callable[[], T], *, policy: RetryPolicy,
                     raise
                 raise PermanentError(original=e) from e
             if attempt >= policy.max_retries:
-                _log("retry_exhausted", level=logging.WARNING, name=name, attempt=attempt + 1,
-                     error_class=type(e).__name__)
+                log_event("retry_exhausted", level=logging.WARNING, name=name, attempt=attempt + 1,
+                      error_class=type(e).__name__)
                 raise TransientError(original=e, attempts=attempt + 1) from e
             delay = policy.delay(attempt, rng)
-            _log("retry_attempt", level=logging.WARNING, name=name, attempt=attempt + 1,
-                 error_class=type(e).__name__, delay_s=delay)
+            log_event("retry_attempt", level=logging.WARNING, name=name, attempt=attempt + 1,
+                  error_class=type(e).__name__, delay_s=delay)
             sleep(delay)
             attempt += 1

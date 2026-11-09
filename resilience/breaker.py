@@ -9,8 +9,8 @@ from collections.abc import Callable
 from enum import StrEnum
 from typing import TypeVar
 
+from observability.logs import log_event
 from resilience.errors import CircuitOpenError, TransientError
-from resilience.retry import _log  # Task 5 rewires this shim to observability.logs.log_event
 
 T = TypeVar("T")
 
@@ -42,8 +42,8 @@ class CircuitBreaker:
         return self._state
 
     def _transition(self, to: BreakerState) -> None:  # caller holds the lock
-        _log("breaker_transition", level=logging.WARNING, breaker=self.name,
-             from_state=str(self._state), to_state=str(to), failures=self.failures)
+        log_event("breaker_transition", level=logging.WARNING, breaker=self.name,
+                  from_state=str(self._state), to_state=str(to), failures=self.failures)
         self._state = to
 
     def call(self, fn: Callable[[], T]) -> T:
