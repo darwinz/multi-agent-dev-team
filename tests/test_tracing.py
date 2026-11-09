@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import threading
+import time
+
 import langsmith
 import langsmith.run_helpers
+import langsmith.run_trees
 import langsmith.utils
 import pytest
 
 from agents.config import Settings
 from observability.costs import CallRecord, ToolRecord
-from observability.tracing import span_metadata, tracing_enabled
+from observability import tracing
+from observability.tracing import resolve_trace_url, span_metadata, tracing_enabled
 from tests.scenarios import passing_scripts, scripted_runner
 from tests.test_team_runner import events_of, report_of
 
@@ -149,3 +154,56 @@ def test_one_root_and_agent_child_spans(settings, monkeypatch):
     assert "lsv2-test" not in repr([r.get("extra") for r in client.runs.values()])  # the key never lands in a trace
     assert report_of(runner)["trace_url"] == f"http://langsmith.invalid/r/{roots[0]['id']}"
     assert client.network == []
+
+
+def traced_run(settings, client: RecordingClient, monkeypatch):
+    monkeypatch.setenv("LANGSMITH_API_KEY", "lsv2-test"); monkeypatch.setenv("LANGSMITH_TRACING", "true")
+    with langsmith.run_helpers.tracing_context(enabled=True, client=client, project_name="t"):
+        runner = scripted_runner(settings, passing_scripts()); runner.run(REQ)
+    return runner
+
+
+def test_trace_url_resolved_at_run_end(settings, monkeypatch):
+    client = RecordingClient()
+    runner = traced_run(settings, client, monkeypatch)
+    (root,) = [r for r in client.runs.values() if r.get("parent_run_id") is None]
+    url = f"http://langsmith.invalid/r/{root['id']}"
+    assert report_of(runner)["trace_url"] == url
+    events = [e["event"] for e in events_of(runner)]
+    trace_events = [e for e in events_of(runner) if e["event"] == "trace"]
+    assert [e["url"] for e in trace_events] == [url]
+    # Logged after the graph has run (every agent_end), not at run start
+    assert events.index("trace") > max(i for i, e in enumerate(events) if e == "agent_end")
+    assert client.network == []
+
+
+def test_hanging_trace_url_cannot_stall_the_run(settings, monkeypatch):
+    release = threading.Event()
+    lookups: list[float] = []
+
+    def hang(self):
+        lookups.append(time.monotonic())
+        release.wait(60)  # far past the bound; released at teardown
+        return "http://langsmith.invalid/too-late"
+
+    monkeypatch.setattr(tracing, "TRACE_URL_TIMEOUT_S", 0.05)
+    monkeypatch.setattr(langsmith.run_trees.RunTree, "get_url", hang)
+    try:
+        client = RecordingClient()
+        runner = traced_run(settings, client, monkeypatch)
+        finished = time.monotonic()
+        assert len(lookups) == 1 and finished - lookups[0] < 5  # the run waited the bound, not the hang
+        assert report_of(runner)["trace_url"] is None
+        assert runner.final_state["status"] == "completed"
+        assert not [e for e in events_of(runner) if e["event"] == "trace"]
+    finally:
+        release.set()
+
+
+def test_resolve_trace_url_never_raises():
+    class Broken:
+        def get_url(self):
+            raise ConnectionError("blackholed")
+
+    assert resolve_trace_url(None) is None
+    assert resolve_trace_url(Broken()) is None

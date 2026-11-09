@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import functools
 import os
+import threading
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -11,6 +12,7 @@ from typing import TYPE_CHECKING, Literal
 
 import langsmith
 from langsmith.run_helpers import get_current_run_tree
+from langsmith.run_trees import RunTree
 from langsmith.utils import tracing_is_enabled
 
 from observability.context import agent_scope, current_run
@@ -28,22 +30,45 @@ def tracing_enabled() -> bool:
     return bool(tracing_is_enabled()) and bool(os.environ.get("LANGSMITH_API_KEY"))
 
 
-@contextmanager
-def root_trace(run_id: str, requirement: str) -> Iterator[str | None]:
-    """The run's one root trace; yields its URL (None when tracing is off or the URL can't be resolved).
+# Upper bound on resolving the trace URL: the lookup makes HTTP calls with the client's long default timeouts
+TRACE_URL_TIMEOUT_S = 5.0
 
-    LangGraph's own runs nest under it through LangSmith's context propagation.
+
+@contextmanager
+def root_trace(run_id: str, requirement: str) -> Iterator[RunTree | None]:
+    """The run's one root trace; yields its run tree (None when tracing is off).
+
+    LangGraph's own runs nest under it through LangSmith's context propagation. The URL is resolved
+    later with resolve_trace_url, at run end, so a slow LangSmith never delays the run's start.
     """
     if not tracing_enabled():
         yield None
         return
     with langsmith.trace(name=f"team-run:{run_id}", run_type="chain", inputs={"requirement": requirement},
                          metadata={"run_id": run_id}) as rt:
+        yield rt
+
+
+def resolve_trace_url(rt: RunTree | None, timeout_s: float | None = None) -> str | None:
+    """The root's URL, or None on failure or after the bounded wait; never raises."""
+    if rt is None:
+        return None
+    result: list[str | None] = [None]
+
+    def lookup() -> None:
         try:
-            url: str | None = rt.get_url()
+            result[0] = rt.get_url()
         except Exception:  # the URL is a convenience; a lookup failure must not fail the run
-            url = None
-        yield url
+            pass
+
+    # A daemon thread, so a hung lookup is abandoned rather than joined at exit
+    worker = threading.Thread(target=lookup, name="trace-url", daemon=True)
+    try:
+        worker.start()
+        worker.join(TRACE_URL_TIMEOUT_S if timeout_s is None else timeout_s)
+    except Exception:
+        return None
+    return None if worker.is_alive() else result[0]
 
 
 def span_metadata(agent: str, calls: list[CallRecord], tools: list[ToolRecord], duration_ms: float) -> dict:

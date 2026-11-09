@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 from collections.abc import Callable, Iterator
@@ -18,7 +19,7 @@ from agents.qa_agent import QAAgent, canonical_suite_path
 from observability.context import RunContext, run_scope
 from observability.costs import build_cost_report, write_cost_report
 from observability.logs import log_event, redact, run_log_file
-from observability.tracing import root_trace
+from observability.tracing import resolve_trace_url, root_trace
 from orchestration.a2a import CODER_ACCEPTS, QA_ACCEPTS, Broker
 from orchestration.project_state import initial_project_state, state_to_jsonable
 from orchestration.team_graph import TeamDeps, build_team_graph, team_recursion_limit
@@ -79,15 +80,14 @@ class TeamRunner:
             values: dict = {}
             outcome: str | None = None
             error: dict | None = None
+            trace = None  # the root run tree while tracing; its URL is resolved once, at run end
+            trace_resolved = False
             # run_log_file inside run_scope, so events.jsonl keeps only this run's records
             with run_scope(ctx), run_log_file(run_dir / "events.jsonl"):
                 try:
                     log_event("run_start", requirement_chars=len(requirement),
                               models={r: s.model_for(r) for r in ROLES})
-                    with root_trace(run_id, requirement) as trace_url:
-                        ctx.trace_url = trace_url
-                        if trace_url:
-                            log_event("trace", url=trace_url)
+                    with root_trace(run_id, requirement) as trace:
                         (run_dir / "requirement.txt").write_text(requirement)
                         # The capability advertisements open the A2A log (spec §5)
                         self._append_a2a(_capabilities("coder", CODER_ACCEPTS))
@@ -122,6 +122,9 @@ class TeamRunner:
                         state = state_to_jsonable(values)
                         for name in pending:  # defensive: the graph always ends with a values chunk
                             self._write_json(name, state)
+                        # Inside the root, after the graph: the root run is posted by now, and the wait is bounded
+                        trace_resolved = True
+                        self._resolve_trace(ctx, trace)
 
                         # Still under the lock, so the checks and the evidence describe the same workspace
                         api: dict | None = None
@@ -149,6 +152,9 @@ class TeamRunner:
                                          state_to_jsonable(values or initial_project_state(requirement)))
                     raise
                 finally:
+                    if trace is not None and not trace_resolved:  # aborted: still try, bounded, never raising
+                        with contextlib.suppress(Exception):
+                            self._resolve_trace(ctx, trace)
                     report = build_cost_report(
                         run_id=run_id, started_at=started, finished_at=_now(), requirement=requirement,
                         outcome=outcome or "aborted", models={r: s.model_for(r) for r in ROLES},
@@ -161,6 +167,12 @@ class TeamRunner:
                     self.cost_report_path = next((p for p in (docs_copy, run_copy) if p in written), None)
                     log_event("run_end", outcome=report["outcome"], cost_usd=report["total"]["cost_usd"],
                               report=str(self.cost_report_path))
+
+    @staticmethod
+    def _resolve_trace(ctx: RunContext, trace) -> None:
+        ctx.trace_url = resolve_trace_url(trace)
+        if ctx.trace_url:
+            log_event("trace", url=ctx.trace_url)
 
     def _on_custom(self, event: TeamEvent) -> None:
         """Evidence from in-node events: A2A records, reflections and QA rounds."""
