@@ -8,6 +8,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -21,6 +22,7 @@ from pydantic import BaseModel
 from agents.config import Settings
 from agents.model import make_model, resilient
 from agents.prompts import QA_CHECK_PROMPT, QA_FIX_PROMPT, QA_TESTS_PROMPT
+from observability.logs import error_class, log_event
 from orchestration.a2a import ReviewRequest
 from orchestration.handoff import qa_test_file
 from orchestration.project_state import Task, TaskHandoff
@@ -370,7 +372,8 @@ class QAAgent:
                 SystemMessage(QA_FIX_PROMPT), HumanMessage(f"Code:\n{code}\n\nFailures:\n{failures}")])
             plan = out.get("parsed") if out.get("parsing_error") is None else None
             by_test = {f.test: f.fix for f in plan.fixes if f.fix.strip()} if plan else {}
-        except Exception:
+        except Exception as e:  # keep the fallback fixes, but say so
+            log_event("qa_fix_plan_fallback", level=logging.WARNING, error_class=error_class(e), message=str(e))
             return issues
         return [i.model_copy(update={"fix": by_test[i.test]}) if i.test in by_test else i for i in issues]
 
@@ -405,7 +408,8 @@ class QAAgent:
                 HumanMessage(f"Task {handoff.task_id}: {handoff.title}\n\nAcceptance criteria:\n{criteria}\n\n"
                              f"Failing tests:\n{tests}\n\nCode:\n{code}")])
             audit = out.get("parsed") if out.get("parsing_error") is None else None
-        except Exception:
+        except Exception as e:  # keep the suite unchanged, but say so
+            log_event("qa_audit_fallback", level=logging.WARNING, error_class=error_class(e), message=str(e))
             return suite, []
         wrong = {v.test: v for v in (audit.verdicts if audit else [])
                  if v.test_is_wrong and v.test in source and v.corrected.strip()}

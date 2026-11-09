@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
@@ -10,6 +11,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from agents.config import Settings
 from agents.model import make_model, resilient
 from agents.prompts import PM_CONSOLIDATE_PROMPT, PM_SYSTEM_PROMPT
+from observability.logs import error_class, log_event
 from orchestration.consolidation import MergePlan, build_merged, deterministic_merge, validate_merge
 from orchestration.project_state import MAX_TASKS, Consolidation, Spec, Task
 
@@ -60,6 +62,6 @@ class PMAgent:
             plan = out.get("parsed")
             if out.get("parsing_error") is None and plan is not None and not validate_merge(spec, plan, max_tasks):
                 return build_merged(spec, plan.groups, "llm")
-        except Exception:
-            pass
+        except Exception as e:  # the deterministic merge is the safe answer, but say so
+            log_event("pm_consolidation_fallback", level=logging.WARNING, error_class=error_class(e), message=str(e))
         return deterministic_merge(spec, max_tasks)

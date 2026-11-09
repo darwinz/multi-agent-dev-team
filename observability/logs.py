@@ -65,6 +65,11 @@ def configure_logging(level: str = "INFO") -> None:
         logger.addHandler(handler)
 
 
+def error_class(e: BaseException) -> str:
+    """The class name of what actually failed: resilience wrappers (AgentError) carry the original."""
+    return type(getattr(e, "original", None) or e).__name__
+
+
 def log_event(event: str, *, level: int = logging.INFO, **fields) -> None:
     run = current_run()
     clean = {k: redact(v) if isinstance(v, str) else v for k, v in fields.items()}
