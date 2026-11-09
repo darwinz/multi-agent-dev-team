@@ -1,0 +1,26 @@
+{
+  "task_id": "T1",
+  "round": 1,
+  "test_file": "test_qa_t1.py",
+  "suite_sha": "",
+  "suites_run": {},
+  "tested_files": {
+    "linked_list.py": "84f95d9c78438262b227fe6233220a493d4985a4cfdd189bb3e0d3787921e9cc",
+    "test_linked_list.py": "6ba303d63be2d72d02d080e8c504443e0eed26e5b13fd42ed9bcb924ba20b110"
+  },
+  "tests_run": 0,
+  "passed": 0,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [],
+  "exit_code": null,
+  "timed_out": false,
+  "duration_s": 0.0,
+  "results": [],
+  "issues": [],
+  "tampered": false,
+  "qa_error": "QA produced an invalid test suite twice: manifest test test_nope is not a top-level def test_* in the module; test test_push_then_pop is not in the manifest; map it to a criterion or remove it; test test_pop_returns_last is not in the manifest; map it to a criterion or remove it; criterion 2 has no test; criterion 3 has no test; criterion 4 has no test",
+  "test_corrections": [],
+  "approved": false
+}

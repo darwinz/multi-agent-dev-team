@@ -14,6 +14,7 @@ from orchestration.a2a import ReviewRequest
 from orchestration.project_state import Task, TaskHandoff
 from orchestration.review import QAReport, QATestSuite, TestCorrection
 from tests.fakes import ScriptedChatModel, audit_response, fix_plan_response, qa_agent, qa_suite_response
+from tests.scenarios import STACK_TESTS
 from tools.workspace import ToolError, sha256_file
 
 CRITERIA = ["push adds an item that pop can return", "pop returns the most recently pushed item"]
@@ -46,22 +47,6 @@ class Stack:
             pass
 """
 
-STACK_TESTS = """\
-from stack import Stack
-
-
-def test_push_then_pop():
-    s = Stack()
-    s.push(1)
-    assert s.pop() == 1
-
-
-def test_pop_returns_last():
-    s = Stack()
-    s.push(1)
-    s.push(2)
-    assert s.pop() == 2
-"""
 STACK_MAP = (("test_push_then_pop", 1), ("test_pop_returns_last", 2))
 
 COUNTER = "def count(xs):\n    return len(xs)\n"

@@ -28,6 +28,25 @@ from tests.fakes import (
     tool_call,
 )
 
+# A passing QA suite for a tiny Stack module (shared by the QA agent tests and the invalid-output probe)
+STACK_TESTS = """\
+from stack import Stack
+
+
+def test_push_then_pop():
+    s = Stack()
+    s.push(1)
+    assert s.pop() == 1
+
+
+def test_pop_returns_last():
+    s = Stack()
+    s.push(1)
+    s.push(2)
+    assert s.pop() == 2
+"""
+
+
 LL_CRITERIA = [
     "insert(value) appends value to the end of the list",
     "delete(value) removes the first node holding value and returns True, or returns False if it is absent",
