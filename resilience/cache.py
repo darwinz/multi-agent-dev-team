@@ -29,6 +29,12 @@ def _strip_volatile(d: dict) -> dict:
     for f in ("tool_calls", "invalid_tool_calls"):
         if isinstance(data.get(f), list):
             data[f] = [{k: v for k, v in tc.items() if k != "id"} for tc in data[f]]
+    if isinstance(data.get("content"), list):
+        drop = {"tool_use": "id", "tool_result": "tool_use_id"}
+        data["content"] = [
+            {k: v for k, v in b.items() if k != drop[b["type"]]}
+            if isinstance(b, dict) and b.get("type") in drop else b
+            for b in data["content"]]
     ak = data.get("additional_kwargs")
     if isinstance(ak, dict) and isinstance(ak.get("tool_calls"), list):
         data["additional_kwargs"] = {**ak, "tool_calls": [

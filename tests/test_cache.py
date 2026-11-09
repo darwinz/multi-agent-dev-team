@@ -143,3 +143,18 @@ def test_unserializable_bound_object_raises(tmp_path):
     import pytest
     with pytest.raises(TypeError):
         ResponseCache(tmp_path, ttl_s=60).key("m", [], {"x": object()}, None)
+
+
+def test_key_ignores_tool_use_ids_in_list_content(tmp_path):
+    c = ResponseCache(tmp_path, ttl_s=60)
+
+    def msgs(tid, inp):
+        return [AIMessage([{"type": "text", "text": "go"},
+                           {"type": "tool_use", "id": tid, "name": "Spec", "input": inp}]),
+                ToolMessage([{"type": "tool_result", "tool_use_id": tid, "content": "ok"}],
+                            tool_call_id=tid)]
+
+    a = msgs("toolu_1", {"a": 1})
+    assert c.key("m", a, {}, None) == c.key("m", msgs("toolu_2", {"a": 1}), {}, None)
+    assert c.key("m", a, {}, None) != c.key("m", msgs("toolu_1", {"a": 2}), {}, None)
+    assert a[0].content[1]["id"] == "toolu_1"  # inputs not mutated
