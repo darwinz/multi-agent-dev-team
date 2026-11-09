@@ -145,6 +145,24 @@ def test_qa_max_iterations_flag_reaches_settings(tmp_path, monkeypatch):
     assert [s.qa_max_iterations for s in built] == [2, 4]
 
 
+def test_logging_configured_before_runner_is_built(tmp_path, monkeypatch):
+    """TeamRunner's startup (Chroma connection retries) already logs: those lines must be JSON too."""
+    monkeypatch.setenv("CODER_PROJECT_DIR", str(tmp_path))
+    order = []
+
+    class FakeRunner:
+        def __init__(self, settings):
+            order.append("runner")
+
+        def reset_memory(self):
+            pass
+
+    monkeypatch.setattr(team_cli, "TeamRunner", FakeRunner)
+    monkeypatch.setattr(team_cli, "configure_logging", lambda level: order.append("logging"))
+    assert main(["--reset-memory"]) == 0
+    assert order[:2] == ["logging", "runner"]
+
+
 def app_scripts(path: str) -> list:
     """A Coder delivery that writes a FastAPI app at `path` plus the palindrome module, then finishes."""
     return [

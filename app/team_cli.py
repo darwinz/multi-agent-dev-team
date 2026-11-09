@@ -128,6 +128,7 @@ def main(argv: list[str] | None = None, *, runner: TeamRunner | None = None) -> 
                 if reason := provider_prerequisite(model):
                     err.print(f"team: cannot run: {reason}", markup=False)
                     return 2
+        configure_logging(settings.log_level)  # first: TeamRunner's startup (Chroma retries) already logs
         try:
             runner = TeamRunner(settings)
         except MemoryUnavailableError as e:  # CHROMA_HOST set but the server is down: say so, no traceback
@@ -135,7 +136,7 @@ def main(argv: list[str] | None = None, *, runner: TeamRunner | None = None) -> 
             return 2
     else:
         settings = runner.settings
-    configure_logging(settings.log_level)
+    configure_logging(settings.log_level)  # idempotent: a no-op when already configured above
 
     try:
         if args.reset_memory:
