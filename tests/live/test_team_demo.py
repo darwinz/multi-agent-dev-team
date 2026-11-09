@@ -1,15 +1,18 @@
 """Live team demos: the real PM, Coder and QA on the published API task, a requirement that forces
-consolidation, and the linked-list grading task."""
+consolidation, the linked-list grading task, and the BST grading task against the supplied fixture."""
 
 import json
+import subprocess
+import sys
 
 import pytest
 
 from app.api_check import check_api, find_app
-from app.demo_check import check_linked_list
-from app.team_cli import DEMO_API, DEMO_LARGE, DEMO_LINKED_LIST
+from app.demo_check import FIXTURE_PATH, check_bst, check_linked_list
+from app.team_cli import DEMO_API, DEMO_BST, DEMO_LARGE, DEMO_LINKED_LIST
 from orchestration.project_state import MAX_TASKS
 from orchestration.team_runner import TeamRunner
+from tools.exec_python import child_env
 
 pytestmark = pytest.mark.live
 
@@ -59,3 +62,24 @@ def test_demo_linked_list_end_to_end(live_settings):
 
     unreflected = [t for t, rec in state["task_status"].items() if not rec["reflected"]]
     assert state["task_status"] and not unreflected, f"tasks without a reflection: {unreflected}"
+
+
+def test_bst_demo_passes_supplied_fixture(live_settings, tmp_path):
+    runner = TeamRunner(live_settings)
+    runner.reset_memory()
+    final = None
+    for event in runner.stream(DEMO_BST, demo_check=check_bst):
+        if event.kind == "final":
+            final = event.data
+    assert final is not None, "the run never produced a final event"
+    state = final["state"]
+    assert state["status"] == "completed", state.get("error") or state["task_status"]
+    demo = final["demo_check"]
+    assert demo is not None and demo["passed"], demo and demo["report"]
+
+    # The generated module itself, imported and run against the supplied fixture: not just report text
+    ws = live_settings.workspace_dir
+    out = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--noconftest",
+                          str(FIXTURE_PATH)], cwd=ws, env={**child_env(tmp_path), "PYTHONPATH": str(ws)},
+                         capture_output=True, text=True, timeout=60)
+    assert out.returncode == 0, out.stdout[-2000:] + out.stderr[-2000:]

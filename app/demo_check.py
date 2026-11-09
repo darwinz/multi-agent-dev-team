@@ -1,13 +1,25 @@
-"""The linked-list grading demo's check (spec §11): judged from the run's final state, never the workspace."""
+"""The grading demos' checks. linked-list (spec §11): judged from the run's final state, never the
+workspace. bst (spec §5.8): the supplied fixture run against the generated module, plus QA's coverage."""
 
 from __future__ import annotations
 
 import ast
+import re
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
+from orchestration.handoff import qa_test_file
 from orchestration.project_state import state_to_jsonable
+from tools.exec_python import child_env
 
 METHODS = ("insert", "delete", "search", "reverse")
+
+# The BST demo's grading contract, kept with the tests (spec §5.8)
+FIXTURE_PATH = Path(__file__).parents[1] / "tests/fixtures/bst_fixture.py"
+FIXTURE_TIMEOUT_S = 60
+_TAIL_LINES = 8
 
 
 def _line(ok: bool, what: str, detail: str) -> str:
@@ -102,3 +114,76 @@ def check_linked_list(workspace: Path, state: dict) -> tuple[bool, str]:
     state = state_to_jsonable(state)
     results = [_approved_line(state), _methods_line(state), _regression_line(state)]
     return all(ok for ok, _ in results), "\n".join(line for _, line in results)
+
+
+def _tail(text: str) -> str:
+    """The last few non-empty output lines on one line, so the report stays one line per check."""
+    text = re.sub(r"\S*bst_fixture\.py", "bst_fixture.py", text)  # node ids without the long relative path
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip() and not ln.strip().startswith("=")]
+    tail = " | ".join(lines[-_TAIL_LINES:]) or "no output"
+    return tail if len(tail) <= 600 else "..." + tail[-597:]
+
+
+def _run(args: list[str], cwd: Path, workspace: Path, tmp: Path, **env: str) -> subprocess.CompletedProcess:
+    """A pytest subprocess on the generated module: allowlisted env (no secrets), workspace importable."""
+    return subprocess.run(args, cwd=cwd, env={**child_env(tmp), "PYTHONPATH": str(workspace), **env},
+                          capture_output=True, text=True, timeout=FIXTURE_TIMEOUT_S)
+
+
+def _fixture_line(workspace: Path, tmp: Path) -> tuple[bool, str]:
+    what = "supplied BST fixture"
+    if not workspace.is_dir():
+        return False, _line(False, what, f"no workspace at {workspace}")
+    # --noconftest: neither a workspace conftest.py nor the repo's test conftest can reshape the run
+    args = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--noconftest", str(FIXTURE_PATH)]
+    try:
+        out = _run(args, workspace, workspace, tmp)
+    except subprocess.TimeoutExpired:
+        return False, _line(False, what, f"timed out after {FIXTURE_TIMEOUT_S} s")
+    ok = out.returncode == 0
+    return ok, _line(ok, what, f"exit {out.returncode}: {_tail(out.stdout + out.stderr)}")
+
+
+def _coverage(workspace: Path, state: dict, tmp: Path) -> str:
+    """bst.py's line coverage under the run's canonical QA suites (the approved ones in `state`, never the
+    workspace copies), e.g. "87%", or "n/a (<reason>)"."""
+    suites = state.get("approved_suites") or {}
+    if not suites:
+        return "n/a (no approved QA suites)"
+    if not (workspace / "bst.py").is_file():
+        return "n/a (no bst.py in the workspace)"
+    run_dir = tmp / "coverage"
+    run_dir.mkdir()
+    files = []
+    for task_id, suite in sorted(suites.items()):
+        files.append(run_dir / qa_test_file(task_id))
+        files[-1].write_text(suite["content"], encoding="utf-8")
+    ini = run_dir / "pytest.ini"
+    ini.write_text("[pytest]\n", encoding="utf-8")
+    args = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--noconftest", "-c", str(ini),
+            f"--rootdir={run_dir}", "--cov=bst", "--cov-report=term", *map(str, files)]
+    try:
+        out = _run(args, run_dir, workspace, tmp, COVERAGE_FILE=str(run_dir / ".coverage"))
+    except subprocess.TimeoutExpired:
+        return f"n/a (QA's suites timed out after {FIXTURE_TIMEOUT_S} s)"
+    for line in out.stdout.splitlines():
+        cols = line.split()
+        if cols and Path(cols[0]).name == "bst.py" and cols[-1].endswith("%"):
+            return cols[-1] if out.returncode == 0 else f"{cols[-1]} (QA's suites exited {out.returncode})"
+    return f"n/a (no bst.py line in the coverage report; pytest exit {out.returncode})"
+
+
+def check_bst(workspace: Path, state: dict) -> tuple[bool, str]:
+    """The BST demo: every task approved with QA tests run, and the supplied fixture passes against the
+    workspace's bst.py. A third line reports bst.py's coverage under QA's tests; it is never gated."""
+    state = state_to_jsonable(state)
+    workspace = Path(workspace)
+    with tempfile.TemporaryDirectory(prefix="bst-check-") as name:
+        tmp = Path(name)
+        results = [_approved_line(state), _fixture_line(workspace, tmp)]
+        try:
+            coverage = _coverage(workspace, state, tmp)
+        except Exception as e:  # reported, not gated: a measurement problem never fails or crashes the check
+            coverage = f"n/a ({type(e).__name__}: {e})"
+    lines = [line for _, line in results] + [f"coverage of bst.py under QA's tests: {coverage} (reported, not gated)"]
+    return all(ok for ok, _ in results), "\n".join(lines)

@@ -5,7 +5,7 @@ import pytest
 from agents.config import Settings
 from app import team_cli
 from app.api_check import CheckResult
-from app.team_cli import DEMO_API, DEMO_LARGE, DEMO_LINKED_LIST, main
+from app.team_cli import DEMO_API, DEMO_BST, DEMO_LARGE, DEMO_LINKED_LIST, main
 from orchestration.project_state import Spec
 from orchestration.team_runner import TeamRunner
 from tests.fakes import (
@@ -20,7 +20,15 @@ from tests.fakes import (
     task_scripts,
     tool_call,
 )
-from tests.scenarios import feedback_scripts, nonconverging_scripts, passing_scripts, scripted_runner
+from tests.scenarios import (
+    QA_BST_MANIFEST,
+    bst_scripts,
+    coder_run,
+    feedback_scripts,
+    nonconverging_scripts,
+    passing_scripts,
+    scripted_runner,
+)
 from tools.workspace import RunLock
 
 
@@ -210,6 +218,47 @@ def test_demo_linked_list_nonconverging_exits_1(settings, monkeypatch):
     assert main(["--demo", "linked-list"], runner=r) == 1
     assert r.final_state["status"] == "partial"
     assert (r.run_dir / "demo-check.txt").read_text().startswith("FAIL")
+
+
+def test_demo_bst_run_passes_supplied_fixture(settings, capsys):
+    r = scripted_runner(settings, bst_scripts())
+    assert main(["--demo", "bst"], runner=r) == 0
+    assert (r.run_dir / "requirement.txt").read_text() == DEMO_BST
+    report = (r.run_dir / "demo-check.txt").read_text()
+    assert "PASS supplied BST fixture" in report
+    assert "BST fixture check: PASSED" in capsys.readouterr().out
+
+
+def test_demo_bst_exits_1_when_fixture_fails(settings):
+    # inorder returns insertion order; QA's weak suite only inserts ascending values, so QA approves
+    # and the run completes, but the supplied fixture's random-order case fails the demo
+    unsorted = ("class BinarySearchTree:\n    def __init__(self):\n        self.items = []\n\n"
+                "    def insert(self, value):\n        if value not in self.items:\n            self.items.append(value)\n\n"
+                "    def search(self, value):\n        return value in self.items\n\n"
+                "    def inorder(self):\n        return list(self.items)\n")
+    weak = ("from bst import BinarySearchTree\n\n\ndef make():\n    t = BinarySearchTree()\n"
+            "    for v in (1, 2, 2, 3):\n        t.insert(v)\n    return t\n\n\n"
+            "def test_insert():\n    assert BinarySearchTree().insert(1) is None\n\n\n"
+            "def test_search():\n    assert make().search(2) and not make().search(9)\n\n\n"
+            "def test_inorder():\n    assert make().inorder() == [1, 2, 3]\n\n\n"
+            "def test_duplicates():\n    assert len(make().inorder()) == 3\n")
+    pm, _, _ = bst_scripts()
+    coder = [*coder_run({"bst.py": unsorted}, "bst.py", "BST"),
+             critique_response(("edge_case", "bst.py", "no docs", "add a docstring")),
+             *coder_run({"bst.py": '"""BST."""\n' + unsorted}, "bst.py", "Documented")]
+    r = scripted_runner(settings, (pm, coder, [qa_suite_response(weak, QA_BST_MANIFEST)]))
+    assert main(["--demo", "bst"], runner=r) == 1
+    assert r.final_state["status"] == "completed"
+    assert (r.run_dir / "demo-check.txt").read_text().splitlines()[1].startswith("FAIL supplied BST fixture")
+
+
+def test_demo_bst_text():
+    assert DEMO_BST.startswith("Build a Python module that implements a binary search tree with insert, search, "
+                               "and in-order traversal methods, with full test coverage.\n\n"
+                               "Interface (the supplied fixture's contract): ")
+    for needle in ("bst.py", "BinarySearchTree", "insert(value) -> None", "search(value) -> bool",
+                   "inorder() -> list", "ascending", "duplicate", "mutually comparable"):
+        assert needle in DEMO_BST
 
 
 def test_demo_api_text():
