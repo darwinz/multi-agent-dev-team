@@ -1,0 +1,23 @@
+{"name": "llm.pm", "attempt": 1, "error_class": "RateLimited", "ts": "2026-11-09T08:45:54.857161+00:00", "level": "WARNING", "run_id": "breaker", "agent": null, "event": "retry_exhausted"}
+{"step": "cycle 1 failure 1", "outcome": "transient_failure", "ts": "2026-11-09T08:45:54.857382+00:00", "level": "INFO", "run_id": "breaker", "agent": null, "event": "scenario_step"}
+{"name": "llm.pm", "attempt": 1, "error_class": "RateLimited", "ts": "2026-11-09T08:45:54.857675+00:00", "level": "WARNING", "run_id": "breaker", "agent": null, "event": "retry_exhausted"}
+{"step": "cycle 1 failure 2", "outcome": "transient_failure", "ts": "2026-11-09T08:45:54.857868+00:00", "level": "INFO", "run_id": "breaker", "agent": null, "event": "scenario_step"}
+{"name": "llm.pm", "attempt": 1, "error_class": "RateLimited", "ts": "2026-11-09T08:45:54.858130+00:00", "level": "WARNING", "run_id": "breaker", "agent": null, "event": "retry_exhausted"}
+{"breaker": "pm", "from_state": "closed", "to_state": "open", "failures": 3, "ts": "2026-11-09T08:45:54.858364+00:00", "level": "WARNING", "run_id": "breaker", "agent": null, "event": "breaker_transition"}
+{"step": "cycle 1 failure 3", "outcome": "transient_failure", "ts": "2026-11-09T08:45:54.858549+00:00", "level": "INFO", "run_id": "breaker", "agent": null, "event": "scenario_step"}
+{"step": "cycle 1 call while open", "note": "breaker open: the model was not called", "ts": "2026-11-09T08:45:54.858808+00:00", "level": "INFO", "run_id": "breaker", "agent": null, "event": "call_blocked"}
+{"breaker": "pm", "from_state": "open", "to_state": "half_open", "failures": 3, "ts": "2026-11-09T08:45:55.112740+00:00", "level": "WARNING", "run_id": "breaker", "agent": null, "event": "breaker_transition"}
+{"breaker": "pm", "from_state": "half_open", "to_state": "closed", "failures": 0, "ts": "2026-11-09T08:45:55.113026+00:00", "level": "WARNING", "run_id": "breaker", "agent": null, "event": "breaker_transition"}
+{"role": "pm", "model": "anthropic:claude-sonnet-5-5", "prompt_tokens": 0, "completion_tokens": 0, "cache_read_tokens": 0, "cache_write_tokens": 0, "cost_usd": 0.0, "cache_hit": false, "duration_ms": 0.5313749425113201, "attempts": 1, "ts": "2026-11-09T08:45:55.113220+00:00", "level": "INFO", "run_id": "breaker", "agent": null, "event": "llm_call"}
+{"step": "cycle 1 probe (succeeds)", "outcome": "ok", "ts": "2026-11-09T08:45:55.113407+00:00", "level": "INFO", "run_id": "breaker", "agent": null, "event": "scenario_step"}
+{"name": "llm.pm", "attempt": 1, "error_class": "RateLimited", "ts": "2026-11-09T08:45:55.113660+00:00", "level": "WARNING", "run_id": "breaker", "agent": null, "event": "retry_exhausted"}
+{"step": "cycle 2 failure 1", "outcome": "transient_failure", "ts": "2026-11-09T08:45:55.113826+00:00", "level": "INFO", "run_id": "breaker", "agent": null, "event": "scenario_step"}
+{"name": "llm.pm", "attempt": 1, "error_class": "RateLimited", "ts": "2026-11-09T08:45:55.114046+00:00", "level": "WARNING", "run_id": "breaker", "agent": null, "event": "retry_exhausted"}
+{"step": "cycle 2 failure 2", "outcome": "transient_failure", "ts": "2026-11-09T08:45:55.114204+00:00", "level": "INFO", "run_id": "breaker", "agent": null, "event": "scenario_step"}
+{"name": "llm.pm", "attempt": 1, "error_class": "RateLimited", "ts": "2026-11-09T08:45:55.114413+00:00", "level": "WARNING", "run_id": "breaker", "agent": null, "event": "retry_exhausted"}
+{"breaker": "pm", "from_state": "closed", "to_state": "open", "failures": 3, "ts": "2026-11-09T08:45:55.114613+00:00", "level": "WARNING", "run_id": "breaker", "agent": null, "event": "breaker_transition"}
+{"step": "cycle 2 failure 3", "outcome": "transient_failure", "ts": "2026-11-09T08:45:55.114774+00:00", "level": "INFO", "run_id": "breaker", "agent": null, "event": "scenario_step"}
+{"breaker": "pm", "from_state": "open", "to_state": "half_open", "failures": 3, "ts": "2026-11-09T08:45:55.371173+00:00", "level": "WARNING", "run_id": "breaker", "agent": null, "event": "breaker_transition"}
+{"name": "llm.pm", "attempt": 1, "error_class": "RateLimited", "ts": "2026-11-09T08:45:55.371453+00:00", "level": "WARNING", "run_id": "breaker", "agent": null, "event": "retry_exhausted"}
+{"breaker": "pm", "from_state": "half_open", "to_state": "open", "failures": 4, "ts": "2026-11-09T08:45:55.371850+00:00", "level": "WARNING", "run_id": "breaker", "agent": null, "event": "breaker_transition"}
+{"step": "cycle 2 probe (fails)", "outcome": "transient_failure", "ts": "2026-11-09T08:45:55.372169+00:00", "level": "INFO", "run_id": "breaker", "agent": null, "event": "scenario_step"}

@@ -1,0 +1,57 @@
+{
+  "run_id": "c41f1847f2a2",
+  "started_at": "2026-11-09T08:45:54.708958+00:00",
+  "finished_at": "2026-11-09T08:45:54.849518+00:00",
+  "requirement": "Build a linked list",
+  "outcome": "failed",
+  "error": null,
+  "models": {
+    "pm": "anthropic:claude-sonnet-5-5",
+    "coder": "scripted",
+    "qa": "anthropic:claude-haiku-5-5"
+  },
+  "pricing": {
+    "as_of": "2026-11-08"
+  },
+  "trace_url": null,
+  "calls": [],
+  "agents": {
+    "pm": {
+      "calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cache_hits": 0,
+      "cost_usd": 0
+    },
+    "coder": {
+      "calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cache_hits": 0,
+      "cost_usd": 0
+    },
+    "qa": {
+      "calls": 0,
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "cache_read_tokens": 0,
+      "cache_write_tokens": 0,
+      "cache_hits": 0,
+      "cost_usd": 0
+    }
+  },
+  "total": {
+    "calls": 0,
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "cache_read_tokens": 0,
+    "cache_write_tokens": 0,
+    "cache_hits": 0,
+    "cost_usd": 0
+  },
+  "unpriced_models": []
+}
