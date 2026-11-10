@@ -160,8 +160,9 @@ def _later_tasks(later: Sequence[Task]) -> str:
 
 _TEST_CRITERION_HINT = (
     "If a criterion is about the tests themselves (for example \"tests pass with pytest\"), cover it "
-    "with a test that runs the delivered test module with subprocess.run([sys.executable, \"-m\", \"pytest\", "
-    "<file>]) and asserts the return code is 0")
+    "with one short test that runs the Coder's delivered test file by its exact name (never your own "
+    "test_qa_*.py or __file__) with subprocess.run([sys.executable, \"-m\", \"pytest\", \"-q\", \"-p\", "
+    "\"no:cacheprovider\", <file>], cwd=<the test's own directory>, timeout=5) and asserts the return code is 0")
 
 
 def _explain_uncovered(problems: list[str], criteria: Sequence[str]) -> list[str]:
@@ -172,7 +173,7 @@ def _explain_uncovered(problems: list[str], criteria: Sequence[str]) -> list[str
     for n, text in enumerate(criteria, 1):
         bare = f"criterion {n} has no test"
         if bare in out:
-            out[out.index(bare)] = f'criterion {n} ("{text}") has no test'
+            out[out.index(bare)] = f"criterion {n} ({' '.join(text.split())!r}) has no test"
             uncovered = True
     return [*out, _TEST_CRITERION_HINT] if uncovered else out
 

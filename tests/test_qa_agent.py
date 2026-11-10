@@ -158,8 +158,8 @@ def test_uncovered_criterion_retry_quotes_it_and_explains_test_criteria(settings
     agent = qa_agent(settings, bad, qa_suite_response(STACK_TESTS, STACK_MAP))
     report, suite = agent.review(handoff(), request(files), 1, None, {})
     retry = str(agent.model.inner.calls[1][-1].content)
-    assert f'criterion 2 ("{CRITERIA[1]}") has no test' in retry
-    assert "about the tests themselves" in retry and "sys.executable, \"-m\", \"pytest\"" in retry
+    assert f"criterion 2 ({CRITERIA[1]!r}) has no test" in retry and "criterion 2 has no test" not in retry
+    assert "about the tests themselves" in retry and "never your own test_qa_*.py" in retry
     assert suite is not None and report.approved is True
 
 
