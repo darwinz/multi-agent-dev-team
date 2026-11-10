@@ -5,7 +5,7 @@ import pytest
 from agents.config import Settings
 from app import team_cli
 from app.api_check import CheckResult
-from app.team_cli import DEMO_API, DEMO_LARGE, DEMO_LINKED_LIST, main
+from app.team_cli import DEMO_API, DEMO_BST, DEMO_LARGE, DEMO_LINKED_LIST, main
 from orchestration.project_state import Spec
 from orchestration.team_runner import TeamRunner
 from tests.fakes import (
@@ -20,7 +20,15 @@ from tests.fakes import (
     task_scripts,
     tool_call,
 )
-from tests.scenarios import feedback_scripts, nonconverging_scripts, scripted_runner
+from tests.scenarios import (
+    QA_BST_MANIFEST,
+    bst_scripts,
+    coder_run,
+    feedback_scripts,
+    nonconverging_scripts,
+    passing_scripts,
+    scripted_runner,
+)
 from tools.workspace import RunLock
 
 
@@ -137,6 +145,24 @@ def test_qa_max_iterations_flag_reaches_settings(tmp_path, monkeypatch):
     assert [s.qa_max_iterations for s in built] == [2, 4]
 
 
+def test_logging_configured_before_runner_is_built(tmp_path, monkeypatch):
+    """TeamRunner's startup (Chroma connection retries) already logs: those lines must be JSON too."""
+    monkeypatch.setenv("CODER_PROJECT_DIR", str(tmp_path))
+    order = []
+
+    class FakeRunner:
+        def __init__(self, settings):
+            order.append("runner")
+
+        def reset_memory(self):
+            pass
+
+    monkeypatch.setattr(team_cli, "TeamRunner", FakeRunner)
+    monkeypatch.setattr(team_cli, "configure_logging", lambda level: order.append("logging"))
+    assert main(["--reset-memory"]) == 0
+    assert order[:2] == ["logging", "runner"]
+
+
 def app_scripts(path: str) -> list:
     """A Coder delivery that writes a FastAPI app at `path` plus the palindrome module, then finishes."""
     return [
@@ -212,6 +238,47 @@ def test_demo_linked_list_nonconverging_exits_1(settings, monkeypatch):
     assert (r.run_dir / "demo-check.txt").read_text().startswith("FAIL")
 
 
+def test_demo_bst_run_passes_supplied_fixture(settings, capsys):
+    r = scripted_runner(settings, bst_scripts())
+    assert main(["--demo", "bst"], runner=r) == 0
+    assert (r.run_dir / "requirement.txt").read_text() == DEMO_BST
+    report = (r.run_dir / "demo-check.txt").read_text()
+    assert "PASS supplied BST fixture" in report
+    assert "BST fixture check: PASSED" in capsys.readouterr().out
+
+
+def test_demo_bst_exits_1_when_fixture_fails(settings):
+    # inorder returns insertion order; QA's weak suite only inserts ascending values, so QA approves
+    # and the run completes, but the supplied fixture's random-order case fails the demo
+    unsorted = ("class BinarySearchTree:\n    def __init__(self):\n        self.items = []\n\n"
+                "    def insert(self, value):\n        if value not in self.items:\n            self.items.append(value)\n\n"
+                "    def search(self, value):\n        return value in self.items\n\n"
+                "    def inorder(self):\n        return list(self.items)\n")
+    weak = ("from bst import BinarySearchTree\n\n\ndef make():\n    t = BinarySearchTree()\n"
+            "    for v in (1, 2, 2, 3):\n        t.insert(v)\n    return t\n\n\n"
+            "def test_insert():\n    assert BinarySearchTree().insert(1) is None\n\n\n"
+            "def test_search():\n    assert make().search(2) and not make().search(9)\n\n\n"
+            "def test_inorder():\n    assert make().inorder() == [1, 2, 3]\n\n\n"
+            "def test_duplicates():\n    assert len(make().inorder()) == 3\n")
+    pm, _, _ = bst_scripts()
+    coder = [*coder_run({"bst.py": unsorted}, "bst.py", "BST"),
+             critique_response(("edge_case", "bst.py", "no docs", "add a docstring")),
+             *coder_run({"bst.py": '"""BST."""\n' + unsorted}, "bst.py", "Documented")]
+    r = scripted_runner(settings, (pm, coder, [qa_suite_response(weak, QA_BST_MANIFEST)]))
+    assert main(["--demo", "bst"], runner=r) == 1
+    assert r.final_state["status"] == "completed"
+    assert (r.run_dir / "demo-check.txt").read_text().splitlines()[1].startswith("FAIL supplied BST fixture")
+
+
+def test_demo_bst_text():
+    assert DEMO_BST.startswith("Build a Python module that implements a binary search tree with insert, search, "
+                               "and in-order traversal methods, with full test coverage.\n\n"
+                               "Interface (the supplied fixture's contract): ")
+    for needle in ("bst.py", "BinarySearchTree", "insert(value) -> None", "search(value) -> bool",
+                   "inorder() -> list", "ascending", "duplicate", "mutually comparable"):
+        assert needle in DEMO_BST
+
+
 def test_demo_api_text():
     assert DEMO_API.startswith("Build a REST API with two endpoints: GET /health (returns {status: ok})")
     assert "422" in DEMO_API
@@ -275,3 +342,57 @@ def test_render_a2a_lines():
         "A2A qa rejected review_request #1a2b3c4d from coder: stale",
         "A2A qa → coder final_report #ffffffff round 2 · max_iterations · 1 unresolved",
     ]
+
+
+def test_team_exits_2_when_chroma_unreachable(tmp_path, monkeypatch, capsys):  # Review Focus 3
+    monkeypatch.setenv("CHROMA_HOST", "127.0.0.1")
+    monkeypatch.setenv("CHROMA_PORT", "9")  # discard port: nothing listens, so the connect is refused at once
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    monkeypatch.setenv("CODER_PROJECT_DIR", str(tmp_path))
+    assert team_cli.main(["do x"]) == 2
+    err = capsys.readouterr().err
+    assert "cannot run" in err and "Chroma" in err and "127.0.0.1:9" in err and "Traceback" not in err
+
+
+def test_prints_cost_report_path(settings, capsys):
+    r = two_tasks(settings)
+    assert main(["Build X"], runner=r) == 0
+    out = capsys.readouterr().out.replace("\n", "")
+    assert f"cost report: {r.cost_report_path}" in out
+    assert json.loads(r.cost_report_path.read_text())["outcome"] == "success"
+
+
+def test_team_ctrl_c_exits_130_with_report(tmp_path, monkeypatch, capsys):  # Review Focus 1
+    monkeypatch.setenv("CODER_PROJECT_DIR", str(tmp_path))
+    monkeypatch.delenv("CHROMA_HOST", raising=False)
+    monkeypatch.setattr(team_cli, "provider_prerequisite", lambda model: None)  # scripted models: no key needed
+    built = []
+
+    def offline_runner(settings):  # the real Settings path, but scripted models: no network call is possible
+        runner = scripted_runner(settings, passing_scripts())
+        runner.qa.review = lambda *a, **k: (_ for _ in ()).throw(KeyboardInterrupt())
+        built.append(runner)
+        return runner
+
+    monkeypatch.setattr(team_cli, "TeamRunner", offline_runner)
+    assert main(["Build X"]) == 130
+    err = capsys.readouterr().err
+    assert "interrupted" in err and "Traceback" not in err
+    (runner,) = built
+    report = json.loads(runner.cost_report_path.read_text())
+    assert runner.cost_report_path.parent == tmp_path / "docs" / "cost_reports"
+    assert report["outcome"] == "aborted" and report["error"]["type"] == "KeyboardInterrupt"
+    assert not RunLock.is_running(runner.settings.state_dir)
+
+
+def test_prints_cost_report_unavailable(settings, capsys):
+    r = two_tasks(settings)
+    original = TeamRunner.stream
+
+    def stream(self, *a, **k):  # as if neither copy of the report could be written
+        yield from original(self, *a, **k)
+        self.cost_report_path = None
+
+    r.stream = stream.__get__(r)
+    assert main(["Build X"], runner=r) == 0
+    assert "cost report: unavailable (see events.jsonl)" in capsys.readouterr().out.replace("\n", "")

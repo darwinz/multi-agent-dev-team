@@ -8,6 +8,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -19,15 +20,18 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel
 
 from agents.config import Settings
-from agents.model import make_model
+from agents.model import cut_off, make_model, resilient
 from agents.prompts import QA_CHECK_PROMPT, QA_FIX_PROMPT, QA_TESTS_PROMPT
+from observability.logs import error_class, log_event
 from orchestration.a2a import ReviewRequest
 from orchestration.handoff import qa_test_file
 from orchestration.project_state import Task, TaskHandoff
 from orchestration.review import Issue, QAReport, QATestSuite, TestCorrection, TestOutcome
 from tools.exec_python import ExecOutcome, exec_python
 from tools.file_tools import write_file
+from tools.guarded import guarded_tool
 from tools.junit import CaseResult, parse_junit
+from tools.specs import ARG_MODELS
 from tools.workspace import ToolError, Workspace, sha256_file
 
 MAX_ASSERTION = 500
@@ -154,15 +158,36 @@ def _later_tasks(later: Sequence[Task]) -> str:
     return "\n".join(lines) + "\n\n"
 
 
+_TEST_CRITERION_HINT = (
+    "If a criterion is about the tests themselves (for example \"tests pass with pytest\"), cover it "
+    "with one short test that runs the Coder's delivered test file by its exact name (never your own "
+    "test_qa_*.py or __file__) with subprocess.run([sys.executable, \"-m\", \"pytest\", \"-q\", \"-p\", "
+    "\"no:cacheprovider\", <file>], cwd=<the test's own directory>, timeout=5) and asserts the return code is 0")
+
+
+def _explain_uncovered(problems: list[str], criteria: Sequence[str]) -> list[str]:
+    """Quote each uncovered criterion in the retry ask: a bare number gave the model nothing to act on
+    (live BST runs: a "tests pass with pytest" criterion stayed unmapped on both attempts)."""
+    out = list(problems)
+    uncovered = False
+    for n, text in enumerate(criteria, 1):
+        bare = f"criterion {n} has no test"
+        if bare in out:
+            out[out.index(bare)] = f"criterion {n} ({' '.join(text.split())!r}) has no test"
+            uncovered = True
+    return [*out, _TEST_CRITERION_HINT] if uncovered else out
+
+
 class QAAgent:
     def __init__(self, settings: Settings | None = None, *, model: BaseChatModel | None = None) -> None:
         self.settings = settings or Settings.from_env()
-        self.model = model
+        self.model = resilient(model, self.settings, "qa") if model is not None else None
 
     def _structured(self, schema: type) -> Any:
         if self.model is None:
-            self.model = make_model(self.settings)
-        return self.model.with_structured_output(schema, include_raw=True)
+            self.model = make_model(self.settings, "qa")
+        # suite, fix plan and audit are side-effect free and run-stable: response-cache eligible
+        return self.model.cached().with_structured_output(schema, include_raw=True)
 
     @property
     def _ws(self) -> Workspace:
@@ -195,12 +220,17 @@ class QAAgent:
             except Exception as e:
                 raise QAError(f"QA model call failed: {type(e).__name__}: {e}") from e
             suite = out.get("parsed")
-            if out.get("parsing_error") is not None or suite is None:
+            if cut_off(out.get("raw")):  # the parse error of a truncated reply would mislead the retry
+                problems = ["your reply hit the output-token limit and was cut off before it was complete. "
+                            "Write a shorter suite: fewer, compact tests (pytest.mark.parametrize for "
+                            "similar cases), no long docstrings or comments"]
+            elif out.get("parsing_error") is not None or suite is None:
                 problems = [str(out.get("parsing_error") or "the model returned no structured suite")]
             else:
                 problems = suite.check(len(handoff.acceptance_criteria))
                 if not problems:
                     return suite
+                problems = _explain_uncovered(problems, handoff.acceptance_criteria)
             if attempt == 0:
                 messages.append(HumanMessage(
                     "Your test suite was invalid:\n- " + "\n- ".join(problems)
@@ -215,17 +245,25 @@ class QAAgent:
         ws, shas, tampered = self._ws, {}, False
         for task_id, suite in suites.items():
             content = suite.content
+            path = self._checked_write_args(qa_test_file(task_id), content)
             canonical = canonical_suite_path(self.settings, task_id)
             if not canonical.is_file() or canonical.read_text(encoding="utf-8", errors="replace") != content:
                 tampered = True
                 canonical.parent.mkdir(parents=True, exist_ok=True)
                 canonical.write_text(content, encoding="utf-8")
-            target = ws.root / qa_test_file(task_id)
+            target = ws.resolve(path)
             if not target.is_file() or target.read_text(encoding="utf-8", errors="replace") != content:
                 tampered = True
-            write_file(ws, qa_test_file(task_id), content)
+            guarded_tool("write_file", lambda: write_file(ws, path, content))
             shas[task_id] = _sha(content)
         return shas, tampered
+
+    def _checked_write_args(self, path: str, content: str) -> str:
+        """QA's direct write_file calls get the Coder's argument model plus the workspace check up front
+        (spec §5.7), so a bad path never reaches write_file. Raises ToolError (or ValidationError)."""
+        a = ARG_MODELS["write_file"].model_validate({"path": path, "content": content})
+        self._ws.resolve(a.path)  # WorkspaceError if it escapes the workspace
+        return a.path
 
     def _pytest(self, files: list[str], junit: Path) -> ExecOutcome:
         """One sandboxed pytest call over every suite file. exec_python's pytest mode takes a single
@@ -237,8 +275,11 @@ class QAAgent:
         args = ["-q", "-p", "no:cacheprovider", "-c", str(ini), f"--rootdir={self._ws.root}",
                 "--continue-on-collection-errors", f"--junitxml={junit}", *files]
         code = f"import sys\nimport pytest\n\nsys.exit(int(pytest.main({json.dumps(args)})))\n"
-        return exec_python(self._ws, record_dir=self._qa_dir / "exec", code=code, mode="script",
-                           timeout=self.settings.exec_timeout_s)
+        mode, timeout = "script", self.settings.exec_timeout_s
+        if mode != "script" or not 0 < timeout <= self.settings.exec_timeout_s:
+            raise ToolError(f"QA exec_python needs mode 'script' and 0 < timeout <= {self.settings.exec_timeout_s:g}")
+        return guarded_tool("exec_python", lambda: exec_python(
+            self._ws, record_dir=self._qa_dir / "exec", code=code, mode=mode, timeout=timeout))
 
     def run_suites(self, suites: dict[str, QATestSuite], *, task_id: str, round: int) -> QAReport:
         """Restore every suite from canonical, run them in one pytest call, reconcile with the manifests.
@@ -356,16 +397,18 @@ class QAAgent:
                 SystemMessage(QA_FIX_PROMPT), HumanMessage(f"Code:\n{code}\n\nFailures:\n{failures}")])
             plan = out.get("parsed") if out.get("parsing_error") is None else None
             by_test = {f.test: f.fix for f in plan.fixes if f.fix.strip()} if plan else {}
-        except Exception:
+        except Exception as e:  # keep the fallback fixes, but say so
+            log_event("qa_fix_plan_fallback", level=logging.WARNING, error_class=error_class(e), message=str(e))
             return issues
         return [i.model_copy(update={"fix": by_test[i.test]}) if i.test in by_test else i for i in issues]
 
     def _save_suite(self, task_id: str, suite: QATestSuite) -> None:
         """The canonical copy (replacing any left by an earlier run) and its workspace copy."""
+        path = self._checked_write_args(qa_test_file(task_id), suite.content)
         canonical = canonical_suite_path(self.settings, task_id)
         canonical.parent.mkdir(parents=True, exist_ok=True)
         canonical.write_text(suite.content, encoding="utf-8")
-        write_file(self._ws, qa_test_file(task_id), suite.content)
+        guarded_tool("write_file", lambda: write_file(self._ws, path, suite.content))
 
     def _check_tests(self, handoff: TaskHandoff, suite: QATestSuite, issues: list[Issue],
                      contents: dict[str, str]) -> tuple[QATestSuite, list[TestCorrection]]:
@@ -390,7 +433,8 @@ class QAAgent:
                 HumanMessage(f"Task {handoff.task_id}: {handoff.title}\n\nAcceptance criteria:\n{criteria}\n\n"
                              f"Failing tests:\n{tests}\n\nCode:\n{code}")])
             audit = out.get("parsed") if out.get("parsing_error") is None else None
-        except Exception:
+        except Exception as e:  # keep the suite unchanged, but say so
+            log_event("qa_audit_fallback", level=logging.WARNING, error_class=error_class(e), message=str(e))
             return suite, []
         wrong = {v.test: v for v in (audit.verdicts if audit else [])
                  if v.test_is_wrong and v.test in source and v.corrected.strip()}

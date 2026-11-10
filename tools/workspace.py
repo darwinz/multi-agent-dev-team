@@ -9,6 +9,8 @@ from pathlib import Path, PurePosixPath
 
 from filelock import FileLock, Timeout
 
+KEEP_FILE = ".gitkeep"
+
 
 class ToolError(Exception):
     """A tool call failed; the message is shown to the model as the observation."""
@@ -60,6 +62,8 @@ class Workspace:
 
     def clear(self) -> None:
         for child in self.root.iterdir():
+            if child.name == KEEP_FILE:  # the committed placeholder that keeps the bind-mount dir user-owned
+                continue
             if child.is_dir() and not child.is_symlink():
                 shutil.rmtree(child)
             else:

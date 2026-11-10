@@ -20,6 +20,21 @@ MAX_OUTPUT_CHARS = 8000
 DEFAULT_TIMEOUT_S = 10.0
 _RUNNER = Path(__file__).with_name("_runner.py").resolve()
 _SNIPPETS = ".coder_snippets"
+# The only variables generated code inherits; everything else (API keys, tokens) is dropped
+_ENV_KEEP = (
+    "PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "TEMP", "TMP",
+    "SYSTEMROOT", "COMSPEC", "PYTHONPATH", "VIRTUAL_ENV",
+)
+
+
+def child_env(record_dir: Path | None = None) -> dict[str, str]:
+    """Allowlisted environment for a subprocess that runs model-written code: no secrets."""
+    env = {k: v for k, v in os.environ.items() if k in _ENV_KEEP or k.startswith("LC_")}
+    if record_dir is not None:
+        # Bytecode goes to a cache outside the workspace; the runner drops the workspace's part of it
+        # before importing anything (see _runner.py), so workspace code always compiles from source
+        env["PYTHONPYCACHEPREFIX"] = str(record_dir / "pycache")
+    return env
 
 
 @dataclass(frozen=True)
@@ -126,9 +141,7 @@ def exec_python(
         else {"start_new_session": True}
     )
 
-    # Bytecode goes to a cache outside the workspace; the runner drops the workspace's part of it
-    # before importing anything (see _runner.py), so workspace code always compiles from source
-    env = {**os.environ, "PYTHONPYCACHEPREFIX": str(record_dir / "pycache")}
+    env = child_env(record_dir)
 
     t0 = time.monotonic()
     proc = subprocess.Popen(

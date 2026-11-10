@@ -1,0 +1,59 @@
+{
+  "task_id": "T1",
+  "round": 1,
+  "test_file": "test_qa_t1.py",
+  "suite_sha": "8cfc55646965ea72fb80a82b8e9f86e5ef2ae5713e7212fa54a0636a25dbe4f8",
+  "suites_run": {
+    "T1": "8cfc55646965ea72fb80a82b8e9f86e5ef2ae5713e7212fa54a0636a25dbe4f8"
+  },
+  "tested_files": {
+    "hello.py": "672f9bc984bc45c935292631a5e7bbc60aa89d2cfdd7eb676c08a2f35beb82b4",
+    "test_hello.py": "1035bca33f4840e0b0a5da4c8cc48040c5fd1d56a481504a07c728b2a515b545"
+  },
+  "tests_run": 6,
+  "passed": 6,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [],
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_s": 1.627,
+  "results": [
+    {
+      "name": "test_qa_t1::test_import_prints_nothing",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_main_prints_exact_hello",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_main_takes_no_arguments",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_script_run_exit_code_stdout_stderr",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_script_run_with_extra_args_ignored",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_script_run_single_extra_arg_ignored",
+      "outcome": "passed",
+      "message": ""
+    }
+  ],
+  "issues": [],
+  "tampered": false,
+  "qa_error": null,
+  "test_corrections": [],
+  "approved": true
+}

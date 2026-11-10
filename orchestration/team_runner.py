@@ -2,16 +2,24 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
+import logging
 from collections.abc import Callable, Iterator
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import get_args
 from uuid import uuid4
 
 from agents.coder_agent import CoderAgent
-from agents.config import Settings
+from agents.config import Role, Settings
 from agents.events import TeamEvent
 from agents.pm_agent import PMAgent
 from agents.qa_agent import QAAgent, canonical_suite_path
+from observability.context import RunContext, run_scope
+from observability.costs import build_cost_report, write_cost_report
+from observability.logs import log_event, redact, run_log_file
+from observability.tracing import resolve_trace_url, root_trace
 from orchestration.a2a import CODER_ACCEPTS, QA_ACCEPTS, Broker
 from orchestration.project_state import initial_project_state, state_to_jsonable
 from orchestration.team_graph import TeamDeps, build_team_graph, team_recursion_limit
@@ -21,6 +29,12 @@ ApiCheck = Callable[[Path, list[str]], tuple[bool, str]]  # (workspace, files th
 DemoCheck = Callable[[Path, dict], tuple[bool, str]]  # (workspace, final state as JSON)
 
 A2A_LOG = "a2a-log.jsonl"
+ROLES: tuple[Role, ...] = get_args(Role)
+OUTCOME = {"completed": "success", "partial": "unresolved", "failed": "failed"}  # final status → report outcome
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat()
 
 
 def _capabilities(agent: str, accepts: frozenset[tuple[str, str]]) -> dict:
@@ -38,6 +52,7 @@ class TeamRunner:
         self.qa = qa or QAAgent(settings)
         self.run_dir: Path | None = None
         self.final_state: dict | None = None
+        self.cost_report_path: Path | None = None
 
     def reset_memory(self) -> None:
         self.coder.reset_memory()  # takes the RunLock itself: never call while stream() is running
@@ -53,63 +68,111 @@ class TeamRunner:
         s = self.settings
         self.run_dir = None
         self.final_state = None
-        # Lock first: a busy workspace must leave no run directory behind
+        self.cost_report_path = None
+        # Lock first: a busy workspace must leave no run directory (and no cost report) behind
         with RunLock(s.state_dir):
             run_id = uuid4().hex[:12]
             run_dir = s.state_dir / "runs" / run_id
             run_dir.mkdir(parents=True)
             self.run_dir = run_dir
-            (run_dir / "requirement.txt").write_text(requirement)
-            # The capability advertisements open the A2A log (spec §5)
-            self._append_a2a(_capabilities("coder", CODER_ACCEPTS))
-            self._append_a2a(_capabilities("qa", QA_ACCEPTS))
-            yield TeamEvent(kind="start", data={"run_id": run_id, "run_dir": str(run_dir)})
-
-            deps = TeamDeps(pm=self.pm, coder=self.coder, qa=self.qa, broker=self.broker_factory(),
-                            qa_max_iterations=s.qa_max_iterations)
-            graph = build_team_graph(deps)
+            ctx = RunContext(run_id=run_id)
+            started = _now()
             values: dict = {}
-            pending: list[str] = []  # snapshot files waiting for the step's post-update values
-            for chunk in graph.stream(
-                initial_project_state(requirement),
-                stream_mode=["updates", "custom", "values"],
-                version="v2",
-                config={"recursion_limit": team_recursion_limit(s.qa_max_iterations)},
-            ):
-                kind, data = chunk["type"], chunk["data"]
-                if kind == "values":
-                    values = data
-                    for name in pending:
-                        self._write_json(name, state_to_jsonable(values))
-                    pending.clear()
-                elif kind == "custom":
-                    event = TeamEvent.model_validate(data)
-                    self._on_custom(event)
-                    yield event
-                elif kind == "updates":
-                    for node, update in data.items():
-                        for event in self._on_update(node, update or {}, pending):
-                            yield event
+            outcome: str | None = None
+            error: dict | None = None
+            trace = None  # the root run tree while tracing; its URL is resolved once, at run end
+            trace_resolved = False
+            # run_log_file inside run_scope, so events.jsonl keeps only this run's records
+            with run_scope(ctx), run_log_file(run_dir / "events.jsonl"):
+                try:
+                    log_event("run_start", requirement_chars=len(requirement),
+                              models={r: s.model_for(r) for r in ROLES})
+                    with root_trace(run_id, requirement) as trace:
+                        (run_dir / "requirement.txt").write_text(requirement)
+                        # The capability advertisements open the A2A log (spec §5)
+                        self._append_a2a(_capabilities("coder", CODER_ACCEPTS))
+                        self._append_a2a(_capabilities("qa", QA_ACCEPTS))
+                        yield TeamEvent(kind="start", data={"run_id": run_id, "run_dir": str(run_dir)})
 
-            state = state_to_jsonable(values)
-            for name in pending:  # defensive: the graph always ends with a values chunk
-                self._write_json(name, state)
+                        deps = TeamDeps(pm=self.pm, coder=self.coder, qa=self.qa, broker=self.broker_factory(),
+                                        qa_max_iterations=s.qa_max_iterations)
+                        graph = build_team_graph(deps)
+                        pending: list[str] = []  # snapshot files waiting for the step's post-update values
+                        for chunk in graph.stream(
+                            initial_project_state(requirement),
+                            stream_mode=["updates", "custom", "values"],
+                            version="v2",
+                            config={"recursion_limit": team_recursion_limit(s.qa_max_iterations)},
+                        ):
+                            kind, data = chunk["type"], chunk["data"]
+                            if kind == "values":
+                                values = data
+                                for name in pending:
+                                    self._write_json(name, state_to_jsonable(values))
+                                pending.clear()
+                            elif kind == "custom":
+                                event = TeamEvent.model_validate(data)
+                                self._on_custom(event)
+                                yield event
+                            elif kind == "updates":
+                                for node, update in data.items():
+                                    for event in self._on_update(node, update or {}, pending):
+                                        yield event
 
-            # Still under the lock, so the checks and the evidence describe the same workspace
-            api: dict | None = None
-            demo: dict | None = None
-            if state["status"] != "failed":
-                if api_check is not None:
-                    passed, report = api_check(s.workspace_dir, sorted(state["code_output"]))
-                    (run_dir / "api-check.txt").write_text(report)
-                    api = {"passed": passed, "report": report}
-                if demo_check is not None:
-                    passed, report = demo_check(s.workspace_dir, state)
-                    (run_dir / "demo-check.txt").write_text(report)
-                    demo = {"passed": passed, "report": report}
-            self._write_json("final-state.json", state)
-            self.final_state = state
-            yield TeamEvent(kind="final", data={"state": state, "api_check": api, "demo_check": demo})
+                        state = state_to_jsonable(values)
+                        for name in pending:  # defensive: the graph always ends with a values chunk
+                            self._write_json(name, state)
+                        # Inside the root, after the graph: the root run is posted by now, and the wait is bounded
+                        trace_resolved = True
+                        self._resolve_trace(ctx, trace)
+
+                        # Still under the lock, so the checks and the evidence describe the same workspace
+                        api: dict | None = None
+                        demo: dict | None = None
+                        if state["status"] != "failed":
+                            if api_check is not None:
+                                passed, report = api_check(s.workspace_dir, sorted(state["code_output"]))
+                                (run_dir / "api-check.txt").write_text(report)
+                                api = {"passed": passed, "report": report}
+                            if demo_check is not None:
+                                passed, report = demo_check(s.workspace_dir, state)
+                                (run_dir / "demo-check.txt").write_text(report)
+                                demo = {"passed": passed, "report": report}
+                        outcome = OUTCOME[state["status"]]
+                        self._write_json("final-state.json", state)
+                        self.final_state = state
+                        # outcome is already set: a consumer that closes the generator after `final` is no abort
+                        yield TeamEvent(kind="final", data={"state": state, "api_check": api, "demo_check": demo})
+                except BaseException as e:  # incl. GeneratorExit (closed early) and KeyboardInterrupt
+                    if outcome is None:
+                        outcome = "aborted"
+                        error = {"type": type(e).__name__, "message": redact(str(e))}
+                        log_event("run_aborted", level=logging.ERROR, **error)
+                        self._write_json("final-state.json",
+                                         state_to_jsonable(values or initial_project_state(requirement)))
+                    raise
+                finally:
+                    if trace is not None and not trace_resolved:  # aborted: still try, bounded, never raising
+                        with contextlib.suppress(Exception):
+                            self._resolve_trace(ctx, trace)
+                    report = build_cost_report(
+                        run_id=run_id, started_at=started, finished_at=_now(), requirement=requirement,
+                        outcome=outcome or "aborted", models={r: s.model_for(r) for r in ROLES},
+                        calls=list(ctx.calls), trace_url=ctx.trace_url, error=error)
+                    written, errors = write_cost_report(report, s.cost_reports_dir, run_dir)
+                    for e in errors:  # logged, never raised: the run's own outcome or exception proceeds
+                        log_event("cost_report_failed", level=logging.ERROR, type=type(e).__name__,
+                                  message=redact(str(e)))
+                    docs_copy, run_copy = s.cost_reports_dir / f"{run_id}.json", run_dir / "cost-report.json"
+                    self.cost_report_path = next((p for p in (docs_copy, run_copy) if p in written), None)
+                    log_event("run_end", outcome=report["outcome"], cost_usd=report["total"]["cost_usd"],
+                              report=str(self.cost_report_path))
+
+    @staticmethod
+    def _resolve_trace(ctx: RunContext, trace) -> None:
+        ctx.trace_url = resolve_trace_url(trace)
+        if ctx.trace_url:
+            log_event("trace", url=ctx.trace_url)
 
     def _on_custom(self, event: TeamEvent) -> None:
         """Evidence from in-node events: A2A records, reflections and QA rounds."""

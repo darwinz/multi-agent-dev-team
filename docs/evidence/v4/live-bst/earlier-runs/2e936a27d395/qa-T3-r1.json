@@ -1,0 +1,25 @@
+{
+  "task_id": "T3",
+  "round": 1,
+  "test_file": "test_qa_t3.py",
+  "suite_sha": "",
+  "suites_run": {},
+  "tested_files": {
+    "test_types_duplicates.py": "8ba8c5248fc9f10ec3ac940f25c7231ca9d3dc3565639b3bdc31dc406929a584"
+  },
+  "tests_run": 0,
+  "passed": 0,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [],
+  "exit_code": null,
+  "timed_out": false,
+  "duration_s": 0.0,
+  "results": [],
+  "issues": [],
+  "tampered": false,
+  "qa_error": "QA produced an invalid test suite twice: criterion 5 has no test",
+  "test_corrections": [],
+  "approved": false
+}

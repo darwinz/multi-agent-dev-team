@@ -1,0 +1,7 @@
+{"requirement_chars": 19, "models": {"pm": "scripted", "coder": "scripted", "qa": "scripted"}, "ts": "2026-11-09T10:18:43.276061+00:00", "level": "INFO", "run_id": "d4ccefacb22b", "agent": null, "event": "run_start"}
+{"name": "llm.pm", "attempt": 1, "error_class": "RateLimited", "delay_s": 0.01233704277900377, "ts": "2026-11-09T10:18:43.285078+00:00", "level": "WARNING", "run_id": "d4ccefacb22b", "agent": "pm", "event": "retry_attempt"}
+{"name": "llm.pm", "attempt": 2, "error_class": "RateLimited", "delay_s": 0.06897477715879523, "ts": "2026-11-09T10:18:43.300928+00:00", "level": "WARNING", "run_id": "d4ccefacb22b", "agent": "pm", "event": "retry_attempt"}
+{"name": "llm.pm", "attempt": 3, "error_class": "RateLimited", "delay_s": 0.09998551314998423, "ts": "2026-11-09T10:18:43.378096+00:00", "level": "WARNING", "run_id": "d4ccefacb22b", "agent": "pm", "event": "retry_attempt"}
+{"name": "llm.pm", "attempt": 4, "error_class": "RateLimited", "ts": "2026-11-09T10:18:43.482861+00:00", "level": "WARNING", "run_id": "d4ccefacb22b", "agent": "pm", "event": "retry_exhausted"}
+{"agent_name": "pm", "token_count": 0, "tool_calls": 0, "tool_names": [], "duration_ms": 200.8, "ts": "2026-11-09T10:18:43.483230+00:00", "level": "INFO", "run_id": "d4ccefacb22b", "agent": "pm", "event": "agent_end"}
+{"outcome": "failed", "cost_usd": 0, "report": "<project>/docs/cost_reports/d4ccefacb22b.json", "ts": "2026-11-09T10:18:43.485434+00:00", "level": "INFO", "run_id": "d4ccefacb22b", "agent": null, "event": "run_end"}

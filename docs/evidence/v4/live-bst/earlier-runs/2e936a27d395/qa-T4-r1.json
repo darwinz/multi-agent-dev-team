@@ -1,0 +1,225 @@
+{
+  "task_id": "T4",
+  "round": 1,
+  "test_file": "test_qa_t4.py",
+  "suite_sha": "7c4daa020ac75fbcf165a14ca944860f619289b175adb30e88ec9776f81c2e48",
+  "suites_run": {
+    "T1": "eb5faf8e13f9157f5d5192f14eb7d729888a843af0ad08e73d0d7ec924e65fd4",
+    "T2": "a7290e91cc0c3a2ff0ab10e8b71097097e261664fd20f860757a5b088a219990",
+    "T4": "7c4daa020ac75fbcf165a14ca944860f619289b175adb30e88ec9776f81c2e48"
+  },
+  "tested_files": {
+    "test_bst.py": "2dd122891f3227ad7b97dded9e17545be798f2e3bd02785f8f1aca779db236a9"
+  },
+  "tests_run": 39,
+  "passed": 39,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [],
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_s": 4.092,
+  "results": [
+    {
+      "name": "test_qa_t1::test_constructs_with_no_args",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_module_exposes_class_and_is_usable_after_construction",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_search_empty_tree_returns_false_for_int",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_search_empty_tree_returns_false_for_zero_and_negative",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_insert_returns_none_first_value",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_insert_returns_none_for_many_values_and_duplicates",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_search_true_for_all_inserted_values",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_search_false_below_min",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_search_false_above_max",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_search_false_between_values",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_search_single_node_tree_absent_both_sides",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_search_negative_and_float_absent_values",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_duplicate_insert_does_not_raise",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_duplicate_insert_keeps_search_correct",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_repeated_duplicate_of_root_keeps_search_correct",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_suite_self_consistency_random_model",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_empty_tree_inorder_is_empty_list",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_ascending_insertion_gives_sorted_list",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_descending_insertion_gives_sorted_list",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_shuffled_insertion_gives_sorted_list",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_mixed_types_and_negatives_give_sorted_list[values0-expected0]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_mixed_types_and_negatives_give_sorted_list[values1-expected1]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_mixed_types_and_negatives_give_sorted_list[values2-expected2]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_returns_list_type",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_mutating_returned_list_does_not_affect_later_calls",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_each_call_returns_fresh_list_object",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_repeated_calls_return_equal_results",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_inorder_reflects_later_inserts",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_inorder_on_deep_degenerate_tree",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_deep_tree_inorder_under_low_recursion_limit",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_suite_run_under_pytest_passes",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t4::test_t4_ac1_ascending_5000_search_and_inorder_no_recursion_error",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t4::test_t4_ac1_ascending_5000_inserts_do_not_raise",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t4::test_t4_ac2_descending_5000_search_and_inorder",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t4::test_t4_ac2_descending_5000_inserts_do_not_raise",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t4::test_t4_ac2_descending_empty_and_single_edge_cases",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t4::test_t4_ac3_full_pytest_run_of_test_bst_passes",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t4::test_t4_ac4_test_bst_has_tests_for_each_ac1_to_ac10",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t4::test_t4_ac4_test_bst_contains_no_recursion_in_bst_module_is_not_required_here",
+      "outcome": "passed",
+      "message": ""
+    }
+  ],
+  "issues": [],
+  "tampered": false,
+  "qa_error": null,
+  "test_corrections": [],
+  "approved": true
+}

@@ -14,7 +14,7 @@ import sys
 from agents.coder_agent import CoderAgent
 from agents.config import Settings
 from tests.fakes import FakeEmbedding
-CoderAgent(Settings.from_env(project_dir=sys.argv[1]), model=object(), embedding_function=FakeEmbedding()).reset_memory()
+CoderAgent(Settings.from_env(project_dir=sys.argv[1]), model=None, embedding_function=FakeEmbedding()).reset_memory()
 """
 
 
@@ -31,7 +31,7 @@ def test_second_task_sees_first_in_memory(settings):
     a.run("Write a palindrome checker with tests")
     r = a.run("Now make the palindrome checker ignore punctuation")
     assert any("palindrome" in h.text for h in r.memories_used)
-    assert "Write a palindrome checker" in a.model.calls[-1][0].content
+    assert "Write a palindrome checker" in a.model.inner.calls[-1][0].content
 
 
 def test_busy_workspace_raises_before_any_event(settings):
@@ -61,7 +61,7 @@ def test_reset_from_another_process_clears_window(settings):
     assert len(a.window) == 1
     subprocess.run([sys.executable, "-c", RESET_SNIPPET, str(settings.project_dir)], check=True, cwd=REPO_ROOT)
     a.run("next task")
-    assert "Write a palindrome checker" not in a.model.calls[-1][0].content
+    assert "Write a palindrome checker" not in a.model.inner.calls[-1][0].content
     assert a.semantic.count() == 1  # only the run after the reset
 
 

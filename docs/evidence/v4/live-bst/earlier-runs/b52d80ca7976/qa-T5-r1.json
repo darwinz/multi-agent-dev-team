@@ -1,0 +1,25 @@
+{
+  "task_id": "T5",
+  "round": 1,
+  "test_file": "test_qa_t5.py",
+  "suite_sha": "",
+  "suites_run": {},
+  "tested_files": {
+    "test_bst.py": "154eb7a3bfe5c351e544e19ccfbf8830c5d0f0d4f35ef95d6b6b11e486498a06"
+  },
+  "tests_run": 0,
+  "passed": 0,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [],
+  "exit_code": null,
+  "timed_out": false,
+  "duration_s": 0.0,
+  "results": [],
+  "issues": [],
+  "tampered": false,
+  "qa_error": "QA produced an invalid test suite twice: 1 validation error for QATestSuite\ntests\n  Field required [type=missing, input_value={'content': 'import rando...ls off on right side\\n'}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.14/v/missing",
+  "test_corrections": [],
+  "approved": false
+}

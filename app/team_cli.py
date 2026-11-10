@@ -16,7 +16,7 @@ from agents.config import Settings
 from agents.events import StepEvent
 from agents.model import provider_prerequisite
 from app.api_check import check_api, find_app
-from app.demo_check import check_linked_list
+from app.demo_check import check_bst, check_linked_list
 from app.render import (
     render_a2a,
     render_consolidation,
@@ -27,6 +27,8 @@ from app.render import (
     render_task_header,
     render_team_summary,
 )
+from memory.semantic import MemoryUnavailableError
+from observability.logs import configure_logging
 from orchestration.team_runner import TeamRunner
 from tools.workspace import WorkspaceBusyError
 
@@ -51,7 +53,19 @@ DEMO_LINKED_LIST = (
     "methods. All methods must be covered by tests."
 )
 
-DEMOS = {"api": DEMO_API, "large": DEMO_LARGE, "linked-list": DEMO_LINKED_LIST}
+# The C4.7 grading demo: the published sentence verbatim, then the interface the supplied fixture
+# (tests/fixtures/bst_fixture.py) checks (spec §5.8)
+DEMO_BST = (
+    "Build a Python module that implements a binary search tree with insert, search, and in-order traversal "
+    "methods, with full test coverage."
+    "\n\nInterface (the supplied fixture's contract): "
+    "module bst.py at the workspace root; class BinarySearchTree with insert(value) -> None, "
+    "search(value) -> bool, and inorder() -> list returning the values in ascending order; "
+    "duplicate inserts are ignored; values are mutually comparable."
+)
+
+DEMOS = {"api": DEMO_API, "large": DEMO_LARGE, "linked-list": DEMO_LINKED_LIST, "bst": DEMO_BST}
+DEMO_CHECKS = {"linked-list": ("Linked-list check", check_linked_list), "bst": ("BST fixture check", check_bst)}
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -59,8 +73,11 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("requirement", nargs="?", help="the free-text requirement")
     p.add_argument("--demo", choices=list(DEMOS), help="api: the Module 2 grading task; "
                    "large: a requirement that yields more than 8 tasks (exercises consolidation); "
-                   "linked-list: the Module 3 grading task, then the linked-list check")
-    p.add_argument("--model", help="provider-prefixed model, e.g. anthropic:claude-sonnet-5-5 or openai:gpt-4o")
+                   "linked-list: the Module 3 grading task, then the linked-list check; "
+                   "bst: the binary search tree grading task, then the supplied BST fixture")
+    p.add_argument("--model", help="Coder model, provider-prefixed, e.g. anthropic:claude-haiku-5-5 or openai:gpt-4o")
+    p.add_argument("--pm-model", help="PM model, provider-prefixed (default anthropic:claude-sonnet-5-5)")
+    p.add_argument("--qa-model", help="QA model, provider-prefixed (default anthropic:claude-haiku-5-5)")
     p.add_argument("--max-iterations", type=int, help="per-task model-call limit, 1 to 10 (default 10)")
     p.add_argument("--timeout", type=float, help="exec_python timeout in seconds (default 10)")
     # A string, so a bad value gets the same "invalid setting" report from Settings as the env var
@@ -98,17 +115,28 @@ def main(argv: list[str] | None = None, *, runner: TeamRunner | None = None) -> 
 
     if runner is None:
         try:
-            settings = Settings.from_env(model=args.model, max_iterations=args.max_iterations,
+            settings = Settings.from_env(model=args.model, pm_model=args.pm_model, qa_model=args.qa_model,
+                                         max_iterations=args.max_iterations,
                                          exec_timeout_s=args.timeout, qa_max_iterations=args.qa_max_iterations)
         except ValidationError as e:
             for problem in e.errors():
                 err.print(f"team: invalid setting {'.'.join(map(str, problem['loc']))}: {problem['msg']}",
                           markup=False)
             return 2
-        if requirement and (reason := provider_prerequisite(settings.model)):
-            err.print(f"team: cannot run: {reason}", markup=False)
+        if requirement:
+            for model in dict.fromkeys(settings.model_for(r) for r in ("pm", "coder", "qa")):
+                if reason := provider_prerequisite(model):
+                    err.print(f"team: cannot run: {reason}", markup=False)
+                    return 2
+        configure_logging(settings.log_level)  # first: TeamRunner's startup (Chroma retries) already logs
+        try:
+            runner = TeamRunner(settings)
+        except MemoryUnavailableError as e:  # CHROMA_HOST set but the server is down: say so, no traceback
+            err.print(f"team: cannot run: {e}", markup=False)
             return 2
-        runner = TeamRunner(settings)
+    else:
+        settings = runner.settings
+    configure_logging(settings.log_level)  # idempotent: a no-op when already configured above
 
     try:
         if args.reset_memory:
@@ -118,8 +146,9 @@ def main(argv: list[str] | None = None, *, runner: TeamRunner | None = None) -> 
             return 0
         final: dict | None = None
         api_check = demo_check = None
+        check_title, check_fn = DEMO_CHECKS.get(args.demo, (None, None))
         for event in runner.stream(requirement, api_check=_api_check if args.demo == "api" else None,
-                                   demo_check=check_linked_list if args.demo == "linked-list" else None):
+                                   demo_check=check_fn):
             k = event.kind
             if k == "start":
                 console.print(Text(f"run dir: {event.data['run_dir']}", style="dim"), soft_wrap=True)
@@ -149,11 +178,15 @@ def main(argv: list[str] | None = None, *, runner: TeamRunner | None = None) -> 
                 api_check = event.data.get("api_check")
                 demo_check = event.data.get("demo_check")
                 render_team_summary(console, final)
-                for title, check in (("API fixture check", api_check), ("Linked-list check", demo_check)):
+                for title, check in (("API fixture check", api_check), (check_title, demo_check)):
                     if check is not None:
                         console.print(Text(f"{title}: " + ("PASSED" if check["passed"] else "FAILED"),
                                            style="bold green" if check["passed"] else "bold red"))
                         console.print(Text(check["report"]), soft_wrap=True)
+        # The report is written as the stream ends, after the final event
+        path = runner.cost_report_path
+        console.print(Text(f"cost report: {path if path else 'unavailable (see events.jsonl)'}", style="dim"),
+                      soft_wrap=True)
     except WorkspaceBusyError as e:
         err.print(f"team: {e}", markup=False)
         return 2
@@ -165,9 +198,9 @@ def main(argv: list[str] | None = None, *, runner: TeamRunner | None = None) -> 
     if args.json:
         print(json.dumps(final, indent=2))
     ok = final["status"] == "completed"
-    for demo, check in (("api", api_check), ("linked-list", demo_check)):
-        if args.demo == demo:  # a demo's exit also needs its check to have run and passed
-            ok = ok and check is not None and check["passed"]
+    if args.demo == "api" or args.demo in DEMO_CHECKS:  # a demo's exit also needs its check to have run and passed
+        check = api_check if args.demo == "api" else demo_check
+        ok = ok and check is not None and check["passed"]
     return 0 if ok else 1
 
 

@@ -1,0 +1,193 @@
+{
+  "task_id": "regression",
+  "round": 0,
+  "test_file": "",
+  "suite_sha": "",
+  "suites_run": {
+    "T2": "6627e8f481444899df506bc2aab965c63b7f154ac2b80274d15522bc526b8a93",
+    "T3": "3073e1971982cad1d41a369f7617e8ec4fcd41c9b46a999461dfcc0bf8b4745e",
+    "T4": "915a04e1aa9c38f135263d07302a160aeb947f59a8911e26c613bab4e9fbf93f"
+  },
+  "tested_files": {},
+  "tests_run": 33,
+  "passed": 33,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [],
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_s": 2.539,
+  "results": [
+    {
+      "name": "test_qa_t2::test_search_empty_tree_returns_false",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_search_inserted_values_return_true",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_search_root_leaf_and_internal_nodes_return_true",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_search_below_min_returns_false",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_search_above_max_returns_false",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_search_between_values_returns_false",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_search_after_duplicate_insert_returns_true",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_search_does_not_modify_tree",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_search_returns_real_bool_on_empty_and_nonempty",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_tests_pass_with_pytest_suite_runs",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_strings_insert_in_sorted_order",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_floats_sort_correctly",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_mixed_int_and_float_sort_correctly",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_negatives_and_zero_sort_correctly",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_insert_str_into_int_tree_raises_and_leaves_inorder_unchanged",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_insert_none_into_int_tree_raises_and_leaves_inorder_unchanged",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_search_str_on_nonempty_int_tree_raises_type_error",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_search_none_on_nonempty_int_tree_raises_type_error",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_suite_tests_pass_with_pytest",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_negatives_and_zero_search",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_incomparable_insert_leaves_tree_usable",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t4::test_5000_ascending_inserts_no_recursion_error",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t4::test_5000_descending_inserts_no_recursion_error",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t4::test_5000_ascending_inorder_equals_sorted_inserted",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t4::test_5000_descending_inorder_equals_sorted_inserted",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t4::test_5000_ascending_search_first_last_and_missing",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t4::test_5000_descending_search_first_last_and_missing",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t4::test_5000_ascending_every_value_is_found",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t4::test_5000_descending_every_value_is_found",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t4::test_5000_descending_inserts_under_low_recursion_limit",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t4::test_5000_ascending_inserts_under_low_recursion_limit",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t4::test_inorder_on_5000_node_tree_returns_independent_copy",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t4::test_criterion5_suite_runs_under_pytest",
+      "outcome": "passed",
+      "message": ""
+    }
+  ],
+  "issues": [],
+  "tampered": false,
+  "qa_error": null,
+  "test_corrections": [],
+  "approved": true
+}

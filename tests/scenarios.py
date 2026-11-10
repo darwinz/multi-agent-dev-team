@@ -28,6 +28,25 @@ from tests.fakes import (
     tool_call,
 )
 
+# A passing QA suite for a tiny Stack module (shared by the QA agent tests and the invalid-output probe)
+STACK_TESTS = """\
+from stack import Stack
+
+
+def test_push_then_pop():
+    s = Stack()
+    s.push(1)
+    assert s.pop() == 1
+
+
+def test_pop_returns_last():
+    s = Stack()
+    s.push(1)
+    s.push(2)
+    assert s.pop() == 2
+"""
+
+
 LL_CRITERIA = [
     "insert(value) appends value to the end of the list",
     "delete(value) removes the first node holding value and returns True, or returns False if it is absent",
@@ -218,6 +237,133 @@ def passing_scripts() -> tuple[list, list, list]:
                    "Documented the module"),
     ]
     return [spec_response(linked_list_spec())], coder, [qa_suite_response(QA_LL_TESTS, QA_LL_MANIFEST)]
+
+
+BST_CRITERIA = [
+    "insert(value) adds value to the tree and returns None",
+    "search(value) returns True if value is in the tree, otherwise False",
+    "inorder() returns every value in ascending order",
+    "inserting a value already in the tree leaves the tree unchanged",
+]
+
+# Iterative insert and traversal: 300 sorted inserts (the fixture's degenerate case) never recurse
+BST_SRC = '''\
+class Node:
+    def __init__(self, value):
+        self.value = value
+        self.left = None
+        self.right = None
+
+
+class BinarySearchTree:
+    def __init__(self):
+        self.root = None
+
+    def insert(self, value):
+        if self.root is None:
+            self.root = Node(value)
+            return
+        cur = self.root
+        while True:
+            if value == cur.value:
+                return
+            side = "left" if value < cur.value else "right"
+            child = getattr(cur, side)
+            if child is None:
+                setattr(cur, side, Node(value))
+                return
+            cur = child
+
+    def search(self, value):
+        cur = self.root
+        while cur is not None:
+            if value == cur.value:
+                return True
+            cur = cur.left if value < cur.value else cur.right
+        return False
+
+    def inorder(self):
+        out, stack, cur = [], [], self.root
+        while stack or cur is not None:
+            while cur is not None:
+                stack.append(cur)
+                cur = cur.left
+            cur = stack.pop()
+            out.append(cur.value)
+            cur = cur.right
+        return out
+'''
+
+CODER_BST_TESTS = '''\
+from bst import BinarySearchTree
+
+
+def test_insert_and_search():
+    tree = BinarySearchTree()
+    tree.insert(2)
+    tree.insert(1)
+    assert tree.search(1)
+    assert not tree.search(3)
+'''
+
+QA_BST_TESTS = '''\
+from bst import BinarySearchTree
+
+
+def make(*values):
+    tree = BinarySearchTree()
+    for v in values:
+        tree.insert(v)
+    return tree
+
+
+def test_insert():
+    assert make(2, 1, 3).insert(4) is None
+
+
+def test_search():
+    tree = make(5, 3, 8)
+    assert tree.search(3) is True
+    assert tree.search(8) is True
+    assert tree.search(7) is False
+    assert BinarySearchTree().search(1) is False
+
+
+def test_inorder():
+    assert make(5, 3, 8, 1, 4, 9).inorder() == [1, 3, 4, 5, 8, 9]
+    assert BinarySearchTree().inorder() == []
+
+
+def test_duplicates():
+    assert make(5, 3, 5, 3).inorder() == [3, 5]
+'''
+
+QA_BST_MANIFEST = (("test_insert", 1), ("test_search", 2), ("test_inorder", 3), ("test_duplicates", 4))
+
+
+def bst_spec() -> Spec:
+    return Spec(
+        name="Binary search tree",
+        description="A binary search tree with insert, search and in-order traversal.",
+        acceptance_criteria=[AcceptanceCriterion(id="AC1", text="The binary search tree supports insert, search "
+                                                                "and in-order traversal")],
+        tasks=[Task(task_id="T1", title="Binary search tree",
+                    description="Implement BinarySearchTree in bst.py.",
+                    acceptance_criteria=list(BST_CRITERIA), priority="high", covers=["AC1"])],
+    )
+
+
+def bst_scripts() -> tuple[list, list, list]:
+    """(pm, coder, qa): a correct BST, documented by reflection, approved in round 1."""
+    coder = [
+        *coder_run({"bst.py": BST_SRC, "test_bst.py": CODER_BST_TESTS}, "test_bst.py",
+                   "Binary search tree with insert, search and in-order traversal"),
+        critique_response(("edge_case", "bst.py:BinarySearchTree", "the class has no documentation",
+                           "add a module docstring")),
+        *coder_run({"bst.py": '"""A binary search tree."""\n\n' + BST_SRC}, "test_bst.py",
+                   "Documented the module"),
+    ]
+    return [spec_response(bst_spec())], coder, [qa_suite_response(QA_BST_TESTS, QA_BST_MANIFEST)]
 
 
 def forged_broker() -> Broker:

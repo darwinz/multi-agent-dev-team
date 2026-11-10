@@ -145,7 +145,7 @@ Reflection runs once per task, before the first QA round. The Coder leaves a tas
 | `coder_node` | Three steps, kept in `coder_step`. **deliver** (`qa_round == 0`): runs the Coder on the task text. **revise**: receives a `fix_instruction`, runs the Coder on it, re-hashes every delivered file and sends `review_request` for the next round. **close**: receives `approved` or `final_report`, records status and outcome, stores the approved suite, advances `current_task_index` and clears the handoff. |
 | `reflect_node` | Critique (`CoderAgent.critique`), then a Coder revision run on it. The revision must change a file; if the critique fails to parse or no file changed, the pair is retried once. If it still fails, `Reflection.error` is set, QA runs one diagnostic round and replies `final_report(reason="no_revision")`. |
 | `qa_node` | Receives the request, calls `QAAgent.review(...)`, emits the `qa_report`, and replies by `_reply`. |
-| `finalize` | Sets the run status. Before that, it runs the project regression check: every `done` task's canonical suite is restored and run once against the final workspace. A task whose suite fails, errors, skips or is missing tests becomes `failed` with `qa_outcome="regressed"`. The result is stored as `state["regression"]`. |
+| `finalize` | Sets the run status. Before that, it runs the project regression check: every `done` task's canonical suite is restored and run once against the final workspace. A task whose suite fails, errors, skips or is missing tests becomes `failed` with `qa_outcome="regressed"`. If the check itself crashes (for example an open `tools` circuit), it is recorded like a QA crash: the `done` tasks become `failed` with `qa_outcome="qa_error"`, the run ends `partial` and a `regression_check_failed` WARNING is logged. The result is stored as `state["regression"]`. |
 
 `_reply` decides QA's answer, in this order: `final_report(no_revision)` if reflection recorded no revision; `approved` if the report is approved; `final_report(qa_error)` if QA itself failed (including any exception QA raises, which `qa_node` turns into a `qa_error` report); `final_report(max_iterations)` at the round limit; otherwise `fix_instruction`.
 
@@ -201,9 +201,52 @@ Each run directory adds `reflection-<task>.json`, `qa-<task>-r<n>.json`, `qa-tes
 
 A task's `state-after-<id>.json` and its transcript `task_done` line show the status at the moment the task closed. The regression check in `finalize` can later change a `done` task to `failed` (outcome `regressed`). The summary table, `regression.json` and `final-state.json` hold the final status.
 
+## v4: the resilience and observability layer
+
+Module 4 adds a layer around every model call, tool call and Chroma call. It does not change the graphs, the agents' prompts or the A2A protocol. The diagram is in the [README](../README.md#production-v4).
+
+### The call boundary
+
+Every LLM call goes through `ResilientChatModel` (`agents/model.py`), which `make_model(settings, role)` builds around the provider model. It keeps `bind_tools` and `with_structured_output(..., include_raw=True)` working as the agents use them. On each call, in this order:
+
+1. **Response cache lookup** (only for call sites that opted in with `.cached()`: PM spec, PM consolidation, QA suite, QA fix plan, QA audit). The key is a SHA-256 of the model, messages, bound tools or schema and parameters. A hit within `CACHE_TTL_S` returns the stored message with a zero-cost record. An entry past its TTL logs `cache_expired` and is not used. The files are under `.coder/cache/`, which `--reset-memory` does not clear.
+2. **Circuit breaker** for the role (`pm`, `coder` or `qa`). If it is open, a fresh cache entry is returned (`degraded_fallback_cached`), otherwise `CircuitOpenError` is raised.
+3. **Retry** (`resilience/retry.py::call_with_retry`) around the provider call: at most `RETRY_MAX` (hard cap 3) retries, full-jitter backoff, transient errors only. Every attempt logs `retry_attempt` with the error class and delay, and exhaustion logs `retry_exhausted` and raises `TransientError`.
+4. **Provider call**, with Anthropic prompt caching on the first system message and the last tool. Models that reject a forced `tool_choice` are called without one.
+5. **Call record** (`CallRecord`): tokens, cache tokens, USD, duration and attempts, appended to the run's collector and logged as `llm_call`.
+
+The breaker sits outside the retry, so only a call that failed with a transient error after its retries counts as one failure. A success resets the count. Parsing and validation failures, permanent provider errors and program results never count. A `CircuitOpenError` raised by a nested breaker neither counts nor resets the outer one. The states are `CLOSED`, `OPEN` and `HALF_OPEN` (one probe; concurrent callers are rejected while it runs). Transitions log `breaker_transition` at WARNING.
+
+Tools use the same pair through `tools/guarded.py::guarded_tool` (the `tools` breaker), which wraps the dispatcher's `run_action` and QA's direct `write_file` and `exec_python` calls. A program's non-zero exit or timeout is a tool result, not a failure. Chroma reads and writes in `memory/semantic.py` use the `chroma` breaker. A retried Chroma write upserts a deterministic id (hash of text and metadata), so a replay after a lost response never duplicates an entry. Breakers are shared in a process-wide registry (`resilience/runtime.py`).
+
+Open-circuit and exhausted-retry errors reach the agents' existing handling: a `PMError` fails the run with a final state written, the Coder returns an `error` result, and QA reports `qa_error`, so the task lands in the unresolved-issue report. The process does not crash.
+
+### Run context, cost report and tracing
+
+`TeamRunner.stream` creates a `RunContext` (`observability/context.py`) for the run. It holds the run id and the per-call and per-tool records, and it carries the current agent name. Everything after the run directory exists sits in `try/except/finally`:
+
+- An escaping exception, `KeyboardInterrupt` or a generator closed early records `outcome: "aborted"` with the redacted error, writes `final-state.json` from the last state seen, and logs `run_aborted`.
+- The `finally` block always builds the cost report from the recorded calls (`observability/costs.py::build_cost_report`) and writes `docs/cost_reports/<run_id>.json` plus `.coder/runs/<run_id>/cost-report.json`. A failed write logs `cost_report_failed` and never masks the run's own outcome.
+- The outcome maps from the final status: `completed` is `success`, `partial` is `unresolved`, `failed` is `failed`.
+- Totals are sums over `calls`. Failed LLM attempts produce no record, so `calls` counts successful model calls plus cache hits.
+
+Tracing (`observability/tracing.py`) is on only when `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY` is set. The runner opens one root trace `team-run:<run_id>`; LangGraph's own run nests under it, and each node (`agent_node` wrapper) is a child span whose metadata (`agent_name`, `token_count`, `tool_calls`, `tool_names`, `duration_ms`) is computed from the same records as the cost report. `pm_node` and `consolidate_node` report as `pm`, `coder_node` and `reflect_node` as `coder`, `qa_node` as `qa`. The root's URL is resolved once at run end, bounded to 5 seconds, then logged as `trace` and stored as `trace_url`.
+
+Logs (`observability/logs.py`) are stdlib `logging` with a JSON formatter: one object per line with `ts`, `level`, `run_id`, `agent`, `event` and fields, to stderr and `.coder/runs/<run_id>/events.jsonl`, redacted.
+
+### Security boundaries
+
+- `exec_python` builds the child's environment with `child_env`, an allowlist (`PATH`, `HOME`, locale, `TMPDIR` and what the runner needs). API keys in the parent environment are absent in generated code and in the API-check app.
+- Tool arguments are validated by Pydantic models before dispatch, QA's direct tool calls included. Every `with_structured_output` result is Pydantic-parsed, and an invalid PM spec or QA suite never reaches `write_file`, `exec_python` or `run_action`. Silent fallbacks (PM consolidation, QA fix plan, QA audit) log a WARNING. The audit is in [evidence/v4/validation-audit.md](evidence/v4/validation-audit.md).
+- Secrets come from the environment only (`.env` through Compose `env_file`, or `op run` with `.env.op`). `.dockerignore` keeps `.env`, `.coder/`, `.chroma/`, `workspace/` and `docs/cost_reports/` out of the image.
+
+### Deployment
+
+The `Dockerfile` is `python:3.11-slim`, installs `requirements.txt`, installs the project editable, runs as an unprivileged user and sets `ENTRYPOINT ["team"]` with a default command that runs the BST demo. `docker-compose.yml` has a `chroma` service (`chromadb/chroma:1.5.9`, named volume, a health check that GETs `/api/v2/heartbeat`) and a `team` service that waits for `service_healthy`. `memory/semantic.py` uses `chromadb.HttpClient` when `CHROMA_HOST` is set and the on-disk `PersistentClient` otherwise. A server that is down makes the CLI exit 2 with a message, not a traceback. `workspace/`, `.coder/` and `docs/cost_reports/` are bind-mounted; because `.coder` is shared, the `reset_memory` generation counter still reaches every process. The `web` and `cli` profiles keep the single-Coder web UI and CLI available.
+
 ## Extension points for Modules 2–5
 
 - **Module 2 (PM agent), built.** `agents/pm_agent.py` produces a spec; the outer graph (see above) hands each task to the Coder as a `TaskHandoff`, and the structured `CoderResult` is the return contract.
 - **Module 3 (QA agent), built.** `agents/qa_agent.py` and the Coder ↔ QA loop in the outer graph (see the v3 section above).
-- **Module 4 (MCP, Docker).** The tools are plain functions behind `tools/dispatch.py::run_action`, so they can be exposed over MCP unchanged. Real isolation replaces the subprocess with a container per run.
-- **Module 5 (observability, cost).** LangSmith tracing already works through environment variables. `StepEvent` is the place to add token and cost accounting.
+- **Module 4 (production), built.** The resilience and observability layer above, plus the Docker deployment. The tools are still plain functions behind `tools/dispatch.py::run_action`, so they could be exposed over MCP unchanged; generated code runs in a subprocess with an allowlisted environment inside an unprivileged container, not a container per run.
+- **Module 5 (further optimisation).** Not built here. `CallRecord` and the cost report are the place to add budgets or per-task cost limits.

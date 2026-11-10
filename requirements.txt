@@ -55,6 +55,8 @@ colorama==0.4.6 ; os_name == 'nt' or sys_platform == 'win32'
     #   pytest
     #   tqdm
     #   typer
+coverage==7.17.2
+    # via pytest-cov
 distro==1.9.0
     # via langsmith
 docstring-parser==0.18.0
@@ -105,7 +107,7 @@ httpx2==2.16.0
     #   anthropic
     #   huggingface-hub
     #   langsmith
-httpx2-jsfetch==1.0 ; sys_platform == 'emscripten'
+httpx2-jsfetch==1.0 ; python_full_version >= '3.12' and sys_platform == 'emscripten'
     # via httpx2
 huggingface-hub==2.3.0
     # via tokenizers
@@ -161,7 +163,9 @@ langgraph-prebuilt==1.1.1
 langgraph-sdk==0.4.10
     # via langgraph
 langsmith==0.14.12
-    # via langchain-core
+    # via
+    #   langchain-core
+    #   multi-agent-dev-team
 markdown-it-py==4.2.0
     # via rich
 mdurl==0.1.2
@@ -172,7 +176,11 @@ multidict==7.2.1
     # via
     #   aiohttp
     #   yarl
-numpy==2.5.4
+numpy==2.4.6 ; python_full_version < '3.12'
+    # via
+    #   chromadb
+    #   onnxruntime
+numpy==2.5.4 ; python_full_version >= '3.12'
     # via
     #   chromadb
     #   onnxruntime
@@ -223,7 +231,9 @@ packaging==26.3
     #   onnxruntime
     #   pytest
 pluggy==1.7.0
-    # via pytest
+    # via
+    #   pytest
+    #   pytest-cov
 propcache==0.5.4
     # via
     #   aiohttp
@@ -261,6 +271,10 @@ pypika==0.51.1
 pyproject-hooks==1.3.3
     # via build
 pytest==9.1.1
+    # via
+    #   multi-agent-dev-team
+    #   pytest-cov
+pytest-cov==7.1.0
     # via multi-agent-dev-team
 python-dateutil==3.0.0
     # via kubernetes

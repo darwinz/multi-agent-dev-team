@@ -13,8 +13,11 @@ from agents.qa_agent import QAAgent, QAError, canonical_suite_path
 from orchestration.a2a import ReviewRequest
 from orchestration.project_state import Task, TaskHandoff
 from orchestration.review import QAReport, QATestSuite, TestCorrection
-from tests.fakes import ScriptedChatModel, audit_response, fix_plan_response, qa_agent, qa_suite_response
-from tools.workspace import sha256_file
+from tests.fakes import (
+    ScriptedChatModel, audit_response, fix_plan_response, qa_agent, qa_suite_response, structured,
+)
+from tests.scenarios import STACK_TESTS
+from tools.workspace import ToolError, sha256_file
 
 CRITERIA = ["push adds an item that pop can return", "pop returns the most recently pushed item"]
 
@@ -46,22 +49,6 @@ class Stack:
             pass
 """
 
-STACK_TESTS = """\
-from stack import Stack
-
-
-def test_push_then_pop():
-    s = Stack()
-    s.push(1)
-    assert s.pop() == 1
-
-
-def test_pop_returns_last():
-    s = Stack()
-    s.push(1)
-    s.push(2)
-    assert s.pop() == 2
-"""
 STACK_MAP = (("test_push_then_pop", 1), ("test_pop_returns_last", 2))
 
 COUNTER = "def count(xs):\n    return len(xs)\n"
@@ -160,8 +147,30 @@ def test_invalid_suite_retried_once(settings):
     bad = qa_suite_response(STACK_TESTS, (("test_push_then_pop", 1), ("test_nope", 2)))
     agent = qa_agent(settings, bad, qa_suite_response(STACK_TESTS, STACK_MAP))
     report, suite = agent.review(handoff(), request(files), 1, None, {})
-    retry = "\n".join(str(m.content) for m in agent.model.calls[1])
+    retry = "\n".join(str(m.content) for m in agent.model.inner.calls[1])
     assert "test_nope" in retry
+    assert suite is not None and report.approved is True
+
+
+def test_uncovered_criterion_retry_quotes_it_and_explains_test_criteria(settings):
+    files = put(settings, **{"stack.py": FIXED_STACK})
+    bad = qa_suite_response(STACK_TESTS, (("test_push_then_pop", 1), ("test_pop_returns_last", 1)))
+    agent = qa_agent(settings, bad, qa_suite_response(STACK_TESTS, STACK_MAP))
+    report, suite = agent.review(handoff(), request(files), 1, None, {})
+    retry = str(agent.model.inner.calls[1][-1].content)
+    assert f"criterion 2 ({CRITERIA[1]!r}) has no test" in retry and "criterion 2 has no test" not in retry
+    assert "about the tests themselves" in retry and "never your own test_qa_*.py" in retry
+    assert suite is not None and report.approved is True
+
+
+def test_suite_cut_off_at_max_tokens_retried_with_a_shorter_ask(settings):
+    files = put(settings, **{"stack.py": FIXED_STACK})
+    cut = structured("QATestSuite", {"content": STACK_TESTS})  # the manifest never arrived
+    cut.response_metadata = {"stop_reason": "max_tokens"}
+    agent = qa_agent(settings, cut, qa_suite_response(STACK_TESTS, STACK_MAP))
+    report, suite = agent.review(handoff(), request(files), 1, None, {})
+    retry = str(agent.model.inner.calls[1][-1].content)
+    assert "cut off" in retry and "shorter" in retry and "Field required" not in retry
     assert suite is not None and report.approved is True
 
 
@@ -299,7 +308,7 @@ def test_unmapped_extra_test_retried(settings):
     files = put(settings, **{"stack.py": FIXED_STACK})
     agent = qa_agent(settings, qa_suite_response(UNMAPPED_EXTRA, STACK_MAP), qa_suite_response(STACK_TESTS, STACK_MAP))
     report, suite = agent.review(handoff(), request(files), 1, None, {})
-    assert "test_extra" in "\n".join(str(m.content) for m in agent.model.calls[1])
+    assert "test_extra" in "\n".join(str(m.content) for m in agent.model.inner.calls[1])
     assert suite.content == STACK_TESTS and report.approved is True
 
 
@@ -369,7 +378,7 @@ def later_task(task_id: str = "T2") -> Task:
 
 
 def suite_prompt(agent: QAAgent) -> str:
-    return "\n".join(m.content for m in agent.model.calls[0] if isinstance(m, HumanMessage))
+    return "\n".join(m.content for m in agent.model.inner.calls[0] if isinstance(m, HumanMessage))
 
 
 def test_suite_prompt_lists_later_tasks(settings):
@@ -458,5 +467,32 @@ def test_no_test_check_after_round_one(settings):
     files = put(settings, **{"stack.py": FIXED_STACK})
     agent = qa_agent(settings, fix_plan_response())
     report, again = agent.review(handoff(), request(files, round=2), 2, suite, {})
-    assert len(agent.model.calls) == 1  # the fix plan only
+    assert len(agent.model.inner.calls) == 1  # the fix plan only
     assert report.approved is False and again == suite
+
+
+def test_qa_direct_tool_args_validated(settings, monkeypatch):
+    """A suite file path that escapes the workspace is rejected before write_file runs (spec §5.7);
+    the error takes QA's existing crash path, which reports qa_error."""
+    from orchestration.team_graph import _qa_crash
+
+    files = put(settings, **{"stack.py": FIXED_STACK})
+    writes = []
+    monkeypatch.setattr("agents.qa_agent.qa_test_file", lambda task_id: "../escaped_test_qa.py")
+    monkeypatch.setattr("agents.qa_agent.write_file", lambda *a, **kw: writes.append(a))
+    agent = qa_agent(settings, qa_suite_response(STACK_TESTS, STACK_MAP))
+    with pytest.raises(ToolError, match="outside the workspace") as raised:
+        agent.review(handoff(), request(files), 1, None, {})
+    assert writes == []
+    assert not (settings.workspace_dir.parent / "escaped_test_qa.py").exists()
+    report = _qa_crash("T1", 1, raised.value)
+    assert report.qa_error.startswith("QA crashed: WorkspaceError") and report.approved is False
+
+
+def test_qa_pytest_args_validated(settings, monkeypatch):
+    agent = qa_agent(settings.model_copy(update={"exec_timeout_s": 0}))  # not a usable exec timeout
+    ran = []
+    monkeypatch.setattr("agents.qa_agent.exec_python", lambda *a, **kw: ran.append(kw))
+    with pytest.raises(ToolError, match="timeout"):
+        agent._pytest(["test_qa_t1.py"], settings.project_dir / "j.xml")
+    assert ran == []

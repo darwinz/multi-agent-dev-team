@@ -126,7 +126,7 @@ def test_coder_consumes_handoff_fields(settings):
     script, qa = passing_tasks()
     coder = agent(settings, *script)
     run([spec_response(make_spec())], coder, qa, requirement="Build a quokkafied demo API")
-    first_call = coder.model.calls[0]
+    first_call = coder.model.inner.calls[0]
     human = "\n".join(m.content for m in first_call if isinstance(m, HumanMessage))
     t1 = make_spec().tasks[0]
     assert "T1" in human
@@ -234,7 +234,7 @@ def test_pm_failure_skips_coder_and_qa(settings):
     assert "AC" in end["error"]
     for node in ("dispatch_node", "coder_node", "reflect_node", "qa_node"):
         assert not updates(chunks, node)
-    assert len(coder.model.calls) == 0 and len(qa.model.calls) == 0
+    assert len(coder.model.inner.calls) == 0 and len(qa.model.inner.calls) == 0
     assert end["regression"] is None
 
 
@@ -275,9 +275,34 @@ def test_qa_sees_later_tasks_but_coder_does_not(settings):
     coder = agent(settings, *script)
     _, _, qa = run([spec_response(make_spec())], coder, qa_script)
     t2 = make_spec().tasks[1]
-    suite_prompts = ["\n".join(m.content for m in call if isinstance(m, HumanMessage)) for call in qa.model.calls]
+    suite_prompts = ["\n".join(m.content for m in call if isinstance(m, HumanMessage)) for call in qa.model.inner.calls]
     t1_prompt, t2_prompt = suite_prompts
     assert "Task T1" in t1_prompt and t2.acceptance_criteria[0] in t1_prompt
     assert "Later tasks" not in t2_prompt
-    coder_t1 = "\n".join(str(m.content) for m in coder.model.calls[0])
+    coder_t1 = "\n".join(str(m.content) for m in coder.model.inner.calls[0])
     assert t2.acceptance_criteria[0] not in coder_t1
+
+
+def test_regression_check_crash_is_recorded_not_raised(settings, caplog):
+    import logging
+
+    from resilience.errors import CircuitOpenError
+
+    caplog.set_level(logging.WARNING, logger="mad")
+    coder, qa_script = passing_tasks(1)
+    qa = qa_agent(settings, *qa_script)
+
+    def down(*a, **k):
+        raise CircuitOpenError("tools circuit is open", breaker="tools")
+
+    qa.run_suites = down
+    graph = build_team_graph(TeamDeps(pm=PMAgent(settings, model=ScriptedChatModel(
+        responses=[spec_response(make_spec(1))])), coder=agent(settings, *coder), qa=qa))
+    end = graph.invoke(initial_project_state(REQ), config={"recursion_limit": team_recursion_limit(5)})
+    assert end["status"] == "partial"
+    assert end["regression"]["approved"] is False and "CircuitOpenError" in end["regression"]["qa_error"]
+    t1 = end["task_status"]["T1"]
+    assert t1.status == "failed" and t1.qa_outcome == "qa_error"
+    assert any("regression check unavailable" in line for line in t1.unresolved)
+    assert [r for r in caplog.records if r.getMessage() == "regression_check_failed"
+            and r.levelno == logging.WARNING]
