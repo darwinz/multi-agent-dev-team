@@ -158,6 +158,25 @@ def _later_tasks(later: Sequence[Task]) -> str:
     return "\n".join(lines) + "\n\n"
 
 
+_TEST_CRITERION_HINT = (
+    "If a criterion is about the tests themselves (for example \"tests pass with pytest\"), cover it "
+    "with a test that runs the delivered test module with subprocess.run([sys.executable, \"-m\", \"pytest\", "
+    "<file>]) and asserts the return code is 0")
+
+
+def _explain_uncovered(problems: list[str], criteria: Sequence[str]) -> list[str]:
+    """Quote each uncovered criterion in the retry ask: a bare number gave the model nothing to act on
+    (live BST runs: a "tests pass with pytest" criterion stayed unmapped on both attempts)."""
+    out = list(problems)
+    uncovered = False
+    for n, text in enumerate(criteria, 1):
+        bare = f"criterion {n} has no test"
+        if bare in out:
+            out[out.index(bare)] = f'criterion {n} ("{text}") has no test'
+            uncovered = True
+    return [*out, _TEST_CRITERION_HINT] if uncovered else out
+
+
 class QAAgent:
     def __init__(self, settings: Settings | None = None, *, model: BaseChatModel | None = None) -> None:
         self.settings = settings or Settings.from_env()
@@ -210,6 +229,7 @@ class QAAgent:
                 problems = suite.check(len(handoff.acceptance_criteria))
                 if not problems:
                     return suite
+                problems = _explain_uncovered(problems, handoff.acceptance_criteria)
             if attempt == 0:
                 messages.append(HumanMessage(
                     "Your test suite was invalid:\n- " + "\n- ".join(problems)

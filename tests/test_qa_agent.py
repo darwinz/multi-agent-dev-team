@@ -152,6 +152,17 @@ def test_invalid_suite_retried_once(settings):
     assert suite is not None and report.approved is True
 
 
+def test_uncovered_criterion_retry_quotes_it_and_explains_test_criteria(settings):
+    files = put(settings, **{"stack.py": FIXED_STACK})
+    bad = qa_suite_response(STACK_TESTS, (("test_push_then_pop", 1), ("test_pop_returns_last", 1)))
+    agent = qa_agent(settings, bad, qa_suite_response(STACK_TESTS, STACK_MAP))
+    report, suite = agent.review(handoff(), request(files), 1, None, {})
+    retry = str(agent.model.inner.calls[1][-1].content)
+    assert f'criterion 2 ("{CRITERIA[1]}") has no test' in retry
+    assert "about the tests themselves" in retry and "sys.executable, \"-m\", \"pytest\"" in retry
+    assert suite is not None and report.approved is True
+
+
 def test_suite_cut_off_at_max_tokens_retried_with_a_shorter_ask(settings):
     files = put(settings, **{"stack.py": FIXED_STACK})
     cut = structured("QATestSuite", {"content": STACK_TESTS})  # the manifest never arrived
