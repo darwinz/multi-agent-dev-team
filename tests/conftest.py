@@ -13,10 +13,9 @@ def settings(tmp_path) -> Settings:
 def _fast_resilience(monkeypatch, request):
     """Mocked tests never sleep on retry back-off or hit the response cache."""
     _resilience_runtime.reset()
-    if request.node.get_closest_marker("live"):
-        return
-    monkeypatch.setenv("RETRY_BASE_DELAY_S", "0")
-    monkeypatch.setenv("RETRY_MAX_DELAY_S", "0")
-    monkeypatch.setenv("CACHE_TTL_S", "0")
+    if not request.node.get_closest_marker("live"):  # live tests keep real back-off and caching
+        monkeypatch.setenv("RETRY_BASE_DELAY_S", "0")
+        monkeypatch.setenv("RETRY_MAX_DELAY_S", "0")
+        monkeypatch.setenv("CACHE_TTL_S", "0")
     yield
     _resilience_runtime.reset()
