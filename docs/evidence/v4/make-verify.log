@@ -1,0 +1,13 @@
+REQUIRE_LIVE=1 uv run pytest -m live -rs
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.7.0
+rootdir: /Volumes/Tukar/Code/ai-certifications/SarasAI-Masters-AI-Eng/multi-agent-dev-team-v4
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.15.1, langsmith-0.14.12, cov-7.1.0
+collected 520 items / 514 deselected / 6 selected
+
+tests/live/test_smoke.py ..                                              [ 33%]
+tests/live/test_team_demo.py ....                                        [100%]
+
+================ 6 passed, 514 deselected in 2153.98s (0:35:53) ================

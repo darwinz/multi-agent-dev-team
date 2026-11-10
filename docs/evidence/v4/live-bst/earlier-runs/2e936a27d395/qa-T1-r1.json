@@ -1,0 +1,109 @@
+{
+  "task_id": "T1",
+  "round": 1,
+  "test_file": "test_qa_t1.py",
+  "suite_sha": "eb5faf8e13f9157f5d5192f14eb7d729888a843af0ad08e73d0d7ec924e65fd4",
+  "suites_run": {
+    "T1": "eb5faf8e13f9157f5d5192f14eb7d729888a843af0ad08e73d0d7ec924e65fd4"
+  },
+  "tested_files": {
+    "bst.py": "8674afe293bf9a2e3e7a7a9c0337d2774e62828e66f111dbf1468321f94ef13a",
+    "test_bst.py": "0062519a196a1c8abd5b88f46930386136808806dc81e86cee22bafebf143b09"
+  },
+  "tests_run": 16,
+  "passed": 16,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [],
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_s": 0.618,
+  "results": [
+    {
+      "name": "test_qa_t1::test_constructs_with_no_args",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_module_exposes_class_and_is_usable_after_construction",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_search_empty_tree_returns_false_for_int",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_search_empty_tree_returns_false_for_zero_and_negative",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_insert_returns_none_first_value",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_insert_returns_none_for_many_values_and_duplicates",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_search_true_for_all_inserted_values",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_search_false_below_min",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_search_false_above_max",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_search_false_between_values",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_search_single_node_tree_absent_both_sides",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_search_negative_and_float_absent_values",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_duplicate_insert_does_not_raise",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_duplicate_insert_keeps_search_correct",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_repeated_duplicate_of_root_keeps_search_correct",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_suite_self_consistency_random_model",
+      "outcome": "passed",
+      "message": ""
+    }
+  ],
+  "issues": [],
+  "tampered": false,
+  "qa_error": null,
+  "test_corrections": [],
+  "approved": true
+}

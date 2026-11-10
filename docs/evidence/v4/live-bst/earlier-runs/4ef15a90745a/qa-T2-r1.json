@@ -1,0 +1,104 @@
+{
+  "task_id": "T2",
+  "round": 1,
+  "test_file": "test_qa_t2.py",
+  "suite_sha": "18acfbe5d4ed937ae2c6b9ccd80e1cd26204f5376f651d18ebe5388c32684167",
+  "suites_run": {
+    "T1": "8cfc55646965ea72fb80a82b8e9f86e5ef2ae5713e7212fa54a0636a25dbe4f8",
+    "T2": "18acfbe5d4ed937ae2c6b9ccd80e1cd26204f5376f651d18ebe5388c32684167"
+  },
+  "tested_files": {
+    "test_hello.py": "7868673bdea448db4cdfd5ebdd2f3797fcd87f452b1010933dafe4093edd0e0f"
+  },
+  "tests_run": 15,
+  "passed": 15,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [],
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_s": 1.19,
+  "results": [
+    {
+      "name": "test_qa_t1::test_import_prints_nothing",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_main_prints_exact_hello",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_main_takes_no_arguments",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_script_run_exit_code_stdout_stderr",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_script_run_with_extra_args_ignored",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_script_run_single_extra_arg_ignored",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_import_has_no_output",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_main_prints_hello",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_main_ignores_sys_argv",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_script_run_no_args",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_script_run_with_extra_args[extra0]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_script_run_with_extra_args[extra1]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_script_run_with_extra_args[extra2]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_script_run_with_extra_args[extra3]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_acceptance_suite_all_pass_under_pytest",
+      "outcome": "passed",
+      "message": ""
+    }
+  ],
+  "issues": [],
+  "tampered": false,
+  "qa_error": null,
+  "test_corrections": [],
+  "approved": true
+}

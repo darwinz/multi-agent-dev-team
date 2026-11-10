@@ -1,0 +1,48 @@
+{
+  "task_id": "regression",
+  "round": 0,
+  "test_file": "",
+  "suite_sha": "",
+  "suites_run": {
+    "T1": "8cfc55646965ea72fb80a82b8e9f86e5ef2ae5713e7212fa54a0636a25dbe4f8",
+    "T2": "18acfbe5d4ed937ae2c6b9ccd80e1cd26204f5376f651d18ebe5388c32684167"
+  },
+  "tested_files": {},
+  "tests_run": 0,
+  "passed": 0,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [
+    "test_import_prints_nothing",
+    "test_main_prints_exact_hello",
+    "test_main_takes_no_arguments",
+    "test_script_run_exit_code_stdout_stderr",
+    "test_script_run_with_extra_args_ignored",
+    "test_script_run_single_extra_arg_ignored",
+    "test_import_has_no_output",
+    "test_main_prints_hello",
+    "test_main_ignores_sys_argv",
+    "test_script_run_no_args",
+    "test_script_run_with_extra_args",
+    "test_acceptance_suite_all_pass_under_pytest"
+  ],
+  "exit_code": null,
+  "timed_out": true,
+  "duration_s": 10.01,
+  "results": [],
+  "issues": [
+    {
+      "severity": "High",
+      "test": null,
+      "criterion": null,
+      "location": "QA test run",
+      "assertion": "QA test run timed out after 10 s",
+      "fix": "Make QA test run pass: QA test run timed out after 10 s"
+    }
+  ],
+  "tampered": false,
+  "qa_error": null,
+  "test_corrections": [],
+  "approved": false
+}

@@ -1,0 +1,26 @@
+{
+  "task_id": "T1",
+  "round": 1,
+  "test_file": "test_qa_t1.py",
+  "suite_sha": "",
+  "suites_run": {},
+  "tested_files": {
+    "bst.py": "1e61f2d91acb00fc4bea450bc313a5993ac68ac1dd1cddb70fbc60c35ce9886b",
+    "test_bst.py": "9b9a0492cf08de6885567250e1af43e720cc1551374b9cb3cef643fd3ff1dd1b"
+  },
+  "tests_run": 0,
+  "passed": 0,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [],
+  "exit_code": null,
+  "timed_out": false,
+  "duration_s": 0.0,
+  "results": [],
+  "issues": [],
+  "tampered": false,
+  "qa_error": "QA produced an invalid test suite twice: criterion 7 has no test",
+  "test_corrections": [],
+  "approved": false
+}
