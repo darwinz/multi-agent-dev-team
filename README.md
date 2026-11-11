@@ -1,46 +1,103 @@
-# Multi-Agent Dev Team: PM → Coder ↔ QA (production v4)
+# Multi-Agent Dev Team: PM → Coder ↔ QA
 
-An autonomous **LangGraph** Coder agent that takes a coding task in plain language, then plans, writes, runs and verifies Python code with **Claude** (Haiku 5.5 by default; the PM defaults to Sonnet 5.5). It works in a bounded ReAct loop (at most 10 model calls), with two memory layers (a sliding window plus Chroma) and three confined tools. Every run ends in a **Pydantic-validated result** whose code is read back from disk and whose result comes from a real execution. It is Module 1 of a five-module capstone: a PM → Coder ↔ QA software team. Modules 2 and 3 add the PM and QA agents on top, with the Coder and QA talking over A2A (see [v3.0](#v30-pm--coder--qa) and [Why A2A](#why-a2a)). Module 4 hardens that team for production: retries, circuit breakers, a response cache, token and cost reports, LangSmith tracing, structured logs, a clean Docker start and a mocked end-to-end test. Start at [Production v4](#production-v4).
+An autonomous software team built on **LangGraph** and **Claude**. Give it a requirement in plain language. A **PM** agent turns it into a spec with numbered acceptance criteria and a build-ordered task list. For each task, a **Coder** agent writes and runs Python code in a sandboxed `workspace/`, critiques its own work and revises it. A **QA** agent then writes an independent pytest suite from the criteria and runs it. It either approves the task or sends fix instructions back over an A2A message protocol, for at most 5 rounds. Approval is computed from real test results, never from a model's opinion. Every model, tool and vector-store call is wrapped in retries, circuit breakers and a response cache. Each run leaves a cost report, structured logs, a full evidence directory and, optionally, a LangSmith trace.
+
+The project is the five-module capstone of the Saras AI agentic-engineering course. Module 1 built the Coder, Module 2 the PM, Module 3 QA and A2A, Module 4 the production layer, and Module 5 the code-quality and documentation pass. How it fits together: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). The API reference: [docs/api/](docs/api/index.html) (pdoc).
 
 ![The web UI: workspace tree, code viewer with terminal, live agent timeline and verified result](docs/images/web-ui.png)
 
-## Quickstart
+## Getting started (under 10 minutes)
 
-You need Python 3.11+ and [uv](https://docs.astral.sh/uv/). The default model needs an Anthropic API key (see [other providers](docs/usage.md#other-providers)).
+These steps take a new machine from `git clone` to a finished end-to-end run. Timed on an Apple-silicon Mac (2026-11-11):
 
-**With 1Password** (the key is resolved at runtime from `.env.op`, never written to disk):
+- **Setup:** clone in 1–2 s, `uv sync` in about 4 s with an empty cache, `docker compose build` in about 52 s with no layer cache.
+- **The run:** the BST pipeline takes about 7–7.5 min. It is dominated by model calls and costs about $0.15 with the default models.
+
+**You need:**
+
+- `git`, and **either** Docker with Compose 2.24+ **or** Python 3.11+ with [uv](https://docs.astral.sh/uv/).
+- An **Anthropic API key** for live runs. The test suite needs none.
+- Optional: a LangSmith key for traces; the [1Password CLI](https://developer.1password.com/docs/cli/) to keep the key off disk.
+
+**1. Clone**
 
 ```bash
-make setup
-op run --env-file=.env.op -- make demo
+git clone https://github.com/darwinz/multi-agent-dev-team.git
+cd multi-agent-dev-team
 ```
 
-**With a plain `.env`:**
+**2. Configure.** Copy the template and set one variable. Everything else has a working default, and every setting is listed in [Configuration](#configuration).
 
 ```bash
-cp .env.example .env        # then set ANTHROPIC_API_KEY
-make setup
-make demo
+cp .env.example .env
+# edit .env: ANTHROPIC_API_KEY=sk-ant-...
 ```
+
+With 1Password instead, skip `.env`. `.env.op` holds `op://` references, and you prefix any command below with `op run --env-file=.env.op --`.
+
+**3. Run the full pipeline** (the BST demo: PM → Coder ↔ QA → regression check → fixture check)
+
+```bash
+docker compose up --build        # Docker: Chroma starts, passes its health check, then the team runs
+# or, without Docker:
+make setup && make team-bst      # uv sync, then uv run team --demo bst --reset-memory
+```
+
+On Docker, press Ctrl-C after `team-1 exited with code 0`, because Chroma keeps running. To make Compose stop on its own, use `docker compose up --build --abort-on-container-exit team`.
+
+**4. Check that it worked.** The run ends with a summary table and these lines:
+
+- `run status: completed`, with every task `done` and `approved` in the summary table.
+- `BST fixture check: PASSED`: the supplied fixture passed 5 of 5 tests against the generated `bst.py`.
+- `cost report: docs/cost_reports/<run_id>.json`.
+- Exit code `0`.
+
+The generated code is in `workspace/`. The evidence for the run (spec, handoffs, QA reports, A2A log, final state) is in `.coder/runs/<run_id>/`. [Reading the outcome](#reading-the-outcome) explains the other exit codes.
+
+**5. Optional: run the tests with no key.**
+
+```bash
+make test        # about 520 mocked tests, about 7 min: real graph, tools, subprocesses and pytest, scripted models
+make lint        # ruff, the whole repo
+```
+
+## Grading demo tasks
+
+Each module's grading task is one command. The Docker form needs only `.env` (step 2). The local form needs `make setup` first. All of them are live runs that make model calls.
+
+| Module | Task | Docker | Local | Passes when |
+|---|---|---|---|---|
+| 1. Coder | Two-task palindrome demo: build and test `palindrome.py`, then extend it. The second task uses memory of the first | `docker compose run --rm coder --demo --reset-memory` | `make demo` | Both results are `success` and `verified`. The second task's `memory:` lines show the first run being recalled |
+| 2. PM → Coder | FastAPI service with `GET /health` and `POST /echo` | `docker compose run --rm team --demo api --reset-memory` | `make team-demo` | `API fixture check: PASSED` (the Postman fixture against the generated app), exit 0 |
+| 3. Coder ↔ QA | Linked list with `insert`, `delete`, `search`, `reverse` | `docker compose run --rm team --demo linked-list --reset-memory` | `make team-linked-list` | `Linked-list check: PASSED`: every task approved, QA's suites call all four methods, regression check passed. Exit 0 |
+| 4. Production | Binary search tree with the supplied fixture's contract | `docker compose up --build` | `make team-bst` | `BST fixture check: PASSED` (5/5), exit 0, cost report written |
+
+**Module 1 probes.** These force the Coder's bounds; neither needs a long run:
+
+```bash
+docker compose run --rm coder --timeout 2 "Write loop.py containing while True: pass and run it"
+#   the observation shows timed_out=True (process tree killed)
+docker compose run --rm coder --max-iterations 1 "Write fizzbuzz.py with pytest tests, and run them"
+#   status iteration_limit after one model call; the tools requested on that call are not executed
+```
+
+Locally, replace `docker compose run --rm coder` with `uv run coder`. `--demo large` (`make team-large`) is a fifth, optional demo: an 11-feature requirement that makes the PM consolidate more than 8 tasks.
+
+## Other ways to run
 
 **With pip instead of uv:**
 
 ```bash
 python3.11 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt && pip install -e . --no-deps
-coder --demo --reset-memory
+team --demo bst --reset-memory
 ```
 
-**With Docker:** plain `docker compose up --build` runs the whole team on the BST demo against a Chroma service. See [Quickstart (Docker)](#quickstart-docker). The single-Coder web UI and CLI are behind Compose profiles:
-
-```bash
-docker compose --profile web up web                       # http://127.0.0.1:8000
-docker compose run --rm coder "task"                      # the `cli` profile service
-```
+**Your own requirement:** `uv run team "Build a CLI that converts CSV to JSON, with tests"`, or in Docker, `docker compose run --rm team "…"`. The single-Coder web UI is `docker compose --profile web up web` (or `uv run coder-web`) at <http://127.0.0.1:8000>.
 
 The container runs as an unprivileged user (uid 1000). On Linux, build with `APP_UID=$(id -u) APP_GID=$(id -g) docker compose build` so files in the mounted `workspace/` stay owned by you.
 
-## CLI
+## Single-Coder CLI (Module 1)
 
 ```bash
 uv run coder "Write fizzbuzz.py with pytest tests and run them"
@@ -51,7 +108,7 @@ uv run coder --reset-memory             # clear window, Chroma and workspace
 
 The terminal shows each step live, prefixed `[n/10]`: the memory retrieved, the model's thought, the plan, each action and each observation. It ends with a result panel. Exit codes: 0 success, 1 failed / iteration limit / error, 2 usage or settings error, busy workspace or Chroma unreachable. All flags are in [docs/usage.md](docs/usage.md).
 
-## Web UI
+## Web UI (Module 1)
 
 ```bash
 uv run coder-web      # http://127.0.0.1:8000
@@ -60,6 +117,8 @@ uv run coder-web      # http://127.0.0.1:8000
 A read-only "mini-IDE". It shows the workspace file tree, a code viewer that follows the files the agent writes, a terminal strip with the latest run output, a live agent timeline, and the final result card. It runs the same `CoderAgent` code path as the CLI, streamed over server-sent events.
 
 ## Architecture
+
+The full design, with a whole-system data-flow diagram and each agent's decision logic, is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). The diagram below is the Coder's inner loop. The team graph is in [v3.0](#v30-pm--coder--qa).
 
 ```mermaid
 flowchart LR
@@ -87,7 +146,6 @@ tests/          unit tests (scripted fake model) + tests/live (real model)
 docs/           ARCHITECTURE.md, usage.md, api/ (pdoc), evidence/
 ```
 
-Details are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Implementation decisions
 
@@ -413,6 +471,8 @@ Totals are computed from `calls`, so they reconcile by construction. A failed LL
 make test        # uv run pytest: the mocked suite, no network and no paid calls (addopts: -m "not live")
 make verify      # REQUIRE_LIVE=1 uv run pytest -m live -rs: real-model tests, costs money; a skip counts as a failure
 uv run pytest tests/test_e2e_bst.py -v    # the deterministic full-pipeline E2E, mocked
+make lint        # ruff 0.17.4 over the whole repo (config in pyproject.toml)
+make docs        # rebuild the pdoc API reference in docs/api/ (reproducible: same source, same bytes)
 ```
 
 The default suite scripts the model (`tests/fakes.py::ScriptedChatModel`) but runs the real graph, tools, `exec_python`, QA's pytest subprocess and the supplied BST fixture. Never run the live tests by accident: `tests/live/` needs a key and spends money. Controlled runs that need no key regenerate the committed evidence: `uv run python -m scripts.controlled_runs` (v3 scenarios) and `uv run python -m scripts.resilience_runs` (retry, breaker, cache, invalid output).
@@ -464,7 +524,7 @@ A demo can fail its check while the run itself is `completed`, so read the "BST 
 | 2 | Product Manager agent: request → spec → Coder (`agents/pm_agent.py`) |
 | 3 (built, v3.0) | QA & Debugger agent: writes tests from the acceptance criteria, runs them, loops back with fix instructions over A2A (`agents/qa_agent.py`, `orchestration/a2a.py`) |
 | 4 (built, v4) | Production hardening: [retries, circuit breakers, response cache, cost reports, LangSmith tracing, structured logs, Docker clean start](#production-v4) (A2A is used between Coder and QA) |
-| 5 | Further optimisation (not built here) |
+| 5 (in progress) | Delivery: ruff-clean code with docstrings and no function over 50 lines (`make lint`, `tests/test_code_quality.py`), [ARCHITECTURE.md](docs/ARCHITECTURE.md), the [pdoc API reference](docs/api/index.html) (`make docs`), and this getting-started guide |
 
 ## LangSmith (optional)
 
