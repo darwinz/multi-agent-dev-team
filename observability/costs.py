@@ -69,8 +69,11 @@ def usage_from_message(msg: AIMessage) -> tuple[int, int, int, int]:
     """(prompt, completion, cache_read, cache_write); zeros when usage is absent."""
     usage = getattr(msg, "usage_metadata", None) or {}
     details = usage.get("input_token_details") or {}
+    # langchain-anthropic zeroes cache_creation when the API breaks writes down by TTL
+    write = int(details.get("cache_creation") or 0) or sum(
+        int(details.get(k) or 0) for k in ("ephemeral_5m_input_tokens", "ephemeral_1h_input_tokens"))
     return (int(usage.get("input_tokens") or 0), int(usage.get("output_tokens") or 0),
-            int(details.get("cache_read") or 0), int(details.get("cache_creation") or 0))
+            int(details.get("cache_read") or 0), write)
 
 
 def _model_key(model: str) -> str:

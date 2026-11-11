@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.utils.function_calling import convert_to_openai_tool
 
@@ -339,3 +339,47 @@ def test_trace_params_fall_back_when_inner_raises(settings, monkeypatch):
     object.__setattr__(inner, "_get_ls_params", boom)
     params = resilient(inner, settings, "pm")._get_ls_params()
     assert params["ls_model_type"] == "chat"
+
+
+def _offline_anthropic(payloads):
+    from langchain_anthropic import ChatAnthropic
+
+    class Offline(ChatAnthropic):
+        def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+            payloads.append(self._get_request_payload(messages, stop=stop, **kwargs))
+            return ChatResult(generations=[ChatGeneration(message=ai("ok", tool_call("finish", explanation="x")))])
+
+    return Offline(model="claude-haiku-5-5", max_retries=0)
+
+
+def test_history_breakpoint_on_last_message(settings, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    payloads = []
+    m = resilient(_offline_anthropic(payloads), settings, "coder", model_id="anthropic:claude-haiku-5-5")
+    b = m.bind_tools(TOOL_SPECS).caching_history()
+    call = tool_call("exec_python", code="print(1)")
+    history = [HumanMessage("task"), ai("", call), ToolMessage("1\n", tool_call_id=call["id"])]
+    b.invoke([SystemMessage("sys"), *history])
+    (p,) = payloads
+    last = p["messages"][-1]["content"][-1]  # langchain-anthropic hoists the marker onto the tool_result
+    assert last["type"] == "tool_result" and last["cache_control"] == {"type": "ephemeral"}
+    marks = [blk for msg in p["messages"] for blk in msg["content"] if isinstance(blk, dict) and "cache_control" in blk]
+    assert len(marks) == 1  # with the system and tools markers: 3 of the API's 4 breakpoints
+    assert history[-1].content == "1\n"  # caller's messages untouched
+
+
+def test_no_history_breakpoint_unless_enabled(settings, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
+    payloads = []
+    m = resilient(_offline_anthropic(payloads), settings, "pm", model_id="anthropic:claude-haiku-5-5")
+    m.invoke([SystemMessage("sys"), HumanMessage("one-shot")])
+    (p,) = payloads
+    assert "cache_control" not in str(p["messages"])  # a one-shot call would only pay the write premium
+
+
+def test_coder_react_model_caches_history(settings):
+    from agents.coder_agent import CoderAgent
+
+    a = CoderAgent(settings, model=ScriptedChatModel(responses=[]), embedding_function=FakeEmbedding())
+    bound = a._bound_model()
+    assert bound.history_cache and not bound.cacheable and not a.model.history_cache

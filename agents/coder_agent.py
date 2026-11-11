@@ -85,7 +85,8 @@ class CoderAgent:
     def _bound_model(self) -> Any:
         if self.model is None:
             self.model = make_model(self.settings, "coder")
-        return self.model.bind_tools(TOOL_SPECS)  # ReAct steps are never response-cached
+        # ReAct steps are never response-cached; their growing history is prompt-cached
+        return self.model.bind_tools(TOOL_SPECS).caching_history()
 
     def critique(self, task_text: str, files: dict[str, str]) -> Critique:
         """One structured call on the unbound model (no tools); one retry with the parse error appended."""

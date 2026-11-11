@@ -15,7 +15,7 @@ from typing import Any
 from langchain.chat_models import init_chat_model
 from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.runnables import RunnableBinding
 from pydantic import ConfigDict, Field
@@ -74,6 +74,32 @@ def _with_system_cache_control(messages: list[BaseMessage]) -> list[BaseMessage]
     return out
 
 
+def _with_cache_breakpoint(message: BaseMessage) -> BaseMessage | None:
+    """A copy of message whose last content block carries cache_control, or None when it has no text block."""
+    if isinstance(message.content, str):
+        if not message.content:
+            return None  # the API rejects an empty text block
+        content: Any = [{"type": "text", "text": message.content, "cache_control": _EPHEMERAL}]
+    elif message.content and isinstance(message.content[-1], dict):
+        content = [*message.content[:-1], {**message.content[-1], "cache_control": _EPHEMERAL}]
+    else:
+        return None
+    return message.model_copy(update={"content": content})
+
+
+def _with_history_cache_control(messages: list[BaseMessage]) -> list[BaseMessage]:
+    """A copy of messages with a breakpoint on the last message when it is a user or tool turn.
+
+    In a growing ReAct conversation the next call then reads this whole prefix from the cache and
+    pays full price only for what the last turn appended. A ToolMessage's block-level marker is
+    hoisted onto its tool_result by langchain-anthropic.
+    """
+    if not messages or not isinstance(messages[-1], (HumanMessage, ToolMessage)):
+        return list(messages)
+    marked = _with_cache_breakpoint(messages[-1])
+    return [*messages[:-1], marked] if marked is not None else list(messages)
+
+
 class ResilientChatModel(BaseChatModel):
     """Delegating wrapper: role breaker outside call-level retry, response cache, cost records and
     Anthropic prompt caching around every call to `inner`."""
@@ -87,6 +113,7 @@ class ResilientChatModel(BaseChatModel):
     response_cache: ResponseCache | None = None
     bound: dict = Field(default_factory=dict)
     cacheable: bool = False
+    history_cache: bool = False
 
     @property
     def _llm_type(self) -> str:
@@ -113,6 +140,13 @@ class ResilientChatModel(BaseChatModel):
     def cached(self) -> ResilientChatModel:
         """A copy whose calls use the response cache: only for side-effect-free, run-stable calls."""
         return self.model_copy(update={"cacheable": True})
+
+    def caching_history(self) -> ResilientChatModel:
+        """A copy that also prompt-caches the conversation history: for multi-turn loops only.
+
+        A one-shot call would pay the cache-write premium on its user turn with nothing to read it back.
+        """
+        return self.model_copy(update={"history_cache": True})
 
     def _record(self, msg: AIMessage, *, cache_hit: bool, duration_ms: float, attempts: int) -> None:
         tokens = (0, 0, 0, 0) if cache_hit else usage_from_message(msg)
@@ -156,6 +190,8 @@ class ResilientChatModel(BaseChatModel):
         anthropic = _chat_anthropic()
         if self.model_id.startswith("anthropic:") and anthropic is not None and isinstance(self.inner, anthropic):
             messages = _with_system_cache_control(messages)
+            if self.history_cache:
+                messages = _with_history_cache_control(messages)
             tools = fwd.get("tools")
             if tools and isinstance(tools[-1], dict):
                 fwd["tools"] = [*tools[:-1], {**tools[-1], "cache_control": _EPHEMERAL}]

@@ -92,3 +92,12 @@ def test_write_cost_report_copies_are_independent(tmp_path):
     blocked.write_text("a file, so the run dir can't be created")
     written, errors = write_cost_report(r, tmp_path / "reports", blocked / "r1")
     assert written == [tmp_path / "reports" / "r1.json"] and len(errors) == 1  # docs copy still attempted
+
+
+def test_usage_counts_cache_writes_reported_by_ttl():
+    # langchain-anthropic zeroes cache_creation and reports writes per TTL when the API breaks them down
+    m = AIMessage("x", usage_metadata={
+        "input_tokens": 5000, "output_tokens": 30, "total_tokens": 5030,
+        "input_token_details": {"cache_read": 3000, "cache_creation": 0,
+                                "ephemeral_5m_input_tokens": 1500, "ephemeral_1h_input_tokens": 200}})
+    assert usage_from_message(m) == (5000, 30, 3000, 1700)
