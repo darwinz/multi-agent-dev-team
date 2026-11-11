@@ -128,7 +128,7 @@ def _tail(text: str) -> str:
 def _run(args: list[str], cwd: Path, workspace: Path, tmp: Path, **env: str) -> subprocess.CompletedProcess:
     """A pytest subprocess on the generated module: allowlisted env (no secrets), workspace importable."""
     return subprocess.run(args, cwd=cwd, env={**child_env(tmp), "PYTHONPATH": str(workspace), **env},
-                          capture_output=True, text=True, timeout=FIXTURE_TIMEOUT_S)
+                          capture_output=True, text=True, timeout=FIXTURE_TIMEOUT_S, check=False)
 
 
 def _fixture_tests() -> set[str]:
@@ -208,7 +208,7 @@ def check_bst(workspace: Path, state: dict) -> tuple[bool, str]:
         results = [_approved_line(state), _fixture_line(workspace, tmp)]
         try:
             coverage = _coverage(workspace, state, tmp)
-        except Exception as e:  # reported, not gated: a measurement problem never fails or crashes the check
+        except Exception as e:  # noqa: BLE001 - reported, not gated: a measurement problem never fails or crashes the check
             coverage = f"n/a ({type(e).__name__}: {e})"
     lines = [line for _, line in results] + [f"coverage of bst.py under QA's tests: {coverage} (reported, not gated)"]
     return all(ok for ok, _ in results), "\n".join(lines)

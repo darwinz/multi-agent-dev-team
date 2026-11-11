@@ -63,8 +63,8 @@ def render_revision(h: TaskHandoff, critique: Critique) -> str:
     items = [f"- [{i.kind}] {i.location}: {i.concern} → {i.change}" for i in critique.items]
     return "\n".join([
         render_task(h), "", "Self-review:", *items, "",
-        "Address every item with a code change or a new test, keep all tests passing, "
-        "and run each test file with exec_python before finishing.",
+        ("Address every item with a code change or a new test, keep all tests passing, "
+        "and run each test file with exec_python before finishing."),
     ])
 
 

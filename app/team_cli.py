@@ -13,7 +13,7 @@ from rich.padding import Padding
 from rich.text import Text
 
 from agents.config import Settings
-from agents.events import StepEvent
+from agents.events import StepEvent, TeamEvent
 from agents.model import provider_prerequisite
 from app.api_check import check_api, find_app
 from app.demo_check import check_bst, check_linked_list
@@ -98,91 +98,116 @@ def _api_check(ws: Path, written: list[str]) -> tuple[bool, str]:
     return bool(results) and all(r.passed for r in results), report
 
 
-def main(argv: list[str] | None = None, *, runner: TeamRunner | None = None) -> int:
-    parser = _parser()
-    args = parser.parse_args(argv)
+def _usage_error(parser: argparse.ArgumentParser, args: argparse.Namespace) -> bool:
+    """Report a missing or conflicting requirement/--demo; True if the arguments can't run."""
     if not (args.requirement or args.demo or args.reset_memory):
         parser.print_usage(sys.stderr)
         print("team: error: give a requirement, --demo, or --reset-memory", file=sys.stderr)
-        return 2
+        return True
     if args.requirement and args.demo:
         print("team: error: give either a requirement or --demo, not both", file=sys.stderr)
-        return 2
+        return True
+    return False
 
+
+def _make_runner(args: argparse.Namespace, requirement: str | None, err: Console) -> TeamRunner | None:
+    """Settings from flags and env, a provider check per model, then the runner; None (reported) on a config error."""
+    try:
+        settings = Settings.from_env(model=args.model, pm_model=args.pm_model, qa_model=args.qa_model,
+                                     max_iterations=args.max_iterations,
+                                     exec_timeout_s=args.timeout, qa_max_iterations=args.qa_max_iterations)
+    except ValidationError as e:
+        for problem in e.errors():
+            err.print(f"team: invalid setting {'.'.join(map(str, problem['loc']))}: {problem['msg']}", markup=False)
+        return None
+    if requirement:
+        for model in dict.fromkeys(settings.model_for(r) for r in ("pm", "coder", "qa")):
+            if reason := provider_prerequisite(model):
+                err.print(f"team: cannot run: {reason}", markup=False)
+                return None
+    configure_logging(settings.log_level)  # first: TeamRunner's startup (Chroma retries) already logs
+    try:
+        return TeamRunner(settings)
+    except MemoryUnavailableError as e:  # CHROMA_HOST set but the server is down: say so, no traceback
+        err.print(f"team: cannot run: {e}", markup=False)
+        return None
+
+
+_RENDERERS = {
+    "spec": render_spec,
+    "consolidation": render_consolidation,
+    "handoff": render_task_header,
+    "reflection": render_reflection,
+    "qa_report": render_qa_report,
+    "a2a": render_a2a,
+}
+
+
+def _render_final(console: Console, data: dict, check_title: str | None) -> None:
+    """The run summary, then each check that ran with its PASSED/FAILED verdict and report."""
+    render_team_summary(console, data["state"])
+    for title, check in (("API fixture check", data.get("api_check")), (check_title, data.get("demo_check"))):
+        if check is not None:
+            console.print(Text(f"{title}: " + ("PASSED" if check["passed"] else "FAILED"),
+                               style="bold green" if check["passed"] else "bold red"))
+            console.print(Text(check["report"]), soft_wrap=True)
+
+
+def _render(console: Console, event: TeamEvent, check_title: str | None) -> None:
+    """Print one team event to the console."""
+    k = event.kind
+    if k in _RENDERERS:
+        _RENDERERS[k](console, event.data)
+    elif k == "start":
+        console.print(Text(f"run dir: {event.data['run_dir']}", style="dim"), soft_wrap=True)
+    elif k == "coder":  # the Coder's own step events, indented under the task
+        with console.capture() as cap:
+            render_event(console, StepEvent.model_validate(event.data))
+        console.print(Padding(Text.from_ansi(cap.get().rstrip("\n")), (0, 0, 0, 4)))
+    elif k == "task_done":
+        d = event.data
+        console.print(Text(f"{event.task_id}: {d['status']} (QA: {d.get('qa_outcome')} after "
+                           f"{d.get('qa_rounds', 0)} round(s); Coder: {d.get('coder_status')}, "
+                           f"{d.get('iterations', 0)} iterations)", style="bold"), soft_wrap=True)
+    elif k == "final":
+        _render_final(console, event.data, check_title)
+
+
+def _exit_code(demo: str | None, final: dict, data: dict) -> int:
+    """0 only for a completed run whose demo check (if the demo has one) ran and passed; otherwise 1."""
+    ok = final["status"] == "completed"
+    if demo == "api" or demo in DEMO_CHECKS:  # a demo's exit also needs its check to have run and passed
+        check = data.get("api_check") if demo == "api" else data.get("demo_check")
+        ok = ok and check is not None and check["passed"]
+    return 0 if ok else 1
+
+
+def main(argv: list[str] | None = None, *, runner: TeamRunner | None = None) -> int:
+    """Run the team from the command line; returns the process exit code (0, 1, 2 or 130)."""
+    parser = _parser()
+    args = parser.parse_args(argv)
+    if _usage_error(parser, args):
+        return 2
     console = Console(stderr=args.json)
     err = Console(stderr=True)
     requirement = DEMOS[args.demo] if args.demo else args.requirement
-
-    if runner is None:
-        try:
-            settings = Settings.from_env(model=args.model, pm_model=args.pm_model, qa_model=args.qa_model,
-                                         max_iterations=args.max_iterations,
-                                         exec_timeout_s=args.timeout, qa_max_iterations=args.qa_max_iterations)
-        except ValidationError as e:
-            for problem in e.errors():
-                err.print(f"team: invalid setting {'.'.join(map(str, problem['loc']))}: {problem['msg']}",
-                          markup=False)
-            return 2
-        if requirement:
-            for model in dict.fromkeys(settings.model_for(r) for r in ("pm", "coder", "qa")):
-                if reason := provider_prerequisite(model):
-                    err.print(f"team: cannot run: {reason}", markup=False)
-                    return 2
-        configure_logging(settings.log_level)  # first: TeamRunner's startup (Chroma retries) already logs
-        try:
-            runner = TeamRunner(settings)
-        except MemoryUnavailableError as e:  # CHROMA_HOST set but the server is down: say so, no traceback
-            err.print(f"team: cannot run: {e}", markup=False)
-            return 2
-    else:
-        settings = runner.settings
-    configure_logging(settings.log_level)  # idempotent: a no-op when already configured above
-
+    if runner is not None:
+        configure_logging(runner.settings.log_level)
+    elif (runner := _make_runner(args, requirement, err)) is None:  # configures logging itself
+        return 2
+    final: dict = {}
     try:
         if args.reset_memory:
             runner.reset_memory()
             err.print("memory and workspace cleared", style="dim")
         if not requirement:
             return 0
-        final: dict | None = None
-        api_check = demo_check = None
         check_title, check_fn = DEMO_CHECKS.get(args.demo, (None, None))
         for event in runner.stream(requirement, api_check=_api_check if args.demo == "api" else None,
                                    demo_check=check_fn):
-            k = event.kind
-            if k == "start":
-                console.print(Text(f"run dir: {event.data['run_dir']}", style="dim"), soft_wrap=True)
-            elif k == "spec":
-                render_spec(console, event.data)
-            elif k == "consolidation":
-                render_consolidation(console, event.data)
-            elif k == "handoff":
-                render_task_header(console, event.data)
-            elif k == "coder":
-                with console.capture() as cap:
-                    render_event(console, StepEvent.model_validate(event.data))
-                console.print(Padding(Text.from_ansi(cap.get().rstrip("\n")), (0, 0, 0, 4)))
-            elif k == "reflection":
-                render_reflection(console, event.data)
-            elif k == "qa_report":
-                render_qa_report(console, event.data)
-            elif k == "a2a":
-                render_a2a(console, event.data)
-            elif k == "task_done":
-                d = event.data
-                console.print(Text(f"{event.task_id}: {d['status']} (QA: {d.get('qa_outcome')} after "
-                                   f"{d.get('qa_rounds', 0)} round(s); Coder: {d.get('coder_status')}, "
-                                   f"{d.get('iterations', 0)} iterations)", style="bold"), soft_wrap=True)
-            elif k == "final":
-                final = event.data["state"]
-                api_check = event.data.get("api_check")
-                demo_check = event.data.get("demo_check")
-                render_team_summary(console, final)
-                for title, check in (("API fixture check", api_check), (check_title, demo_check)):
-                    if check is not None:
-                        console.print(Text(f"{title}: " + ("PASSED" if check["passed"] else "FAILED"),
-                                           style="bold green" if check["passed"] else "bold red"))
-                        console.print(Text(check["report"]), soft_wrap=True)
+            _render(console, event, check_title)
+            if event.kind == "final":
+                final = event.data
         # The report is written as the stream ends, after the final event
         path = runner.cost_report_path
         console.print(Text(f"cost report: {path if path else 'unavailable (see events.jsonl)'}", style="dim"),
@@ -193,15 +218,10 @@ def main(argv: list[str] | None = None, *, runner: TeamRunner | None = None) -> 
     except KeyboardInterrupt:
         err.print("team: interrupted (the workspace lock has been released)", markup=False)
         return 130
-
-    assert final is not None
+    assert final, "the team stream ended without a final event"
     if args.json:
-        print(json.dumps(final, indent=2))
-    ok = final["status"] == "completed"
-    if args.demo == "api" or args.demo in DEMO_CHECKS:  # a demo's exit also needs its check to have run and passed
-        check = api_check if args.demo == "api" else demo_check
-        ok = ok and check is not None and check["passed"]
-    return 0 if ok else 1
+        print(json.dumps(final["state"], indent=2))
+    return _exit_code(args.demo, final["state"], final)
 
 
 if __name__ == "__main__":

@@ -251,7 +251,8 @@ def test_demo_bst_exits_1_when_fixture_fails(settings):
     # inorder returns insertion order; QA's weak suite only inserts ascending values, so QA approves
     # and the run completes, but the supplied fixture's random-order case fails the demo
     unsorted = ("class BinarySearchTree:\n    def __init__(self):\n        self.items = []\n\n"
-                "    def insert(self, value):\n        if value not in self.items:\n            self.items.append(value)\n\n"
+                "    def insert(self, value):\n        if value not in self.items:\n"
+                "            self.items.append(value)\n\n"
                 "    def search(self, value):\n        return value in self.items\n\n"
                 "    def inorder(self):\n        return list(self.items)\n")
     weak = ("from bst import BinarySearchTree\n\n\ndef make():\n    t = BinarySearchTree()\n"

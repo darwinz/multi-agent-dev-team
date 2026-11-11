@@ -18,10 +18,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from agents.config import Settings  # noqa: E402
-from app import team_cli  # noqa: E402
-from orchestration.a2a import Broker  # noqa: E402
-from tests.scenarios import (  # noqa: E402
+from agents.config import Settings
+from app import team_cli
+from orchestration.a2a import Broker
+from tests.scenarios import (
     feedback_scripts,
     forged_broker,
     nonconverging_scripts,
@@ -40,24 +40,24 @@ QA_ROUNDS_NONCONVERGING = 2
 # name -> (scripts factory, QA iteration limit, what the run shows, broker factory or None)
 SCENARIOS: dict[str, tuple[Callable[[], tuple[list, list, list]], int, str, Callable[[], Broker] | None]] = {
     "feedback": (feedback_scripts, 5,
-                 "Round 1 ships a linked list whose `reverse` is a no-op, so QA's `test_reverse` fails. "
+                 ("Round 1 ships a linked list whose `reverse` is a no-op, so QA's `test_reverse` fails. "
                  "QA's `fix_instruction` reaches the Coder, round 2 relinks the nodes, and the retest "
                  "passes (`approved`).\n\n"
                  "Chain: `qa-T1-r1.json` (failing assertion) -> `a2a-log.jsonl` (`fix_instruction`) -> "
                  "`a2a-log.jsonl` (`review_request` round 2, revised file hashes) -> `qa-T1-r2.json` "
-                 "(passing).", None),
+                 "(passing)."), None),
     "nonconverging": (lambda: nonconverging_scripts(QA_ROUNDS_NONCONVERGING), QA_ROUNDS_NONCONVERGING,
-                      "The Coder never fixes `reverse` and `QA_MAX_ITERATIONS=2`. At the limit QA sends a "
+                      ("The Coder never fixes `reverse` and `QA_MAX_ITERATIONS=2`. At the limit QA sends a "
                       "`final_report` listing the unresolved issue, the task is `failed` and the run is "
-                      "`partial`. No success is claimed.", None),
+                      "`partial`. No success is claimed."), None),
     "trust-boundary": (passing_scripts, 5,
-                       "A correct linked list is approved in round 1, while two forged, schema-valid messages "
+                       ("A correct linked list is approved in round 1, while two forged, schema-valid messages "
                        "wait in the broker. They were injected deliberately, before the run, to show the trust "
                        "boundary: a `fix_instruction` claiming to come from the Coder (QA accepts only "
                        "`review_request` from the Coder) and an `approved` from QA whose `correlation_id` "
                        "answers no outstanding request. Both endpoints reject them, and each rejection is "
                        "logged with its reason as a `rejected` record in `a2a-log.jsonl`. The task still "
-                       "closes `done` on the real `approved`.", forged_broker),
+                       "closes `done` on the real `approved`."), forged_broker),
 }
 
 

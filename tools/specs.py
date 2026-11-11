@@ -12,15 +12,21 @@ ACTION_TOOLS = ("read_file", "write_file", "exec_python")
 
 
 class ReadFileArgs(BaseModel):
+    """Arguments of the read_file tool."""
+
     path: str = Field(description="File path, relative to the workspace directory.")
 
 
 class WriteFileArgs(BaseModel):
+    """Arguments of the write_file tool."""
+
     path: str = Field(description="File path, relative to the workspace directory.")
     content: str = Field(description="Full file content (UTF-8). Overwrites any existing file.")
 
 
 class ExecPythonArgs(BaseModel):
+    """Arguments of the exec_python tool: a file or inline code, an optional timeout and the run mode."""
+
     path: str | None = Field(None, description="Python file to run, relative to the workspace directory.")
     code: str | None = Field(None, description="Inline Python to run instead of a file.")
     timeout: float | None = Field(
@@ -33,6 +39,8 @@ class ExecPythonArgs(BaseModel):
 
 
 class FinishArgs(BaseModel):
+    """Arguments of the finish tool: explanation, plan steps and optional entry point."""
+
     explanation: str = Field(min_length=1, description="What you built, how it works, and how you verified it.")
     plan: list[str] = Field(min_length=1, description="The plan you followed, one step per item.")
     entry_point: str | None = Field(
@@ -54,14 +62,14 @@ _DESCRIPTIONS = {
     "write_file": (WriteFileArgs, "Create or overwrite a file in the workspace. Paths are relative to the workspace."),
     "exec_python": (
         ExecPythonArgs,
-        "Run a Python file (or inline code) from the workspace in a subprocess, with the workspace as the "
+        ("Run a Python file (or inline code) from the workspace in a subprocess, with the workspace as the "
         "working directory. Paths are relative to the workspace. Test files run under pytest. Returns exit "
-        "code, stdout, stderr and whether the timeout killed it.",
+        "code, stdout, stderr and whether the timeout killed it."),
     ),
     FINISH: (
         FinishArgs,
-        "Finish the task. Call it alone (no other tool calls in the same response), after your last action "
-        "and after the delivered code has run successfully. Paths are relative to the workspace.",
+        ("Finish the task. Call it alone (no other tool calls in the same response), after your last action "
+        "and after the delivered code has run successfully. Paths are relative to the workspace."),
     ),
 }
 

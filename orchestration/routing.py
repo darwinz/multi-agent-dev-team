@@ -17,6 +17,8 @@ _PLAN_LINE = re.compile(r"^\s*\d+[.)]\s+(.+)", re.MULTILINE)
 
 @dataclass
 class Decision:
+    """What to do after a model call: finish, execute the run_calls, nudge the model, or stop at the limit."""
+
     kind: Literal["finish", "execute", "nudge", "limit"]
     run_calls: list[dict] = field(default_factory=list)
     rejections: list[tuple[str, str]] = field(default_factory=list)
@@ -53,4 +55,5 @@ def classify(message: AIMessage, iterations: int, max_iterations: int) -> Decisi
 
 
 def extract_plan(text: str) -> list[str]:
+    """Pull the numbered steps ('1. ...' or '1) ...') out of text as a list of step strings."""
     return [m.strip() for m in _PLAN_LINE.findall(text)]

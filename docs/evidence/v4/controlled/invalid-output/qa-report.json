@@ -20,7 +20,7 @@
   "results": [],
   "issues": [],
   "tampered": false,
-  "qa_error": "QA produced an invalid test suite twice: manifest test test_nope is not a top-level def test_* in the module; test test_push_then_pop is not in the manifest; map it to a criterion or remove it; test test_pop_returns_last is not in the manifest; map it to a criterion or remove it; criterion 2 has no test; criterion 3 has no test; criterion 4 has no test",
+  "qa_error": "QA produced an invalid test suite twice: manifest test test_nope is not a top-level def test_* in the module; test test_push_then_pop is not in the manifest; map it to a criterion or remove it; test test_pop_returns_last is not in the manifest; map it to a criterion or remove it; criterion 2 ('delete(value) removes the first node holding value and returns True, or returns False if it is absent') has no test; criterion 3 ('search(value) returns True if value is in the list, otherwise False') has no test; criterion 4 ('reverse() reverses the list in place') has no test; If a criterion is about the tests themselves (for example \"tests pass with pytest\"), cover it with one short test that runs the Coder's delivered test file by its exact name (never your own test_qa_*.py or __file__) with subprocess.run([sys.executable, \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", <file>], cwd=<the test's own directory>, timeout=5) and asserts the return code is 0",
   "test_corrections": [],
   "approved": false
 }

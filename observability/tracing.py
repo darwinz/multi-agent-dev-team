@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import os
 import threading
@@ -56,17 +57,15 @@ def resolve_trace_url(rt: RunTree | None, timeout_s: float | None = None) -> str
     result: list[str | None] = [None]
 
     def lookup() -> None:
-        try:
+        with contextlib.suppress(Exception):  # the URL is a convenience; a lookup failure must not fail the run
             result[0] = rt.get_url()
-        except Exception:  # the URL is a convenience; a lookup failure must not fail the run
-            pass
 
     # A daemon thread, so a hung lookup is abandoned rather than joined at exit
     worker = threading.Thread(target=lookup, name="trace-url", daemon=True)
     try:
         worker.start()
         worker.join(TRACE_URL_TIMEOUT_S if timeout_s is None else timeout_s)
-    except Exception:
+    except Exception:  # noqa: BLE001 - e.g. no thread can start: the run goes on without a URL
         return None
     return None if worker.is_alive() else result[0]
 

@@ -12,6 +12,8 @@ Outcome = Literal["passed", "failed", "error", "skipped"]
 
 @dataclass(frozen=True)
 class CaseResult:
+    """One test case parsed from JUnit XML: name, class, outcome, failure message and detail text."""
+
     name: str
     classname: str
     outcome: Outcome
@@ -21,6 +23,8 @@ class CaseResult:
 
 @dataclass(frozen=True)
 class JUnitResult:
+    """Totals and per-case results parsed from a pytest JUnit XML file."""
+
     tests: int
     failures: int
     errors: int

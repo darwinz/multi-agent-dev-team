@@ -10,9 +10,9 @@ import hashlib
 import json
 import logging
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from collections.abc import Sequence
 from typing import Any
 
 from langchain_core.language_models import BaseChatModel
@@ -45,16 +45,22 @@ class QAError(Exception):
 
 
 class Fix(BaseModel):
+    """One failing test's diagnosis in QA's fix plan: its root cause and the fix to send the Coder."""
+
     test: str
     root_cause: str
     fix: str
 
 
 class FixPlan(BaseModel):
+    """QA's structured fix plan: a fix per failing test, replacing the fallback fix text."""
+
     fixes: list[Fix]
 
 
 class TestVerdict(BaseModel):
+    """QA's verdict on one of its own failing tests: is the test wrong, why, and a corrected version."""
+
     __test__ = False
 
     test: str
@@ -148,6 +154,69 @@ class _Run:
     missing: list[str] = field(default_factory=list)
 
 
+class _Reconciler:
+    """Matches one pytest run's JUnit cases to the suites' manifests, collecting outcomes and High issues."""
+
+    def __init__(self, suites: dict[str, QATestSuite], task_id: str, criteria: dict[str, list[str]]) -> None:
+        self.suites = suites
+        self.criteria = criteria
+        self.run = _Run()
+        self.stems = {qa_test_file(t)[:-3]: t for t in suites}
+        # issues from other tasks' suites (the regression check) say which task regressed
+        self.prefix = {t: "" if t == task_id else f"regression in {t}: " for t in suites}
+
+    def issue(self, owner: str | None, test: str | None, criterion: str | None, location: str,
+              assertion: str) -> None:
+        """Record one High issue, prefixed with its owning task when that is another task's suite."""
+        text = _clip(self.prefix.get(owner, "") + assertion) if owner else _clip(assertion)
+        self.run.issues.append(Issue(severity="High", test=test, criterion=criterion, location=location,
+                                     assertion=text, fix=f"Make {test or location} pass: {text}"))
+
+    def criterion_of(self, owner: str, test: str) -> str | None:
+        """The acceptance-criterion text a manifest test covers, if the manifest names one."""
+        n = next((t.criterion for t in self.suites[owner].tests if t.name == test), None)
+        texts = self.criteria.get(owner, [])
+        if n is None:
+            return None
+        return texts[n - 1] if 0 < n <= len(texts) else f"{owner} criterion {n}"
+
+    def _owner(self, case: CaseResult) -> str | None:
+        """The task whose suite module a JUnit case came from, if any."""
+        return next((t for stem, t in self.stems.items()
+                     if case.classname == stem or case.classname.endswith("." + stem)
+                     or (not case.classname and case.name == stem)), None)
+
+    def record_case(self, case: CaseResult) -> tuple[str, str] | None:
+        """Record one JUnit case; returns (owner, test) when it is a manifest test, else None."""
+        owner = self._owner(case)
+        test = case.name.split("[")[0]
+        node = f"{case.classname}::{case.name}" if case.classname else case.name
+        self.run.results.append(TestOutcome(name=node, outcome=case.outcome, message=_clip(case.message)))
+        if owner is not None and any(t.name == test for t in self.suites[owner].tests):
+            if case.outcome != "passed":
+                what = "skipped: " if case.outcome == "skipped" else ""
+                self.issue(owner, test, self.criterion_of(owner, test), _location(case.text, test),
+                           what + _assertion(case))
+            return owner, test
+        if owner is not None and not case.classname:  # the module failed to import or collect
+            self.issue(owner, None, None, _location(case.text, qa_test_file(owner)), _assertion(case))
+        else:
+            self.issue(owner, case.name or None, None, _location(case.text, node or "QA test run"),
+                       f"unexpected test {node or '(unnamed)'} ({case.outcome}), not in any QA suite manifest: "
+                       + _assertion(case))
+        return None
+
+    def flag_missing(self, seen: set[tuple[str, str]], *, report_issues: bool) -> None:
+        """Every manifest test with no JUnit result is missing, which still blocks approval."""
+        for owner, suite in self.suites.items():
+            for t in suite.tests:
+                if (owner, t.name) not in seen:
+                    self.run.missing.append(t.name)
+                    if report_issues:
+                        self.issue(owner, t.name, self.criterion_of(owner, t.name), t.name,
+                                   f"{t.name} did not run (no test result for it)")
+
+
 def _later_tasks(later: Sequence[Task]) -> str:
     """The suite prompt's later-tasks section, or nothing for the last task."""
     if not later:
@@ -179,7 +248,10 @@ def _explain_uncovered(problems: list[str], criteria: Sequence[str]) -> list[str
 
 
 class QAAgent:
+    """The QA agent: writes the pytest suite for a task, runs it, and turns the results into a QAReport."""
+
     def __init__(self, settings: Settings | None = None, *, model: BaseChatModel | None = None) -> None:
+        """Settings, plus an optional model (wrapped with retry, breaker and cache); else built on first use."""
         self.settings = settings or Settings.from_env()
         self.model = resilient(model, self.settings, "qa") if model is not None else None
 
@@ -221,9 +293,9 @@ class QAAgent:
                 raise QAError(f"QA model call failed: {type(e).__name__}: {e}") from e
             suite = out.get("parsed")
             if cut_off(out.get("raw")):  # the parse error of a truncated reply would mislead the retry
-                problems = ["your reply hit the output-token limit and was cut off before it was complete. "
+                problems = [("your reply hit the output-token limit and was cut off before it was complete. "
                             "Write a shorter suite: fewer, compact tests (pytest.mark.parametrize for "
-                            "similar cases), no long docstrings or comments"]
+                            "similar cases), no long docstrings or comments")]
             elif out.get("parsing_error") is not None or suite is None:
                 problems = [str(out.get("parsing_error") or "the model returned no structured suite")]
             else:
@@ -254,7 +326,7 @@ class QAAgent:
             target = ws.resolve(path)
             if not target.is_file() or target.read_text(encoding="utf-8", errors="replace") != content:
                 tampered = True
-            guarded_tool("write_file", lambda: write_file(ws, path, content))
+            guarded_tool("write_file", lambda path=path, content=content: write_file(ws, path, content))
             shas[task_id] = _sha(content)
         return shas, tampered
 
@@ -308,63 +380,22 @@ class QAAgent:
     def _reconcile(self, suites: dict[str, QATestSuite], task_id: str, criteria: dict[str, list[str]],
                    out: ExecOutcome, junit: Path) -> _Run:
         """Every manifest test of every suite must appear in the JUnit cases as passed (spec §6)."""
-        run = _Run()
-        stems = {qa_test_file(t)[:-3]: t for t in suites}
-        prefix = {t: "" if t == task_id else f"regression in {t}: " for t in suites}
-
-        def issue(owner: str | None, test: str | None, criterion: str | None, location: str, assertion: str) -> None:
-            text = _clip(prefix.get(owner, "") + assertion) if owner else _clip(assertion)
-            run.issues.append(Issue(severity="High", test=test, criterion=criterion, location=location,
-                                    assertion=text, fix=f"Make {test or location} pass: {text}"))
-
-        def criterion_of(owner: str, test: str) -> str | None:
-            n = next((t.criterion for t in suites[owner].tests if t.name == test), None)
-            texts = criteria.get(owner, [])
-            if n is None:
-                return None
-            return texts[n - 1] if 0 < n <= len(texts) else f"{owner} criterion {n}"
-
+        rec = _Reconciler(suites, task_id, criteria)
         result = None if out.timed_out else parse_junit(junit)
         tail = _clip((out.stdout + "\n" + out.stderr)[-_TAIL:], MAX_ASSERTION - 80)
         if out.timed_out:
-            issue(None, None, None, "QA test run", f"QA test run timed out after {self.settings.exec_timeout_s:g} s")
+            rec.issue(None, None, None, "QA test run",
+                      f"QA test run timed out after {self.settings.exec_timeout_s:g} s")
         elif result is None:
-            issue(None, None, None, "QA test run", f"QA could not read pytest's JUnit XML (exit {out.exit_code}): {tail}")
-
-        seen: set[tuple[str, str]] = set()
-        for case in result.cases if result else []:
-            owner = next((t for stem, t in stems.items()
-                          if case.classname == stem or case.classname.endswith("." + stem)
-                          or (not case.classname and case.name == stem)), None)
-            test = case.name.split("[")[0]
-            node = f"{case.classname}::{case.name}" if case.classname else case.name
-            run.results.append(TestOutcome(name=node, outcome=case.outcome, message=_clip(case.message)))
-            in_manifest = owner is not None and any(t.name == test for t in suites[owner].tests)
-            if in_manifest:
-                seen.add((owner, test))
-                if case.outcome != "passed":
-                    what = "skipped: " if case.outcome == "skipped" else ""
-                    issue(owner, test, criterion_of(owner, test), _location(case.text, test),
-                          what + _assertion(case))
-            elif owner is not None and not case.classname:  # the module failed to import or collect
-                issue(owner, None, None, _location(case.text, qa_test_file(owner)), _assertion(case))
-            else:
-                issue(owner, case.name or None, None, _location(case.text, node or "QA test run"),
-                      f"unexpected test {node or '(unnamed)'} ({case.outcome}), not in any QA suite manifest: "
-                      + _assertion(case))
-
-        for owner, suite in suites.items():
-            for t in suite.tests:
-                if (owner, t.name) not in seen:
-                    run.missing.append(t.name)  # still blocks approval
-                    if result is not None:  # a timeout or unreadable XML already has its one High issue
-                        issue(owner, t.name, criterion_of(owner, t.name), t.name,
-                              f"{t.name} did not run (no test result for it)")
-
-        failing = any(r.outcome in ("failed", "error") for r in run.results)
+            rec.issue(None, None, None, "QA test run",
+                      f"QA could not read pytest's JUnit XML (exit {out.exit_code}): {tail}")
+        seen = {key for case in (result.cases if result else []) if (key := rec.record_case(case))}
+        # a timeout or unreadable XML already has its one High issue, so missing tests add none then
+        rec.flag_missing(seen, report_issues=result is not None)
+        failing = any(r.outcome in ("failed", "error") for r in rec.run.results)
         if result is not None and out.exit_code not in (0, None) and not failing:
-            issue(None, None, None, "QA test run", f"pytest exited {out.exit_code} with no failing test: {tail}")
-        return run
+            rec.issue(None, None, None, "QA test run", f"pytest exited {out.exit_code} with no failing test: {tail}")
+        return rec.run
 
     # --- review -----------------------------------------------------------------------
 
@@ -397,7 +428,7 @@ class QAAgent:
                 SystemMessage(QA_FIX_PROMPT), HumanMessage(f"Code:\n{code}\n\nFailures:\n{failures}")])
             plan = out.get("parsed") if out.get("parsing_error") is None else None
             by_test = {f.test: f.fix for f in plan.fixes if f.fix.strip()} if plan else {}
-        except Exception as e:  # keep the fallback fixes, but say so
+        except Exception as e:  # noqa: BLE001 - keep the fallback fixes, but say so
             log_event("qa_fix_plan_fallback", level=logging.WARNING, error_class=error_class(e), message=str(e))
             return issues
         return [i.model_copy(update={"fix": by_test[i.test]}) if i.test in by_test else i for i in issues]
@@ -433,7 +464,7 @@ class QAAgent:
                 HumanMessage(f"Task {handoff.task_id}: {handoff.title}\n\nAcceptance criteria:\n{criteria}\n\n"
                              f"Failing tests:\n{tests}\n\nCode:\n{code}")])
             audit = out.get("parsed") if out.get("parsing_error") is None else None
-        except Exception as e:  # keep the suite unchanged, but say so
+        except Exception as e:  # noqa: BLE001 - keep the suite unchanged, but say so
             log_event("qa_audit_fallback", level=logging.WARNING, error_class=error_class(e), message=str(e))
             return suite, []
         wrong = {v.test: v for v in (audit.verdicts if audit else [])

@@ -17,6 +17,8 @@ class _Strict(BaseModel):
 
 
 class Issue(_Strict):
+    """One QA finding: severity, failing test, criterion covered, location, failure message and suggested fix."""
+
     severity: Severity
     test: str | None = Field(description="pytest node name")
     criterion: str | None = Field(description="the task criterion the test covers")
@@ -26,6 +28,8 @@ class Issue(_Strict):
 
 
 class TestOutcome(_Strict):
+    """Result of one pytest test (passed, failed, error or skipped) with its message."""
+
     __test__ = False  # not a pytest class
 
     name: str
@@ -34,6 +38,8 @@ class TestOutcome(_Strict):
 
 
 class SuiteTest(_Strict):
+    """One manifest entry: a test name and the 1-based task criterion it covers."""
+
     __test__ = False
 
     name: str
@@ -91,6 +97,8 @@ class TestCorrection(_Strict):
 
 
 class QAReport(_Strict):
+    """One QA round for a task: pytest counts and outcomes, issues, tampering and approval (computed in code)."""
+
     task_id: str
     round: int
     test_file: str
@@ -137,6 +145,8 @@ class QAReport(_Strict):
 
 
 class CritiqueItem(_Strict):
+    """One self-review finding on the Coder's own code: a bug or edge case, where, the concern and the change."""
+
     kind: Literal["bug", "edge_case"]
     location: str
     concern: str
@@ -144,10 +154,14 @@ class CritiqueItem(_Strict):
 
 
 class Critique(_Strict):
+    """The Coder's self-review: 1 to 8 critique items."""
+
     items: list[CritiqueItem] = Field(min_length=1, max_length=8)
 
 
 class Reflection(_Strict):
+    """A self-reflection pass: the critique, files before and after, which changed and the revision status."""
+
     task_id: str
     critique: Critique | None
     before: dict[str, str]

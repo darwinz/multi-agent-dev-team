@@ -15,6 +15,8 @@ if TYPE_CHECKING:  # defined in Task 6
 
 @dataclass
 class RunContext:
+    """Mutable record of one run: id, collected call and tool records (guarded by lock) and trace URL."""
+
     run_id: str
     calls: list[CallRecord] = field(default_factory=list)
     tools: list[ToolRecord] = field(default_factory=list)
@@ -36,6 +38,7 @@ def _reset(var: ContextVar, token, prev) -> None:
 
 @contextmanager
 def run_scope(ctx: RunContext) -> Iterator[RunContext]:
+    """Make ctx the current run for the duration of the with-block, then restore the previous one."""
     prev = _run.get()
     token = _run.set(ctx)
     try:
@@ -45,11 +48,13 @@ def run_scope(ctx: RunContext) -> Iterator[RunContext]:
 
 
 def current_run() -> RunContext | None:
+    """The active RunContext, or None outside a run_scope."""
     return _run.get()
 
 
 @contextmanager
 def agent_scope(name: str) -> Iterator[None]:
+    """Label the with-block's model calls and logs with the agent name, then restore the previous label."""
     prev = _agent.get()
     token = _agent.set(name)
     try:
@@ -59,10 +64,12 @@ def agent_scope(name: str) -> Iterator[None]:
 
 
 def current_agent() -> str | None:
+    """The active agent name, or None outside an agent_scope."""
     return _agent.get()
 
 
 def record_call(rec: CallRecord) -> None:
+    """Append a model-call record to the current run (thread-safe); no-op outside a run."""
     ctx = current_run()
     if ctx is not None:
         with ctx.lock:
@@ -70,6 +77,7 @@ def record_call(rec: CallRecord) -> None:
 
 
 def record_tool(rec: ToolRecord) -> None:
+    """Append a tool-call record to the current run (thread-safe); no-op outside a run."""
     ctx = current_run()
     if ctx is not None:
         with ctx.lock:

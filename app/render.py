@@ -23,6 +23,7 @@ def _short(value: object, limit: int = 80) -> str:
 
 
 def render_event(console: Console, event: StepEvent) -> None:
+    """Print one Coder StepEvent as a prefixed [iteration/max] line, according to its kind."""
     d = event.data
     prefix = Text(f"[{event.iteration}/{event.max_iterations}] ", style="bold cyan")
     k = event.kind
@@ -61,6 +62,7 @@ def render_event(console: Console, event: StepEvent) -> None:
 
 
 def render_result(console: Console, result: CoderResult) -> None:
+    """Print the final CoderResult as a panel: status, verification, plan, files, last execution, code and errors."""
     r = result.result
     parts: list = [
         Text.assemble(("status: ", "bold"), (result.status, _STATUS_STYLE[result.status]),
@@ -74,8 +76,9 @@ def render_result(console: Console, result: CoderResult) -> None:
     ]
     if r.executed:
         tail = "\n".join(r.stdout.strip().splitlines()[-8:])
-        parts.append(Text.assemble(("last execution: ", "bold"),
-                                   f"{r.target}  exit_code={r.exit_code}  timed_out={r.timed_out}  {r.duration_s:.2f}s"))
+        parts.append(Text.assemble(
+            ("last execution: ", "bold"),
+            f"{r.target}  exit_code={r.exit_code}  timed_out={r.timed_out}  {r.duration_s:.2f}s"))
         if tail:
             parts.append(Text(tail, style="dim"))
     else:
@@ -100,6 +103,7 @@ _RUN_STYLE = {"completed": "bold green", "partial": "bold yellow", "failed": "bo
 
 
 def render_spec(console: Console, data: dict) -> None:
+    """Print the PM's spec (description, acceptance criteria, task table), or a failure panel if the PM errored."""
     if "error" in data and "name" not in data:
         console.print(Panel(Text(str(data["error"]), style="red"), title="PM failed", border_style="red"))
         return
@@ -112,6 +116,7 @@ def render_spec(console: Console, data: dict) -> None:
 
 
 def render_consolidation(console: Console, data: dict) -> None:
+    """Print which original tasks each merged task was built from, and the consolidation method."""
     titles = {t["task_id"]: t["title"] for t in data.get("original_tasks", [])}
     lines = [
         Text(f"{new} <- " + ", ".join(f"{o} ({titles.get(o, '?')})" for o in originals))
@@ -123,6 +128,7 @@ def render_consolidation(console: Console, data: dict) -> None:
 
 
 def render_task_header(console: Console, data: dict) -> None:
+    """Print a rule naming the task being started: position/total, priority and title."""
     console.rule(Text(f"T{data['position']}/{data['total']} · {data['priority']} · {data['title']}",
                       style="bold"), align="left")
 
@@ -155,6 +161,7 @@ def render_a2a(console: Console, record: dict) -> None:
 
 
 def render_reflection(console: Console, data: dict) -> None:
+    """Print the Coder's self-review: critique items, revised files, or why no revision happened."""
     items = (data.get("critique") or {}).get("items", [])
     if data.get("error"):
         line = f"self-review: no revision ({data['error']})"
@@ -171,6 +178,7 @@ def render_reflection(console: Console, data: dict) -> None:
 
 
 def render_qa_report(console: Console, data: dict) -> None:
+    """Print one QA round: tests passed, approval or issue count, tampering, then each issue."""
     head = f"QA round {data['round']}: "
     if data.get("qa_error"):
         console.print(Text(head + f"QA error: {data['qa_error']}", style="bold red"), soft_wrap=True)
@@ -186,6 +194,7 @@ def render_qa_report(console: Console, data: dict) -> None:
 
 
 def render_team_summary(console: Console, data: dict) -> None:
+    """Print the end-of-run table of per-task status, QA rounds and files, the run status and unresolved issues."""
     table = Table("id", "status", "qa rounds", "qa", "iterations", "files")
     # One row per task that executes (the merged tasks after consolidation)
     records = data.get("task_status") or {}

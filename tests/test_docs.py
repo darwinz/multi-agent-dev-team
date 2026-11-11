@@ -17,7 +17,7 @@ ALIAS = {"__start__": "START", "__end__": "END"}
 
 
 def _team_graph_blocks() -> list[str]:
-    blocks = re.findall(r"```mermaid\n(.*?)```", README.read_text(), flags=re.S)
+    blocks = re.findall(r"```mermaid\n(.*?)```", README.read_text(), flags=re.DOTALL)
     return [b for b in blocks if "pm_node" in b]
 
 
@@ -100,7 +100,7 @@ EVIDENCE_MAP = ROOT / "docs" / "evidence" / "v4" / "README.md"
 def test_readme_v4_sections():
     text = README.read_text()
     for heading in V4_HEADINGS:
-        assert re.search(rf"^{re.escape(heading)}\s*$", text, flags=re.M), f"README is missing {heading!r}"
+        assert re.search(rf"^{re.escape(heading)}\s*$", text, flags=re.MULTILINE), f"README is missing {heading!r}"
 
 
 def test_readme_env_vars_match_settings():
@@ -130,5 +130,5 @@ def test_evidence_map_covers_c4():
 
 
 def test_readme_v4_diagram_block_is_separate():
-    blocks = re.findall(r"```mermaid\n(.*?)```", README.read_text(), flags=re.S)
+    blocks = re.findall(r"```mermaid\n(.*?)```", README.read_text(), flags=re.DOTALL)
     assert any("breaker" in b.lower() and "cost" in b.lower() for b in blocks if "pm_node" not in b)

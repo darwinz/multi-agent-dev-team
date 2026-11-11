@@ -6,7 +6,6 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from pydantic import BaseModel
 
 import resilience.cache as cache_mod
-
 from resilience.cache import ResponseCache
 
 
@@ -107,7 +106,11 @@ def test_key_ignores_random_ids_and_metadata(tmp_path):
         c.key("m", _hist("lc_run--bbb-0", "toolu_2", u2), {}, None)
     plain = [HumanMessage("hi"), AIMessage("x"), ToolMessage("done", tool_call_id="q")]
     assert c.key("m", plain, {}, None) == c.key(
-        "m", [HumanMessage("hi", id="r"), AIMessage("x", id="s"), ToolMessage("done", tool_call_id="z", id="y")], {}, None)
+        "m",
+        [HumanMessage("hi", id="r"), AIMessage("x", id="s"), ToolMessage("done", tool_call_id="z", id="y")],
+        {},
+        None,
+    )
 
 
 def test_key_still_depends_on_tool_call_name_and_args(tmp_path):

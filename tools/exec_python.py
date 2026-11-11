@@ -39,6 +39,8 @@ def child_env(record_dir: Path | None = None) -> dict[str, str]:
 
 @dataclass(frozen=True)
 class ExecOutcome:
+    """One execution's outcome: exit code (None on timeout), bounded output and the files it imported."""
+
     target: str
     mode: Literal["script", "pytest"]
     exit_code: int | None
@@ -50,9 +52,11 @@ class ExecOutcome:
 
     @property
     def ok(self) -> bool:
+        """True when the run exited 0 within the timeout."""
         return self.exit_code == 0 and not self.timed_out
 
     def to_observation(self) -> str:
+        """The text the model sees as the tool's observation."""
         return "\n".join([
             f"target={self.target} mode={self.mode}",
             f"exit_code={self.exit_code}",
@@ -98,7 +102,7 @@ def _next_snippet(ws: Workspace) -> Path:
 
 def _kill_tree(proc: subprocess.Popen) -> None:
     if os.name == "nt":
-        subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True)
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True, check=False)
     else:
         try:
             os.killpg(proc.pid, signal.SIGKILL)
@@ -106,46 +110,33 @@ def _kill_tree(proc: subprocess.Popen) -> None:
             pass
 
 
-def exec_python(
-    ws: Workspace,
-    *,
-    record_dir: Path,
-    path: str | None = None,
-    code: str | None = None,
-    timeout: float = DEFAULT_TIMEOUT_S,
-    mode: Literal["auto", "script", "pytest"] = "auto",
-    junit_xml: Path | None = None,
-) -> ExecOutcome:
+def _target(ws: Workspace, path: str | None, code: str | None) -> Path:
+    """The file to run: `path` inside the workspace, or `code` saved as the next snippet file."""
     if (path is None) == (code is None):
         raise ToolError("exec_python needs exactly one of `path` or `code`")
     if code is not None:
         target = _next_snippet(ws)
         target.write_text(code, encoding="utf-8")
-    else:
-        target = ws.resolve(path)
-        if not target.is_file():
-            raise ToolError(f"file not found: {ws.relpath(target)}")
-    if mode == "auto":
-        name = target.name
-        is_test = name.endswith(".py") and (name.startswith("test_") or name.endswith("_test.py"))
-        mode = "pytest" if is_test else "script"
+        return target
+    target = ws.resolve(path)
+    if not target.is_file():
+        raise ToolError(f"file not found: {ws.relpath(target)}")
+    return target
 
-    record_dir.mkdir(parents=True, exist_ok=True)
-    record = record_dir / f"{uuid.uuid4().hex}.json"
-    cmd = [sys.executable, "-s", str(_RUNNER), mode, str(target), str(ws.root), str(record)]
-    if junit_xml is not None and mode == "pytest":
-        cmd.append(str(junit_xml))
+
+def _run_bounded(cmd: list[str], cwd: Path, env: dict[str, str], timeout: float) -> tuple[int | None, str, str, float]:
+    """Run `cmd` in its own process group with drained, bounded output; kill the whole group at the end.
+
+    Returns (exit code or None on timeout, stdout, stderr, duration in seconds).
+    """
     group = (
         {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
         if os.name == "nt"
         else {"start_new_session": True}
     )
-
-    env = child_env(record_dir)
-
     t0 = time.monotonic()
     proc = subprocess.Popen(
-        cmd, cwd=ws.root, stdin=subprocess.DEVNULL, env=env,
+        cmd, cwd=cwd, stdin=subprocess.DEVNULL, env=env,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, **group,
     )
     readers = [_BoundedReader(proc.stdout), _BoundedReader(proc.stderr)]
@@ -163,19 +154,52 @@ def exec_python(
     for r in readers:
         # A descendant that escaped the process group could keep a pipe open; don't wait on it forever
         r.join(timeout=2)
+    return None if timed_out else proc.returncode, readers[0].text(), readers[1].text(), duration
 
+
+def _read_loaded(record: Path) -> dict:
+    """The runner's record of which workspace files the run imported (and their hashes); deletes the record."""
     try:
         loaded = json.loads(record.read_text())["loaded"]
     except (OSError, ValueError, KeyError):
         loaded = {}
     record.unlink(missing_ok=True)
+    return loaded
+
+
+def exec_python(
+    ws: Workspace,
+    *,
+    record_dir: Path,
+    path: str | None = None,
+    code: str | None = None,
+    timeout: float = DEFAULT_TIMEOUT_S,
+    mode: Literal["auto", "script", "pytest"] = "auto",
+    junit_xml: Path | None = None,
+) -> ExecOutcome:
+    """Run a workspace file or a code snippet as a script or under pytest, in a subprocess with a timeout.
+
+    No `eval`/`exec`: the child is a fresh interpreter running `_runner.py` on a workspace path, with an
+    allowlisted environment, and its whole process tree is killed when the run ends.
+    """
+    target = _target(ws, path, code)
+    if mode == "auto":
+        name = target.name
+        is_test = name.endswith(".py") and (name.startswith("test_") or name.endswith("_test.py"))
+        mode = "pytest" if is_test else "script"
+    record_dir.mkdir(parents=True, exist_ok=True)
+    record = record_dir / f"{uuid.uuid4().hex}.json"
+    cmd = [sys.executable, "-s", str(_RUNNER), mode, str(target), str(ws.root), str(record)]
+    if junit_xml is not None and mode == "pytest":
+        cmd.append(str(junit_xml))
+    exit_code, stdout, stderr, duration = _run_bounded(cmd, ws.root, child_env(record_dir), timeout)
     return ExecOutcome(
         target=ws.relpath(target),
         mode=mode,
-        exit_code=None if timed_out else proc.returncode,
-        stdout=readers[0].text(),
-        stderr=readers[1].text(),
-        timed_out=timed_out,
+        exit_code=exit_code,
+        stdout=stdout,
+        stderr=stderr,
+        timed_out=exit_code is None,
         duration_s=round(duration, 3),
-        loaded=loaded,
+        loaded=_read_loaded(record),
     )

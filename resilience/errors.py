@@ -17,10 +17,12 @@ class AgentError(Exception):
     """Base for errors raised by the resilience layer; wraps the original exception."""
 
     def __init__(self, message: str = "", *, original: BaseException | None = None):
+        """Store the message and the original exception being wrapped."""
         super().__init__(message)
         self.original = original
 
     def __str__(self) -> str:
+        """'ClassName: message' of the wrapped exception if there is one, else the message."""
         if self.original is not None:
             return f"{type(self.original).__name__}: {self.original}"
         return super().__str__()
@@ -30,6 +32,7 @@ class TransientError(AgentError):
     """A retryable failure that outlasted its retries."""
 
     def __init__(self, message: str = "", *, original: BaseException | None = None, attempts: int = 0):
+        """Also record how many attempts were made."""
         super().__init__(message, original=original)
         self.attempts = attempts
 
@@ -43,6 +46,7 @@ class CircuitOpenError(TransientError):
 
     def __init__(self, message: str = "", *, breaker: str = "", original: BaseException | None = None,
                  attempts: int = 0):
+        """Also record the name of the open breaker."""
         super().__init__(message, original=original, attempts=attempts)
         self.breaker = breaker
 
@@ -64,6 +68,7 @@ def _is_httpx_transport(exc: BaseException) -> bool:
 
 
 def classify_llm_error(exc: BaseException) -> ErrorKind:
+    """'transient' for rate limits, timeouts, 5xx and connection errors, else 'permanent'."""
     s = _status(exc)
     if (isinstance(exc, (TransientError, TimeoutError, ConnectionError))
             or (s is not None and (s in {408, 409, 429} or s >= 500))
@@ -74,6 +79,7 @@ def classify_llm_error(exc: BaseException) -> ErrorKind:
 
 
 def classify_tool_error(exc: BaseException) -> ErrorKind:
+    """'transient' for timeouts, connection errors and busy/interrupted OS errors, else 'permanent'."""
     if isinstance(exc, (TransientError, TimeoutError, ConnectionError)):
         return "transient"
     if isinstance(exc, OSError) and exc.errno in _TRANSIENT_ERRNOS:
@@ -95,6 +101,7 @@ def _is_chroma_connect_failure(exc: BaseException) -> bool:
 
 
 def classify_chroma_error(exc: BaseException) -> ErrorKind:
+    """'transient' for connection failures, timeouts, 5xx and 429 from Chroma, else 'permanent'."""
     s = _status(exc)
     if (isinstance(exc, (TransientError, TimeoutError, ConnectionError))
             or _is_httpx_transport(exc)

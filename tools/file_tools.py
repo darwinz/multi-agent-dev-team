@@ -10,6 +10,8 @@ from tools.workspace import ToolError, Workspace
 
 @dataclass(frozen=True)
 class WriteOutcome:
+    """What a write produced: workspace-relative path, sha256, byte count and line count."""
+
     path: str
     sha256: str
     bytes: int
@@ -17,6 +19,7 @@ class WriteOutcome:
 
 
 def write_file(ws: Workspace, path: str, content: str) -> WriteOutcome:
+    """Write UTF-8 content to a workspace path (creating parent directories); returns a WriteOutcome."""
     target = ws.resolve(path)
     data = content.encode("utf-8")
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -30,6 +33,7 @@ def write_file(ws: Workspace, path: str, content: str) -> WriteOutcome:
 
 
 def read_file(ws: Workspace, path: str, max_chars: int = 20_000) -> str:
+    """Read a workspace file as text, truncated after max_chars; raises ToolError if missing or not a file."""
     target = ws.resolve(path)
     rel = ws.relpath(target)
     if not target.exists():

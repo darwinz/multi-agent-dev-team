@@ -18,7 +18,14 @@ from tests.fakes import make_spec
 
 
 def _task(**over):
-    base = dict(task_id="T1", title="t", description="d", acceptance_criteria=["a"], priority="high", covers=["AC1"])
+    base = {
+        "task_id": "T1",
+        "title": "t",
+        "description": "d",
+        "acceptance_criteria": ["a"],
+        "priority": "high",
+        "covers": ["AC1"],
+    }
     return Task(**{**base, **over})
 
 
@@ -97,12 +104,19 @@ def test_state_to_jsonable_dumps_models():
     art = TaskArtifact(
         task_id="T1",
         result=CoderResult(
-            code="", explanation="boom", plan=["p"], result=ExecutionResult(executed=False, target=None, exit_code=None),
+            code="",
+            explanation="boom",
+            plan=["p"],
+            result=ExecutionResult(executed=False, target=None, exit_code=None),
             status="failed", iterations=1, files={}, memories_used=[], run_id="r1", verified=False,
         ),
     )
     st = initial_project_state("r")
-    st.update(spec=spec, task_status={"T1": TaskRecord(task_id="T1", status="failed", coder_status="failed")}, artifacts=[art])
+    st.update(
+        spec=spec,
+        task_status={"T1": TaskRecord(task_id="T1", status="failed", coder_status="failed")},
+        artifacts=[art],
+    )
     out = state_to_jsonable(st)
     json.dumps(out)
     assert Spec.model_validate(out["spec"]) == spec

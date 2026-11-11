@@ -22,6 +22,8 @@ MAX_TASKS = 8
 
 
 class AcceptanceCriterion(BaseModel):
+    """One testable, spec-level requirement with an id such as AC1."""
+
     model_config = ConfigDict(extra="forbid")
 
     id: str  # "AC1", "AC2", ... unique within a spec
@@ -33,6 +35,8 @@ TASK_ID_RE = re.compile(r"T[1-9][0-9]*")
 
 
 class Task(BaseModel):
+    """One unit of work from the PM: description, task-level criteria, priority and the spec criteria it covers."""
+
     model_config = ConfigDict(extra="forbid")
 
     task_id: str  # "T1", "T2", ... unique within the list
@@ -44,6 +48,8 @@ class Task(BaseModel):
 
 
 class Spec(BaseModel):
+    """The PM's validated plan: acceptance criteria and tasks, checked so every criterion is covered by a task."""
+
     model_config = ConfigDict(extra="forbid")
 
     name: str
@@ -76,6 +82,7 @@ class Spec(BaseModel):
         return self
 
     def criterion_ids(self) -> list[str]:
+        """The spec's acceptance criterion ids, in order."""
         return [c.id for c in self.acceptance_criteria]
 
 
@@ -126,6 +133,8 @@ class Consolidation(BaseModel):
 
 
 class TaskArtifact(BaseModel):
+    """A task's CoderResult, kept in project state (one per Coder run)."""
+
     model_config = ConfigDict(extra="forbid")
 
     task_id: str
@@ -138,6 +147,8 @@ def merge_dicts(a: dict, b: dict) -> dict:
 
 
 class ProjectState(TypedDict):
+    """LangGraph state of the PM -> Coder <-> QA graph: spec, tasks, per-task progress, QA records, run status."""
+
     requirement: str  # set at entry, never modified
     spec: Spec | None  # written once by pm_node
     tasks: list[Task]  # execution list (<= MAX_TASKS); = spec.tasks unless consolidated
@@ -164,6 +175,7 @@ class ProjectState(TypedDict):
 
 
 def initial_project_state(requirement: str) -> ProjectState:
+    """Fresh ProjectState for a requirement: nothing planned or run yet, status 'running'."""
     return ProjectState(
         requirement=requirement,
         spec=None,

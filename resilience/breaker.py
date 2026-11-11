@@ -16,14 +16,19 @@ T = TypeVar("T")
 
 
 class BreakerState(StrEnum):
+    """Circuit states: closed (calls pass), open (rejected) and half-open (one probe allowed)."""
+
     CLOSED = "closed"
     OPEN = "open"
     HALF_OPEN = "half_open"
 
 
 class CircuitBreaker:
+    """Opens after failure_threshold exhausted TransientErrors; after cooldown_s lets one probe through."""
+
     def __init__(self, name: str, *, failure_threshold: int = 3, cooldown_s: float = 30.0,
                  clock: Callable[[], float] = time.monotonic):
+        """Start closed with the threshold, cool-down and clock (injectable for tests)."""
         self.name = name
         self.failure_threshold = failure_threshold
         self.cooldown_s = cooldown_s
@@ -47,6 +52,7 @@ class CircuitBreaker:
         self._state = to
 
     def call(self, fn: Callable[[], T]) -> T:
+        """Run fn through the breaker: CircuitOpenError if open or probing, else update state from the outcome."""
         with self._lock:
             state = self.state
             if state is BreakerState.OPEN or (state is BreakerState.HALF_OPEN and self._probing):
@@ -81,8 +87,11 @@ class CircuitBreaker:
 
 
 class BreakerRegistry:
+    """Process-wide set of named CircuitBreakers sharing one threshold, cool-down and clock."""
+
     def __init__(self, *, failure_threshold: int = 3, cooldown_s: float = 30.0,
                  clock: Callable[[], float] = time.monotonic):
+        """Create an empty registry with the defaults to give new breakers."""
         self._threshold = failure_threshold
         self._cooldown_s = cooldown_s
         self._clock = clock
@@ -90,6 +99,7 @@ class BreakerRegistry:
         self._lock = threading.Lock()
 
     def get(self, name: str) -> CircuitBreaker:
+        """The breaker for a name, created on first use."""
         with self._lock:
             if name not in self._breakers:
                 self._breakers[name] = CircuitBreaker(
@@ -99,11 +109,13 @@ class BreakerRegistry:
 
     def configure(self, *, failure_threshold: int, cooldown_s: float,
                   clock: Callable[[], float] = time.monotonic) -> None:
+        """Apply new threshold, cool-down and clock to the registry and to every existing breaker."""
         with self._lock:
             self._threshold, self._cooldown_s, self._clock = failure_threshold, cooldown_s, clock
             for b in self._breakers.values():
                 b.failure_threshold, b.cooldown_s, b.clock = failure_threshold, cooldown_s, clock
 
     def reset(self) -> None:
+        """Drop every breaker so each name starts closed again."""
         with self._lock:
             self._breakers.clear()

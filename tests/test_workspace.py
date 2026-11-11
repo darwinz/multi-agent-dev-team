@@ -58,9 +58,8 @@ def test_run_lock_is_exclusive_across_processes(tmp_path):
     )
     assert holder.stdout.readline().strip() == "locked"
     try:
-        with pytest.raises(WorkspaceBusyError, match="workspace busy"):
-            with RunLock(tmp_path):
-                pass
+        with pytest.raises(WorkspaceBusyError, match="workspace busy"), RunLock(tmp_path):
+            pass
     finally:
         holder.kill()
         holder.wait()

@@ -32,7 +32,7 @@ def counting(fails: int, exc=Flaky):
 P = RetryPolicy(max_retries=3, base_delay_s=0, max_delay_s=0)
 
 def test_transient_retried_then_succeeds():
-    fn, calls = counting(2)
+    fn, _calls = counting(2)
     assert call_with_retry(fn, policy=P, classify=classify_llm_error, name="t", sleep=lambda s: None) == ("ok", 3)
 
 def test_persistent_transient_stops_after_exactly_3_retries():

@@ -16,7 +16,11 @@ def run_junit(tmp_path: Path, files: dict[str, str], target: str):
 
 
 def test_parse_counts_and_messages(tmp_path):
-    res = run_junit(tmp_path, {"test_two.py": "def test_ok(): assert True\ndef test_bad(): assert 1 == 2\n"}, "test_two.py")
+    res = run_junit(
+        tmp_path,
+        {"test_two.py": "def test_ok(): assert True\ndef test_bad(): assert 1 == 2\n"},
+        "test_two.py",
+    )
     assert res.tests == 2 and res.failures == 1 and res.errors == 0 and res.skipped == 0
     by_name = {c.name: c for c in res.cases}
     assert by_name["test_ok"].outcome == "passed"

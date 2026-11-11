@@ -41,6 +41,8 @@ _ENV_VARS = {
 
 
 class Settings(BaseModel):
+    """Validated runtime settings: models, limits, retry/breaker/cache tuning, Chroma and logging; see from_env."""
+
     project_dir: Path
     model: str = "anthropic:claude-haiku-5-5"  # the Coder role (CODER_MODEL)
     pm_model: str = "anthropic:claude-sonnet-5-5"
@@ -72,25 +74,31 @@ class Settings(BaseModel):
 
     @property
     def workspace_dir(self) -> Path:
+        """Directory the agent's file tools and code execution are confined to."""
         return self.project_dir / "workspace"
 
     @property
     def chroma_dir(self) -> Path:
+        """Directory of the local persistent Chroma store used when no Chroma server is configured."""
         return self.project_dir / ".chroma"
 
     @property
     def state_dir(self) -> Path:
+        """Directory for run state: the workspace lock, its marker, the reset generation and the cache."""
         return self.project_dir / ".coder"
 
     @property
     def cache_dir(self) -> Path:
+        """Directory of the on-disk LLM response cache."""
         return self.state_dir / "cache"
 
     @property
     def cost_reports_dir(self) -> Path:
+        """Directory the per-run cost report JSON files are copied to."""
         return self.project_dir / "docs" / "cost_reports"
 
     def model_for(self, role: Role) -> str:
+        """The model id configured for a role (pm, coder or qa)."""
         return {"pm": self.pm_model, "coder": self.model, "qa": self.qa_model}[role]
 
     @classmethod

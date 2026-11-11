@@ -10,6 +10,8 @@ EventKind = Literal["start", "memory", "thought", "plan", "action", "observation
 
 
 class StepEvent(BaseModel):
+    """One step of a Coder run (start, thought, action, observation, ...) streamed to the CLI and web UI."""
+
     kind: EventKind
     iteration: int
     max_iterations: int

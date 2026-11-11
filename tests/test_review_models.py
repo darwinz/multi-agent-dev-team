@@ -17,12 +17,12 @@ def issue(severity="Low"):
 
 
 def report(**over):
-    base = dict(
-        task_id="T1", round=1, test_file="test_qa_t1.py", suite_sha="s", suites_run={"T1": "s"},
-        tested_files={"a.py": "h"}, tests_run=2, passed=2, failed=0, errors=0, skipped=0,
-        missing=[], exit_code=0, timed_out=False, duration_s=0.1, results=[], issues=[],
-        tampered=False, qa_error=None, approved=True,
-    )
+    base = {
+        "task_id": "T1", "round": 1, "test_file": "test_qa_t1.py", "suite_sha": "s", "suites_run": {"T1": "s"},
+        "tested_files": {"a.py": "h"}, "tests_run": 2, "passed": 2, "failed": 0, "errors": 0, "skipped": 0,
+        "missing": [], "exit_code": 0, "timed_out": False, "duration_s": 0.1, "results": [], "issues": [],
+        "tampered": False, "qa_error": None, "approved": True,
+    }
     base.update(over)
     return QAReport(**base)
 
@@ -32,17 +32,17 @@ def test_clean_run_can_be_approved():
 
 
 @pytest.mark.parametrize("over", [
-    dict(tests_run=0, passed=0),
-    dict(failed=1, passed=1),
-    dict(tests_run=1, passed=0, skipped=1),
-    dict(errors=1, passed=1),
-    dict(missing=["test_x"]),
-    dict(passed=1),
-    dict(exit_code=1),
-    dict(exit_code=None),
-    dict(timed_out=True),
-    dict(qa_error="x"),
-    dict(issues=[issue("High")]),
+    {"tests_run": 0, "passed": 0},
+    {"failed": 1, "passed": 1},
+    {"tests_run": 1, "passed": 0, "skipped": 1},
+    {"errors": 1, "passed": 1},
+    {"missing": ["test_x"]},
+    {"passed": 1},
+    {"exit_code": 1},
+    {"exit_code": None},
+    {"timed_out": True},
+    {"qa_error": "x"},
+    {"issues": [issue("High")]},
 ])
 def test_approved_requires_clean_run(over):
     with pytest.raises(ValidationError):

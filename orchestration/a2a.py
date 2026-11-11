@@ -20,6 +20,8 @@ class A2AError(Exception):
 
 
 class ReviewRequest(BaseModel):
+    """Coder to QA: please review these files (path to sha256) for the task, round n."""
+
     model_config = ConfigDict(extra="forbid")
 
     task_id: str
@@ -28,6 +30,8 @@ class ReviewRequest(BaseModel):
 
 
 class FixInstruction(BaseModel):
+    """QA to Coder: the issues to fix for the task this round, with a summary."""
+
     model_config = ConfigDict(extra="forbid")
 
     task_id: str
@@ -37,6 +41,8 @@ class FixInstruction(BaseModel):
 
 
 class Approved(BaseModel):
+    """QA to Coder: the task's tests all passed; carries the test count and test file."""
+
     model_config = ConfigDict(extra="forbid")
 
     task_id: str
@@ -46,6 +52,8 @@ class Approved(BaseModel):
 
 
 class FinalReport(BaseModel):
+    """QA to Coder: the review loop ended unresolved (reason), listing the open issues."""
+
     model_config = ConfigDict(extra="forbid")
 
     task_id: str
@@ -69,6 +77,8 @@ CODER_ACCEPTS: frozenset[tuple[str, str]] = frozenset(
 
 
 class Message(BaseModel):
+    """A validated, immutable A2A message: known sender, receiver and intent, with a payload matching the intent."""
+
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     sender: str
@@ -95,6 +105,7 @@ class Broker:
     """One FIFO queue per agent. Agents hold only the broker, never each other."""
 
     def __init__(self, on_event: Callable[[dict], None] | None = None) -> None:
+        """Create one empty queue per agent; on_event (optional) gets every sent, received and rejected record."""
         self._queues: dict[str, deque[Message]] = {a: deque() for a in AGENTS}
         self.on_event = on_event
 
@@ -108,10 +119,12 @@ class Broker:
             })
 
     def send(self, msg: Message) -> None:
+        """Queue the message for its receiver and emit a 'sent' event."""
         self._queues[msg.receiver].append(msg)
         self._emit("sent", msg)
 
     def receive(self, agent: str) -> Message:
+        """Pop the agent's oldest message and emit 'received'; raises A2AError when its queue is empty."""
         queue = self._queues[agent]
         if not queue:
             raise A2AError(f"{agent} has no pending messages")
@@ -124,6 +137,7 @@ class Broker:
         self._emit("rejected", msg, reason)
 
     def pending(self, agent: str) -> int:
+        """Number of messages waiting for the agent."""
         return len(self._queues[agent])
 
 
@@ -132,6 +146,7 @@ class Endpoint:
     did not ask for."""
 
     def __init__(self, name: str, accepts: frozenset[tuple[str, str]], broker: Broker) -> None:
+        """Bind an agent name, the (sender, intent) pairs it accepts and the broker it talks through."""
         self.name = name
         self.accepts = accepts
         self.broker = broker
@@ -139,6 +154,7 @@ class Endpoint:
     def send(
         self, receiver: str, intent: str, payload: BaseModel, *, correlation_id: str | None = None
     ) -> Message:
+        """Build a validated Message from this agent and queue it on the broker; returns it."""
         fields = {"correlation_id": correlation_id} if correlation_id else {}
         msg = Message(
             sender=self.name, receiver=receiver, intent=intent, payload=payload.model_dump(mode="json"), **fields

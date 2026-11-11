@@ -65,7 +65,10 @@ def test_payload_validated_per_intent():
 
 def test_correlation_ids_unique():
     p = review().model_dump()
-    assert raw("coder", "qa", "review_request", p).correlation_id != raw("coder", "qa", "review_request", p).correlation_id
+    assert (
+        raw("coder", "qa", "review_request", p).correlation_id
+        != raw("coder", "qa", "review_request", p).correlation_id
+    )
 
 
 def test_broker_fifo_per_agent():
@@ -114,7 +117,14 @@ def test_endpoint_send_builds_message():
 def test_endpoint_discards_unaccepted_intent():
     events = []
     b, coder, qa = endpoints(events)
-    b.send(raw("coder", "qa", "fix_instruction", FixInstruction(task_id="T1", round=1, issues=[ISSUE], summary="s").model_dump()))
+    b.send(
+        raw(
+            "coder",
+            "qa",
+            "fix_instruction",
+            FixInstruction(task_id="T1", round=1, issues=[ISSUE], summary="s").model_dump(),
+        )
+    )
     real = coder.send("qa", "review_request", review())
     assert qa.receive(task_id="T1") == real
     rejected = [e for e in events if e["event"] == "rejected"]
@@ -135,8 +145,18 @@ def test_endpoint_discards_wrong_task():
 def test_coder_discards_mismatched_correlation():
     events = []
     _, coder, qa = endpoints(events)
-    qa.send("coder", "approved", Approved(task_id="T1", round=1, tests_run=2, test_file="test_qa_t1.py"), correlation_id="stale")
-    good = qa.send("coder", "approved", Approved(task_id="T1", round=1, tests_run=2, test_file="test_qa_t1.py"), correlation_id="live")
+    qa.send(
+        "coder",
+        "approved",
+        Approved(task_id="T1", round=1, tests_run=2, test_file="test_qa_t1.py"),
+        correlation_id="stale",
+    )
+    good = qa.send(
+        "coder",
+        "approved",
+        Approved(task_id="T1", round=1, tests_run=2, test_file="test_qa_t1.py"),
+        correlation_id="live",
+    )
     assert coder.receive(task_id="T1", correlation_id="live") == good
     assert [e["event"] for e in events].count("rejected") == 1
 
@@ -156,5 +176,9 @@ def test_endpoint_exhausted_raises():
 
 def test_final_report_payload_roundtrip():
     _, coder, qa = endpoints()
-    qa.send("coder", "final_report", FinalReport(task_id="T1", round=3, reason="max_iterations", unresolved=[ISSUE], summary="s"))
+    qa.send(
+        "coder",
+        "final_report",
+        FinalReport(task_id="T1", round=3, reason="max_iterations", unresolved=[ISSUE], summary="s"),
+    )
     assert coder.receive(task_id="T1").payload["unresolved"][0]["severity"] == "High"

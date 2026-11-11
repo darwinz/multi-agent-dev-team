@@ -12,8 +12,8 @@ import langsmith.utils
 import pytest
 
 from agents.config import Settings
-from observability.costs import CallRecord, ToolRecord
 from observability import tracing
+from observability.costs import CallRecord, ToolRecord
 from observability.tracing import resolve_trace_url, span_metadata, tracing_enabled
 from tests.scenarios import passing_scripts, scripted_runner
 from tests.test_team_runner import events_of, report_of
@@ -88,8 +88,13 @@ def test_span_metadata_fields():
     calls = [call(100, 20), call(5, 5)]
     tools = [ToolRecord(ts="t", agent="coder", tool="write_file", ok=True, duration_ms=1, attempts=1),
              ToolRecord(ts="t", agent="coder", tool="exec_python", ok=True, duration_ms=1, attempts=1)]
-    assert span_metadata("coder", calls, tools, 12.34) == {"agent_name": "coder", "token_count": 130, "tool_calls": 2,
-                                                         "tool_names": ["exec_python", "write_file"], "duration_ms": 12.3}
+    assert span_metadata("coder", calls, tools, 12.34) == {
+        "agent_name": "coder",
+        "token_count": 130,
+        "tool_calls": 2,
+        "tool_names": ["exec_python", "write_file"],
+        "duration_ms": 12.3,
+    }
 
 
 def test_tracing_enabled_needs_flag_and_key(monkeypatch):
@@ -102,7 +107,8 @@ def test_tracing_enabled_needs_flag_and_key(monkeypatch):
 
 
 def test_tracing_off_is_noop(settings, monkeypatch):
-    monkeypatch.delenv("LANGSMITH_TRACING", raising=False); monkeypatch.delenv("LANGSMITH_API_KEY", raising=False)
+    monkeypatch.delenv("LANGSMITH_TRACING", raising=False)
+    monkeypatch.delenv("LANGSMITH_API_KEY", raising=False)
     created: list[str] = []
     sent: list[str] = []
 
@@ -119,7 +125,8 @@ def test_tracing_off_is_noop(settings, monkeypatch):
     monkeypatch.setattr(langsmith.Client, "__init__", no_client)
     for name in ("create_run", "update_run", "batch_ingest_runs", "multipart_ingest", "request_with_retries"):
         monkeypatch.setattr(langsmith.Client, name, no_send(name))  # also covers a client cached by an earlier test
-    runner = scripted_runner(settings, passing_scripts()); runner.run(REQ)
+    runner = scripted_runner(settings, passing_scripts())
+    runner.run(REQ)
     assert report_of(runner)["trace_url"] is None
     assert runner.final_state["status"] == "completed"
     assert created == [] and sent == []
@@ -130,9 +137,11 @@ def test_tracing_off_is_noop(settings, monkeypatch):
 def test_one_root_and_agent_child_spans(settings, monkeypatch):
     """Capture runs with a recording LangSmith client: exactly one root, all agent spans under its trace."""
     client = RecordingClient()  # test double: records create_run/update_run kwargs, blocks every HTTP path
-    monkeypatch.setenv("LANGSMITH_API_KEY", "lsv2-test"); monkeypatch.setenv("LANGSMITH_TRACING", "true")
+    monkeypatch.setenv("LANGSMITH_API_KEY", "lsv2-test")
+    monkeypatch.setenv("LANGSMITH_TRACING", "true")
     with langsmith.run_helpers.tracing_context(enabled=True, client=client, project_name="t"):
-        runner = scripted_runner(settings, passing_scripts()); runner.run(REQ)
+        runner = scripted_runner(settings, passing_scripts())
+        runner.run(REQ)
     client.flush()
     roots = [r for r in client.runs.values() if r.get("parent_run_id") is None]
     assert len(roots) == 1 and roots[0]["name"].startswith("team-run:")
@@ -157,9 +166,11 @@ def test_one_root_and_agent_child_spans(settings, monkeypatch):
 
 
 def traced_run(settings, client: RecordingClient, monkeypatch):
-    monkeypatch.setenv("LANGSMITH_API_KEY", "lsv2-test"); monkeypatch.setenv("LANGSMITH_TRACING", "true")
+    monkeypatch.setenv("LANGSMITH_API_KEY", "lsv2-test")
+    monkeypatch.setenv("LANGSMITH_TRACING", "true")
     with langsmith.run_helpers.tracing_context(enabled=True, client=client, project_name="t"):
-        runner = scripted_runner(settings, passing_scripts()); runner.run(REQ)
+        runner = scripted_runner(settings, passing_scripts())
+        runner.run(REQ)
     return runner
 
 

@@ -7,6 +7,7 @@ from memory.window import Turn
 
 
 def format_memory_context(turns: list[Turn], hits: list[MemoryHit]) -> str:
+    """Render recent turns and relevant past-run hits as the '# Memory' block (or a no-context notice)."""
     if not turns and not hits:
         return "# Memory\nNo prior context found (no earlier conversation turns and no relevant past runs)."
     parts = ["# Memory"]

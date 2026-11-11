@@ -18,18 +18,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from langchain_core.messages import HumanMessage  # noqa: E402
+from langchain_core.messages import HumanMessage
 
-from agents.config import Settings  # noqa: E402
-from agents.model import resilient  # noqa: E402
-from observability.context import RunContext, run_scope  # noqa: E402
-from observability.logs import log_event, run_log_file  # noqa: E402
-from orchestration.project_state import Spec  # noqa: E402
-from resilience import runtime as resilience_runtime  # noqa: E402
-from resilience.errors import CircuitOpenError, TransientError  # noqa: E402
-from scripts.controlled_runs import _scrub  # noqa: E402
-from tests.fakes import ScriptedChatModel, ai, make_spec, qa_suite_response, spec_response  # noqa: E402
-from tests.scenarios import STACK_TESTS, passing_scripts, scripted_runner  # noqa: E402
+from agents.config import Settings
+from agents.model import resilient
+from observability.context import RunContext, run_scope
+from observability.logs import log_event, run_log_file
+from orchestration.project_state import Spec
+from resilience import runtime as resilience_runtime
+from resilience.errors import CircuitOpenError, TransientError
+from scripts.controlled_runs import _scrub
+from tests.fakes import ScriptedChatModel, ai, make_spec, qa_suite_response, spec_response
+from tests.scenarios import STACK_TESTS, passing_scripts, scripted_runner
 
 DEFAULT_OUT = Path("docs/evidence/v4/controlled")
 LABEL = "scripted models, no API keys"
@@ -46,8 +46,8 @@ class RateLimited(Exception):
 
 def _settings(project: Path, **overrides) -> Settings:
     # Every role scripted: a PM_MODEL/QA_MODEL in the shell must not put a real model id in the evidence
-    base = dict(project_dir=project, model="scripted", pm_model="scripted", qa_model="scripted", exec_timeout_s=15,
-                retry_base_delay_s=0.05, retry_max_delay_s=0.2, cache_ttl_s=0.0)
+    base = {"project_dir": project, "model": "scripted", "pm_model": "scripted", "qa_model": "scripted",
+            "exec_timeout_s": 15, "retry_base_delay_s": 0.05, "retry_max_delay_s": 0.2, "cache_ttl_s": 0.0}
     return Settings.from_env(**{**base, **overrides})
 
 
@@ -75,8 +75,8 @@ def retry_then_success(project: Path, dest: Path) -> tuple[str, list[str]]:
     assert [e["attempt"] for e in _named(events, "retry_attempt")] == [1]
     assert not _named(events, "retry_exhausted")
     assert [e["attempts"] for e in _named(events, "llm_call")] == [2]
-    return ("The PM model answers one HTTP 429, then succeeds. The wrapper logs one `retry_attempt` (WARNING, "
-            "with the jittered delay) and the `llm_call` records `attempts: 2`.",
+    return (("The PM model answers one HTTP 429, then succeeds. The wrapper logs one `retry_attempt` (WARNING, "
+            "with the jittered delay) and the `llm_call` records `attempts: 2`."),
             ["retry_attempt events: 1", "llm_call attempts: 2"])
 
 
@@ -94,12 +94,84 @@ def retry_exhausted(project: Path, dest: Path) -> tuple[str, list[str]]:
     (dest / "events.jsonl").write_text((runner.run_dir / "events.jsonl").read_text(encoding="utf-8"),
                                        encoding="utf-8")
     (dest / "cost-report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
-    return ("The PM model answers four 429s in a row: the original attempt and the three allowed retries. "
+    return (("The PM model answers four 429s in a row: the original attempt and the three allowed retries. "
             "The wrapper logs three `retry_attempt` events and one `retry_exhausted` (attempt 4), the PM "
             "fails cleanly and the run is `failed`. `cost-report.json` is the run's report: outcome "
-            f"`failed`, no billable calls. Run error: `{state['error']}`.",
+            f"`failed`, no billable calls. Run error: `{state['error']}`."),
             ["retry_attempt events: 3", "retry_exhausted events: 1 (attempt 4)", "run status: failed",
              f"cost report outcome: {report['outcome']}"])
+
+
+def _breaker_leg1(project: Path, threshold: int) -> None:
+    """Default retries: each call = 4 attempts (all 429) -> retry_exhausted -> one breaker failure."""
+    settings = _settings(project / "leg1", breaker_failure_threshold=threshold, breaker_cooldown_s=COOLDOWN_S)
+    assert settings.retry_max == 3
+    log_event("scenario_step", step="leg 1: default retry_max=3, three calls that each exhaust their retries")
+    inner = ScriptedChatModel(responses=[RateLimited("429")] * 12)
+    m = resilient(inner, settings, "pm")
+    for i in range(1, 4):
+        try:
+            m.invoke([HumanMessage(f"leg 1 call {i}")])
+        except TransientError:
+            log_event("scenario_step", step=f"leg 1 call {i}", outcome="transient_failure",
+                      inner_model_calls=len(inner.calls), breaker_failures=resilience_runtime.runtime()
+                      .breakers.get("pm").failures)
+    calls_when_open = len(inner.calls)
+    try:
+        m.invoke([HumanMessage("leg 1 call 4")])
+        raise AssertionError("the open breaker let a call through")
+    except CircuitOpenError:
+        log_event("call_blocked", step="leg 1 call 4", inner_model_calls=len(inner.calls),
+                  note="breaker open: the model was not called")
+    assert calls_when_open == 12 and len(inner.calls) == 12  # 3 calls x 4 attempts; the blocked call adds none
+
+
+def _breaker_leg2(project: Path, threshold: int) -> None:
+    """retry_max=0, two full open -> half_open -> closed/open cycles."""
+    resilience_runtime.reset()
+    settings = _settings(project / "leg2", retry_max=0, breaker_failure_threshold=threshold,
+                         breaker_cooldown_s=COOLDOWN_S)
+    log_event("scenario_step", step="leg 2: retry_max=0 (one attempt per call) for the half-open cycles")
+    script = ([RateLimited("429")] * 3 + [ai("probe ok")] + [RateLimited("429")] * 3
+              + [RateLimited("probe fails")])
+    m = resilient(ScriptedChatModel(responses=script), settings, "pm")
+
+    def attempt(label: str) -> None:
+        try:
+            m.invoke([HumanMessage(label)])
+            log_event("scenario_step", step=label, outcome="ok")
+        except CircuitOpenError:
+            log_event("call_blocked", step=label, note="breaker open: the model was not called")
+        except TransientError:
+            log_event("scenario_step", step=label, outcome="transient_failure")
+
+    for i in range(1, 4):
+        attempt(f"cycle 1 failure {i}")
+    attempt("cycle 1 call while open")
+    time.sleep(COOLDOWN_S + 0.05)
+    attempt("cycle 1 probe (succeeds)")
+    for i in range(1, 4):
+        attempt(f"cycle 2 failure {i}")
+    time.sleep(COOLDOWN_S + 0.05)
+    attempt("cycle 2 probe (fails)")
+
+
+def _check_breaker_events(events: list[dict]) -> list[tuple[str, str]]:
+    """Assert the breaker scenario's logged events; returns leg 2's transition sequence."""
+    leg1_end = next(i for i, e in enumerate(events)
+                    if e["event"] == "scenario_step" and str(e["step"]).startswith("leg 2"))
+    leg1, leg2 = events[:leg1_end], events[leg1_end:]
+    assert [e["attempt"] for e in _named(leg1, "retry_attempt")] == [1, 2, 3] * 3
+    assert [e["attempt"] for e in _named(leg1, "retry_exhausted")] == [4, 4, 4]
+    assert [(e["from_state"], e["to_state"], e["failures"]) for e in _named(leg1, "breaker_transition")] == [
+        ("closed", "open", 3)]
+    assert [e["breaker_failures"] for e in leg1 if e.get("outcome") == "transient_failure"] == [1, 2, 3]
+    seq = [(e["from_state"], e["to_state"]) for e in _named(leg2, "breaker_transition")]
+    assert seq == [("closed", "open"), ("open", "half_open"), ("half_open", "closed"),
+                   ("closed", "open"), ("open", "half_open"), ("half_open", "open")], seq
+    assert all(e["level"] == "WARNING" for e in _named(events, "breaker_transition"))
+    assert len(_named(leg2, "call_blocked")) == 1
+    return seq
 
 
 def breaker(project: Path, dest: Path) -> tuple[str, list[str]]:
@@ -107,70 +179,10 @@ def breaker(project: Path, dest: Path) -> tuple[str, list[str]]:
     keep the half-open cycles short: with no retries each call is a single attempt."""
     threshold = 3
     with run_scope(RunContext(run_id="breaker")), run_log_file(dest / "events.jsonl"):
-        # Leg 1: default retries. Each call = 4 attempts (all 429) -> retry_exhausted -> one breaker failure.
-        settings = _settings(project / "leg1", breaker_failure_threshold=threshold, breaker_cooldown_s=COOLDOWN_S)
-        assert settings.retry_max == 3
-        log_event("scenario_step", step="leg 1: default retry_max=3, three calls that each exhaust their retries")
-        inner = ScriptedChatModel(responses=[RateLimited("429")] * 12)
-        m = resilient(inner, settings, "pm")
-        for i in range(1, 4):
-            try:
-                m.invoke([HumanMessage(f"leg 1 call {i}")])
-            except TransientError:
-                log_event("scenario_step", step=f"leg 1 call {i}", outcome="transient_failure",
-                          inner_model_calls=len(inner.calls), breaker_failures=resilience_runtime.runtime()
-                          .breakers.get("pm").failures)
-        calls_when_open = len(inner.calls)
-        try:
-            m.invoke([HumanMessage("leg 1 call 4")])
-            raise AssertionError("the open breaker let a call through")
-        except CircuitOpenError:
-            log_event("call_blocked", step="leg 1 call 4", inner_model_calls=len(inner.calls),
-                      note="breaker open: the model was not called")
-        assert calls_when_open == 12 and len(inner.calls) == 12  # 3 calls x 4 attempts; the blocked call adds none
-
-        # Leg 2: retry_max=0, two full open -> half_open -> closed/open cycles
-        resilience_runtime.reset()
-        settings = _settings(project / "leg2", retry_max=0, breaker_failure_threshold=threshold,
-                             breaker_cooldown_s=COOLDOWN_S)
-        log_event("scenario_step", step="leg 2: retry_max=0 (one attempt per call) for the half-open cycles")
-        script = ([RateLimited("429")] * 3 + [ai("probe ok")] + [RateLimited("429")] * 3
-                  + [RateLimited("probe fails")])
-        m = resilient(ScriptedChatModel(responses=script), settings, "pm")
-
-        def attempt(label: str) -> None:
-            try:
-                m.invoke([HumanMessage(label)])
-                log_event("scenario_step", step=label, outcome="ok")
-            except CircuitOpenError:
-                log_event("call_blocked", step=label, note="breaker open: the model was not called")
-            except TransientError:
-                log_event("scenario_step", step=label, outcome="transient_failure")
-
-        for i in range(1, 4):
-            attempt(f"cycle 1 failure {i}")
-        attempt("cycle 1 call while open")
-        time.sleep(COOLDOWN_S + 0.05)
-        attempt("cycle 1 probe (succeeds)")
-        for i in range(1, 4):
-            attempt(f"cycle 2 failure {i}")
-        time.sleep(COOLDOWN_S + 0.05)
-        attempt("cycle 2 probe (fails)")
-    events = _events(dest / "events.jsonl")
-    leg1_end = next(i for i, e in enumerate(events) if e["event"] == "scenario_step" and str(e["step"]).startswith("leg 2"))
-    leg1, leg2 = events[:leg1_end], events[leg1_end:]
-    assert [e["attempt"] for e in _named(leg1, "retry_attempt")] == [1, 2, 3] * 3
-    assert [e["attempt"] for e in _named(leg1, "retry_exhausted")] == [4, 4, 4]
-    assert [(e["from_state"], e["to_state"], e["failures"]) for e in _named(leg1, "breaker_transition")] == [
-        ("closed", "open", 3)]
-    assert [e["breaker_failures"] for e in leg1 if e.get("outcome") == "transient_failure"] == [1, 2, 3]
-    transitions = _named(leg2, "breaker_transition")
-    seq = [(e["from_state"], e["to_state"]) for e in transitions]
-    assert seq == [("closed", "open"), ("open", "half_open"), ("half_open", "closed"),
-                   ("closed", "open"), ("open", "half_open"), ("half_open", "open")], seq
-    assert all(e["level"] == "WARNING" for e in _named(events, "breaker_transition"))
-    assert len(_named(leg2, "call_blocked")) == 1
-    return (f"The `pm` breaker with threshold {threshold} and a real {COOLDOWN_S} s cool-down, in two legs "
+        _breaker_leg1(project, threshold)
+        _breaker_leg2(project, threshold)
+    seq = _check_breaker_events(_events(dest / "events.jsonl"))
+    return ((f"The `pm` breaker with threshold {threshold} and a real {COOLDOWN_S} s cool-down, in two legs "
             "(`scenario_step` and `call_blocked` lines are harness annotations, not production events).\n\n"
             "**Leg 1, retry composed with the breaker (default `retry_max=3`).** Three calls each make 4 "
             "attempts (12 model calls in all, 3 `retry_attempt` then `retry_exhausted` at attempt 4 per call). "
@@ -180,7 +192,7 @@ def breaker(project: Path, dest: Path) -> tuple[str, list[str]]:
             "**Leg 2, half-open cycles (`retry_max=0`, only to keep the run short: one attempt per call).** "
             "Cycle 1: three failures open it, a call while open is blocked, after the cool-down the probe "
             "succeeds and it closes. Cycle 2: three more failures open it, and after the cool-down the probe "
-            "fails and it reopens. Every `breaker_transition` is a WARNING.",
+            "fails and it reopens. Every `breaker_transition` is a WARNING."),
             ["leg 1 retry_attempt events: 9, retry_exhausted events: 3 (attempt 4 each)",
              "leg 1 model calls: 12 before the breaker opened, 12 after the blocked call",
              "leg 1 breaker failures after each call: 1, 2, 3 -> closed->open",
@@ -205,54 +217,75 @@ def cache(project: Path, dest: Path) -> tuple[str, list[str]]:
     assert calls_before_expiry == 1 and len(inner.calls) == 2
     hits = [e["cache_hit"] for e in _named(events, "llm_call")]
     assert hits == [False, True, False], hits
-    return (f"A PM spec request with a {CACHE_TTL_S:g} s response-cache TTL. First call: `cache_miss`, the model "
+    return ((f"A PM spec request with a {CACHE_TTL_S:g} s response-cache TTL. First call: `cache_miss`, the model "
             "answers. Same request again: `cache_hit` (zero-cost `llm_call`, `attempts: 0`, the model is not "
-            f"called). After sleeping {CACHE_TTL_S + 0.1:g} s: `cache_expired`, the model is called again.",
+            f"called). After sleeping {CACHE_TTL_S + 0.1:g} s: `cache_expired`, the model is called again."),
             ["cache events: " + ", ".join(names), f"model calls: {len(inner.calls)} for 3 requests"])
 
 
-def invalid_output(project: Path, dest: Path) -> tuple[str, list[str]]:
-    markers = dest / "markers.tmp"
-    with run_scope(RunContext(run_id="invalid-output")), run_log_file(markers):
-        # PM probe: two replies that are not a Spec
-        log_event("scenario_step", step="pm-probe")
-    pm_runner = scripted_runner(_settings(project / "pm"), ([ai("not a spec"), ai("still not")], [], []))
-    pm_state = pm_runner.run(REQUIREMENT)
-    assert pm_state["status"] == "failed" and "invalid spec twice" in pm_state["error"]
-    with run_scope(RunContext(run_id="invalid-output")), run_log_file(dest / "markers2.tmp"):
-        # QA probe: the Coder delivers, then QA twice returns a suite whose manifest names a test not in the code
-        log_event("scenario_step", step="qa-probe")
+def _marker(path: Path, step: str) -> None:
+    """Write one `scenario_step` marker line to its own log file (merged into events.jsonl later)."""
+    with run_scope(RunContext(run_id="invalid-output")), run_log_file(path):
+        log_event("scenario_step", step=step)
+
+
+def _pm_probe(project: Path) -> tuple[dict, list[dict]]:
+    """The PM answers twice with something that is not a Spec: the run fails and no tool runs."""
+    runner = scripted_runner(_settings(project / "pm"), ([ai("not a spec"), ai("still not")], [], []))
+    state = runner.run(REQUIREMENT)
+    assert state["status"] == "failed" and "invalid spec twice" in state["error"]
+    assert runner.run_dir is not None
+    events = _events(runner.run_dir / "events.jsonl")
+    assert not _named(events, "tool_call")  # nothing reached a tool
+    return state, events
+
+
+def _qa_probe(project: Path) -> tuple[list[str], list[dict], dict, list[str]]:
+    """QA twice returns a suite whose manifest names a test not in the code: the task ends qa_error.
+
+    Returns (task outcomes, events, the QA report, the Coder's legitimate tool calls before QA).
+    """
     pm, coder, _ = passing_scripts()
     bad = qa_suite_response(STACK_TESTS, (("test_nope", 1),))
-    qa_runner = scripted_runner(_settings(project / "qa"), (pm, coder, [bad, bad]))
-    qa_state = qa_runner.run(REQUIREMENT)
-    outcomes = [t["qa_outcome"] for t in qa_state["task_status"].values()]
+    runner = scripted_runner(_settings(project / "qa"), (pm, coder, [bad, bad]))
+    state = runner.run(REQUIREMENT)
+    outcomes = [t["qa_outcome"] for t in state["task_status"].values()]
     assert outcomes == ["qa_error"], outcomes
-    assert pm_runner.run_dir is not None and qa_runner.run_dir is not None
-    pm_events = _events(pm_runner.run_dir / "events.jsonl")
-    qa_events = _events(qa_runner.run_dir / "events.jsonl")
-    # PM probe: nothing reached a tool
-    assert not _named(pm_events, "tool_call")
-    # QA probe: once QA's first model call is logged, no tool runs again (QA never wrote or executed a suite)
-    first_qa = next(i for i, e in enumerate(qa_events) if e["event"] == "llm_call" and e.get("role") == "qa")
-    assert not [e for e in qa_events[first_qa:] if e["event"] == "tool_call"]
-    coder_tools = [e["tool"] for e in qa_events[:first_qa] if e["event"] == "tool_call"]
-    assert coder_tools and all(e.get("agent") == "coder" for e in qa_events[:first_qa] if e["event"] == "tool_call")
-    assert len([e for e in qa_events[first_qa:] if e["event"] == "llm_call" and e.get("role") == "qa"]) == 2
+    assert runner.run_dir is not None
+    events = _events(runner.run_dir / "events.jsonl")
+    # once QA's first model call is logged, no tool runs again (QA never wrote or executed a suite)
+    first_qa = next(i for i, e in enumerate(events) if e["event"] == "llm_call" and e.get("role") == "qa")
+    assert not [e for e in events[first_qa:] if e["event"] == "tool_call"]
+    coder_tools = [e["tool"] for e in events[:first_qa] if e["event"] == "tool_call"]
+    assert coder_tools and all(e.get("agent") == "coder" for e in events[:first_qa] if e["event"] == "tool_call")
+    assert len([e for e in events[first_qa:] if e["event"] == "llm_call" and e.get("role") == "qa"]) == 2
     # What production logs for the rejection: the QA report carries qa_error (no dedicated WARNING event exists)
-    qa_report = json.loads(next(qa_runner.run_dir.glob("qa-T1-r*.json")).read_text(encoding="utf-8"))
-    assert qa_report["qa_error"] and qa_report["approved"] is False
-    warnings = [e["event"] for e in qa_events + pm_events if e["level"] in ("WARNING", "ERROR")]
+    report = json.loads(next(runner.run_dir.glob("qa-T1-r*.json")).read_text(encoding="utf-8"))
+    assert report["qa_error"] and report["approved"] is False
+    return outcomes, events, report, coder_tools
+
+
+def _merge_events(dest: Path, parts: list[Path | dict]) -> None:
+    """Write events.jsonl from marker files (consumed) and event dicts, in order."""
     with (dest / "events.jsonl").open("w", encoding="utf-8") as f:
-        for part in (markers, *pm_events, dest / "markers2.tmp", *qa_events):
+        for part in parts:
             if isinstance(part, Path):
                 f.write(part.read_text(encoding="utf-8"))
+                part.unlink()
             else:
                 f.write(json.dumps(part) + "\n")
-    markers.unlink()
-    (dest / "markers2.tmp").unlink()
+
+
+def invalid_output(project: Path, dest: Path) -> tuple[str, list[str]]:
+    """Invalid structured output from the PM and from QA is rejected before any tool acts on it."""
+    _marker(dest / "markers.tmp", "pm-probe")  # PM probe: two replies that are not a Spec
+    pm_state, pm_events = _pm_probe(project)
+    _marker(dest / "markers2.tmp", "qa-probe")  # QA probe: two suites naming a test not in the code
+    outcomes, qa_events, qa_report, coder_tools = _qa_probe(project)
+    warnings = [e["event"] for e in qa_events + pm_events if e["level"] in ("WARNING", "ERROR")]
+    _merge_events(dest, [dest / "markers.tmp", *pm_events, dest / "markers2.tmp", *qa_events])
     (dest / "qa-report.json").write_text(json.dumps(qa_report, indent=2), encoding="utf-8")
-    return ("Two probes whose model returns invalid structured output (`scenario_step` lines are harness "
+    return (("Two probes whose model returns invalid structured output (`scenario_step` lines are harness "
             "markers; each probe's section of `events.jsonl` follows its marker).\n\n"
             f"**pm-probe.** The PM returns two replies that are not a `Spec`. The run is `{pm_state['status']}` "
             f"(`{pm_state['error']}`) and the section has zero `tool_call` events.\n\n"
@@ -266,7 +299,7 @@ def invalid_output(project: Path, dest: Path) -> tuple[str, list[str]]:
             f"`{qa_report['qa_error']}`).\n\n"
             "**Not claimed here.** The invalid *tool-call* probe (a `write_file` call with a missing or "
             "escaping argument rejected before any write) is covered by "
-            "`tests/test_security.py::test_invalid_tool_call_rejected_before_write`, not by this run.",
+            "`tests/test_security.py::test_invalid_tool_call_rejected_before_write`, not by this run."),
             ["pm-probe: run status failed, tool_call events: 0",
              f"qa-probe: task outcome {outcomes[0]}, tool_call events after QA's first llm_call: 0",
              f"qa-probe: Coder tool_call events before QA (legitimate): {len(coder_tools)}",

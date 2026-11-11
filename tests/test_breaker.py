@@ -4,8 +4,7 @@ import pytest
 
 from resilience import runtime
 from resilience.breaker import BreakerRegistry, BreakerState, CircuitBreaker
-from resilience.errors import (CircuitOpenError, PermanentError, TransientError,
-                               classify_llm_error)
+from resilience.errors import CircuitOpenError, PermanentError, TransientError, classify_llm_error
 from resilience.retry import RetryPolicy
 
 t = [0.0]

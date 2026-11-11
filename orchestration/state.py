@@ -10,11 +10,15 @@ from langgraph.graph.message import add_messages
 
 
 class WriteInfo(TypedDict):
+    """Record of a file write: its sequence number and sha256."""
+
     seq: int
     sha256: str
 
 
 class ExecInfo(TypedDict):
+    """Record of one code execution: sequence, target, outcome, output and the sha256 of each .py file it loaded."""
+
     seq: int
     target: str
     ok: bool
@@ -27,6 +31,8 @@ class ExecInfo(TypedDict):
 
 
 class ToolEvent(TypedDict):
+    """Record of one tool call: sequence, iteration, name, arguments, observation and success."""
+
     seq: int
     iteration: int
     name: str
@@ -36,15 +42,19 @@ class ToolEvent(TypedDict):
 
 
 def merge_dicts(left: dict, right: dict) -> dict:
+    """Reducer: merge two dicts, right-hand keys win."""
     return {**left, **right}
 
 
 def merge_hits(left: list[dict], right: list[dict]) -> list[dict]:
+    """Reducer: append the right-hand memory hits whose id is not already in the left-hand list."""
     seen = {h["id"] for h in left}
     return left + [h for h in right if h["id"] not in seen]
 
 
 class CoderState(TypedDict):
+    """LangGraph state of one Coder run: task, messages, plan, tool events, writes, executions, memory, result."""
+
     task: str
     messages: Annotated[list[AnyMessage], add_messages]
     iterations: int

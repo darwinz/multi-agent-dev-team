@@ -46,3 +46,16 @@ packages = ["agents", "tools", "memory", "orchestration", "app", "resilience", "
 testpaths = ["tests"]
 markers = ["live: calls a real model provider"]
 addopts = "-p no:cacheprovider -m 'not live'"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["workspace", ".coder", "docs"]
+
+[tool.ruff.lint]
+# Ruff's defaults, plus pycodestyle errors and warnings, and missing-docstring checks for public code
+extend-select = ["E", "W", "F", "I", "D1"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D1"]
+"scripts/**" = ["D1"]

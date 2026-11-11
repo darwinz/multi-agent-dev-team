@@ -111,7 +111,7 @@ def test_fix_plan_and_audit_fallbacks_log_warning(settings, caplog):
                   assertion="boom", fix="orig")
     with caplog.at_level(logging.WARNING, logger="mad"):
         assert qa._fixes([issue], {}) == [issue]
-        suite, corrections = qa._check_tests(handoff(), stack_suite(), [issue], {})
+        _suite, corrections = qa._check_tests(handoff(), stack_suite(), [issue], {})
     assert corrections == []
     (fix_rec,) = _warnings(caplog, "qa_fix_plan_fallback")
     (audit_rec,) = _warnings(caplog, "qa_audit_fallback")

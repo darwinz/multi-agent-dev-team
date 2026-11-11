@@ -20,6 +20,8 @@ T = TypeVar("T")
 
 @dataclass(frozen=True)
 class RetryPolicy:
+    """How many retries to make and the bounds of the exponential backoff between them."""
+
     max_retries: int = 3
     base_delay_s: float = 1.0
     max_delay_s: float = 30.0
@@ -30,6 +32,7 @@ class RetryPolicy:
 
     @classmethod
     def from_settings(cls, s: Settings) -> RetryPolicy:
+        """Build the policy from the retry_* settings."""
         return cls(s.retry_max, s.retry_base_delay_s, s.retry_max_delay_s)
 
 

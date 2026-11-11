@@ -25,6 +25,8 @@ class ExecutionResult(BaseModel):
 
 
 class CoderResult(BaseModel):
+    """The Coder's final structured output for a task; 'success' is only valid with verified execution."""
+
     model_config = ConfigDict(extra="forbid")
 
     code: str = Field(description="Contents of the delivered files, read back from disk.")

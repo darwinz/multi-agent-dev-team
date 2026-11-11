@@ -37,6 +37,8 @@ _AGENTS = ("pm", "coder", "qa")
 
 
 class CallRecord(BaseModel):
+    """One model call: tokens by kind, cost, cache hit, duration and attempts; collected for the cost report."""
+
     ts: str
     role: str
     agent: str | None
@@ -53,6 +55,8 @@ class CallRecord(BaseModel):
 
 
 class ToolRecord(BaseModel):
+    """One tool call: which tool, whether it succeeded, duration and attempts; collected per run."""
+
     ts: str
     agent: str | None
     tool: str
@@ -74,6 +78,7 @@ def _model_key(model: str) -> str:
 
 
 def cost_usd(model: str, prompt: int, completion: int, cache_read: int, cache_write: int) -> tuple[float, bool]:
+    """USD cost of one call from the price table, and whether the model was priced (unknown: 0.0, False)."""
     price = PRICING.get(_model_key(model))
     if price is None:
         log_event("unpriced_model", level=logging.WARNING, model=model)
@@ -101,6 +106,7 @@ def build_cost_report(*, run_id: str, started_at: str, finished_at: str, require
                       outcome: Literal["success", "unresolved", "failed", "aborted"],
                       models: dict[str, str], calls: list[CallRecord], trace_url: str | None,
                       error: dict | None = None) -> dict:
+    """Assemble the run's cost report: pricing used, every call, per-agent and total summaries, unpriced models."""
     pricing: dict = {"as_of": PRICING_AS_OF}
     unpriced: set[str] = set()
     for c in calls:

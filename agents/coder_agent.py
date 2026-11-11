@@ -62,6 +62,8 @@ def memory_document(task: str, result: CoderResult) -> str:
 
 
 class CoderAgent:
+    """The Coder: a bounded ReAct agent with two memory layers, run on one shared workspace."""
+
     def __init__(
         self,
         settings: Settings | None = None,
@@ -69,6 +71,7 @@ class CoderAgent:
         model: BaseChatModel | None = None,
         embedding_function: Any = None,
     ) -> None:
+        """Set up memory (window + Chroma), the workspace and the reset counter; the model is built on first use."""
         self.settings = settings or Settings.from_env()
         self.model = resilient(model, self.settings, "coder") if model is not None else None
         self.workspace = Workspace(self.settings.workspace_dir)
@@ -110,79 +113,99 @@ class CoderAgent:
         raise ReflectionError(f"critique invalid twice: {error}")
 
     def stream(self, task: str, *, lock_held: bool = False) -> Iterator[StepEvent]:
+        """Run one task, yielding its `StepEvent`s and ending with a `result` event; then write memory back."""
         s = self.settings
         with contextlib.nullcontext() if lock_held else RunLock(s.state_dir):
-            current = self._generation.read()
-            if current != self.generation_seen:
-                self.window.clear()
-                self.semantic.reopen()  # another process recreated the collection
-                self.generation_seen = current
-
+            self._sync_generation()
             run_id = uuid.uuid4().hex[:12]
             yield StepEvent(kind="start", iteration=0, max_iterations=s.max_iterations,
                             data={"task": task, "run_id": run_id, "model": s.model})
             self.last_written = set()
             state: dict = {}
             try:
-                deps = GraphDeps(
-                    model=self._bound_model(),
-                    tool_ctx=ToolContext(self.workspace, s.exec_timeout_s, s.state_dir / "exec"),
-                    semantic=self.semantic,
-                    window=self.window,
-                    max_iterations=s.max_iterations,
-                    top_k=s.memory_top_k,
-                    max_distance=s.memory_max_distance,
-                    run_id=run_id,
-                )
-                for chunk in build_graph(deps).stream(
-                    initial_state(task),
-                    config={"recursion_limit": 3 * s.max_iterations + 5},
-                    stream_mode=["custom", "values"],
-                    version="v2",
-                ):
-                    if chunk["type"] == "values":
-                        state = chunk["data"]
-                        continue
-                    event = StepEvent.model_validate(chunk["data"])
-                    if event.kind == "action" and event.data.get("tool") == "write_file":
-                        try:
-                            self.last_written.add(self.workspace.relpath(self.workspace.resolve(event.data["args"]["path"])))
-                        except Exception:  # the observation reports the bad path; nothing to highlight
-                            pass
-                    yield event
-            except Exception as e:  # model/provider/graph failure: report it as an error result
+                yield from self._stream_graph(task, run_id, state)
+            except Exception as e:  # noqa: BLE001 - model/provider/graph failure: report it as an error result
                 yield StepEvent(kind="error", iteration=state.get("iterations", 0), max_iterations=s.max_iterations,
                                 data={"message": f"{type(e).__name__}: {e}"})
-                files = self._written_files()
-                result = CoderResult(
-                    code=code_block(files) if files else "",
-                    explanation=f"Run failed: {type(e).__name__}: {e}",
-                    plan=state.get("plan") or ["Run failed before a plan was recorded."],
-                    result=ExecutionResult(executed=False, target=None, exit_code=None),
-                    status="error",
-                    iterations=state.get("iterations", 0),
-                    files=files,
-                    memories_used=[],
-                    run_id=run_id,
-                    verified=False,
-                    error=str(e),
-                )
+                result = self._error_result(e, state, run_id)
                 yield StepEvent(kind="result", iteration=result.iterations, max_iterations=s.max_iterations,
                                 data={"result": result.model_dump()})
                 return
-
             result = CoderResult.model_validate(state["result"])
-            self.window.add(task, result.explanation)
-            try:
-                self.semantic.add(memory_document(task, result), {
-                    "run_id": run_id,
-                    "status": result.status,
-                    "files": ",".join(result.files),
-                    "created_at": datetime.now(UTC).isoformat(),
-                })
-            except Exception as e:  # e.g. the embedding model can't download: keep the result
-                yield StepEvent(kind="error", iteration=result.iterations, max_iterations=s.max_iterations,
-                                data={"message": f"memory write-back failed: {type(e).__name__}: {e}"})
+            yield from self._remember(task, result, run_id)
+
+    def _sync_generation(self) -> None:
+        """Drop the window and reopen Chroma if another process reset memory since this agent last looked."""
+        current = self._generation.read()
+        if current != self.generation_seen:
+            self.window.clear()
+            self.semantic.reopen()  # another process recreated the collection
+            self.generation_seen = current
+
+    def _stream_graph(self, task: str, run_id: str, state: dict) -> Iterator[StepEvent]:
+        """Stream the ReAct graph's events; `state` is kept equal to the graph's latest full state."""
+        s = self.settings
+        deps = GraphDeps(
+            model=self._bound_model(),
+            tool_ctx=ToolContext(self.workspace, s.exec_timeout_s, s.state_dir / "exec"),
+            semantic=self.semantic,
+            window=self.window,
+            max_iterations=s.max_iterations,
+            top_k=s.memory_top_k,
+            max_distance=s.memory_max_distance,
+            run_id=run_id,
+        )
+        for chunk in build_graph(deps).stream(
+            initial_state(task),
+            config={"recursion_limit": 3 * s.max_iterations + 5},
+            stream_mode=["custom", "values"],
+            version="v2",
+        ):
+            if chunk["type"] == "values":
+                state.clear()
+                state.update(chunk["data"])
+                continue
+            event = StepEvent.model_validate(chunk["data"])
+            if event.kind == "action" and event.data.get("tool") == "write_file":
+                self._note_write(event.data["args"].get("path"))
+            yield event
+
+    def _note_write(self, path: object) -> None:
+        """Remember a write_file target so a failed run can still report what it wrote."""
+        # the observation reports a bad path; there is nothing to highlight
+        with contextlib.suppress(Exception):
+            self.last_written.add(self.workspace.relpath(self.workspace.resolve(path)))
+
+    def _error_result(self, e: Exception, state: dict, run_id: str) -> CoderResult:
+        """The `error` result for a run the model, provider or graph broke: never verified."""
+        files = self._written_files()
+        return CoderResult(
+            code=code_block(files) if files else "",
+            explanation=f"Run failed: {type(e).__name__}: {e}",
+            plan=state.get("plan") or ["Run failed before a plan was recorded."],
+            result=ExecutionResult(executed=False, target=None, exit_code=None),
+            status="error",
+            iterations=state.get("iterations", 0),
+            files=files,
+            memories_used=[],
+            run_id=run_id,
+            verified=False,
+            error=str(e),
+        )
+
+    def _remember(self, task: str, result: CoderResult, run_id: str) -> Iterator[StepEvent]:
+        """Add the run to both memory layers; a semantic-memory failure is reported, never raised."""
+        self.window.add(task, result.explanation)
+        try:
+            self.semantic.add(memory_document(task, result), {
+                "run_id": run_id,
+                "status": result.status,
+                "files": ",".join(result.files),
+                "created_at": datetime.now(UTC).isoformat(),
+            })
+        except Exception as e:  # noqa: BLE001 - e.g. the embedding model can't download: keep the result
+            yield StepEvent(kind="error", iteration=result.iterations, max_iterations=self.settings.max_iterations,
+                            data={"message": f"memory write-back failed: {type(e).__name__}: {e}"})
 
     def _written_files(self) -> dict[str, str]:
         files = {}
@@ -193,6 +216,7 @@ class CoderAgent:
         return files
 
     def run(self, task: str, *, lock_held: bool = False) -> CoderResult:
+        """Run one task to completion and return its `CoderResult` (the non-streaming form of `stream`)."""
         result = None
         for event in self.stream(task, lock_held=lock_held):
             if event.kind == "result":
@@ -211,4 +235,5 @@ class CoderAgent:
 
 
 def run_coder(task: str, settings: Settings | None = None) -> CoderResult:
+    """Convenience entry point: a fresh `CoderAgent` runs one task."""
     return CoderAgent(settings).run(task)

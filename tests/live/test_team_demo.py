@@ -81,5 +81,5 @@ def test_bst_demo_passes_supplied_fixture(live_settings, tmp_path):
     ws = live_settings.workspace_dir
     out = subprocess.run([sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "--noconftest",
                           str(FIXTURE_PATH)], cwd=ws, env={**child_env(tmp_path), "PYTHONPATH": str(ws)},
-                         capture_output=True, text=True, timeout=60)
+                         capture_output=True, text=True, timeout=60, check=False)
     assert out.returncode == 0, out.stdout[-2000:] + out.stderr[-2000:]

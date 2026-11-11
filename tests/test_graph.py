@@ -43,7 +43,7 @@ def test_happy_path_success(settings):
         ai("done", tool_call("finish", explanation="Checks palindromes", plan=["write", "test"],
                              entry_point="test_palindrome.py")),
     ])
-    state, events = run_graph(deps(settings, m))
+    state, _events = run_graph(deps(settings, m))
     r = CoderResult.model_validate(state["result"])
     assert r.status == "success" and r.verified and r.iterations == 2
     assert r.files["palindrome.py"] == (settings.workspace_dir / "palindrome.py").read_text()
@@ -57,7 +57,7 @@ def test_memory_retrieved_before_every_call(settings):
     ]))
     d.semantic.add("Task: earlier palindrome work", {"run_id": "old"})
     d.window.add("earlier task", "earlier answer")
-    state, events = run_graph(d)
+    _state, events = run_graph(d)
     assert [e["kind"] for e in events].count("memory") == 4 == len(d.model.calls)
     for call in d.model.calls:
         assert "earlier answer" in call[0].content and "## Recent conversation" in call[0].content
@@ -114,7 +114,7 @@ def test_unexecuted_broken_file_is_failed(settings):  # spec §6.4 regression 2 
 def test_limit_event_separates_rejected_from_unexecuted(settings):
     s = settings.model_copy(update={"max_iterations": 1})
     bad_finish = tool_call("finish", explanation="e")  # missing plan
-    state, events = run_graph(deps(s, ScriptedChatModel(responses=[ai("", bad_finish)])))
+    _state, events = run_graph(deps(s, ScriptedChatModel(responses=[ai("", bad_finish)])))
     limit = next(e for e in events if e["kind"] == "limit")
     assert limit["data"]["unexecuted"] == [] and limit["data"]["rejected"][0].startswith("finish rejected:")
 

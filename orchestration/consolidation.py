@@ -16,6 +16,8 @@ _RANK = {"high": 2, "medium": 1, "low": 0}
 
 
 class MergeGroup(BaseModel):
+    """One proposed merged task: a title, a one-line summary and the original task ids it absorbs."""
+
     model_config = ConfigDict(extra="forbid")
 
     title: str
@@ -24,6 +26,8 @@ class MergeGroup(BaseModel):
 
 
 class MergePlan(BaseModel):
+    """A proposed grouping of the original tasks into merged tasks (from the model or deterministic)."""
+
     model_config = ConfigDict(extra="forbid")
 
     groups: list[MergeGroup]

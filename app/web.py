@@ -6,7 +6,7 @@ import os
 import queue
 import sys
 import threading
-from collections.abc import Generator, AsyncIterator
+from collections.abc import AsyncIterator, Generator
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -26,6 +26,8 @@ WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 
 
 class RunRequest(BaseModel):
+    """Request body of POST /api/run: the non-empty task for the Coder to run."""
+
     task: str = Field(min_length=1)
 
 
@@ -62,6 +64,7 @@ async def _sse_body(first: StepEvent, events: Generator[StepEvent, None, None]) 
 
 
 def create_app(agent: CoderAgent) -> FastAPI:
+    """Build the FastAPI app: host allow-list, static files, and the status, files, file and run endpoints."""
     app = FastAPI(title="Coder agent")
     # /api/run executes code: refuse foreign Host headers so a DNS-rebinding page can't drive it
     hosts = os.environ.get("CODER_WEB_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
@@ -110,6 +113,7 @@ def create_app(agent: CoderAgent) -> FastAPI:
 
 
 def main() -> None:
+    """Entry point of `coder-web`: build the agent and serve the app with uvicorn (exit 2 if Chroma is down)."""
     import uvicorn
 
     host = os.environ.get("CODER_WEB_HOST", "127.0.0.1")

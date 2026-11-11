@@ -64,7 +64,7 @@ class ScriptedChatModel(BaseChatModel):
     """Returns pre-scripted responses in order and records every message list it was sent."""
 
     responses: list[Any]
-    calls: list[list[BaseMessage]] = []
+    calls: list[list[BaseMessage]] = []  # noqa: RUF012  # pydantic field: copied per instance, ClassVar would share it
 
     @property
     def _llm_type(self) -> str:
@@ -73,7 +73,9 @@ class ScriptedChatModel(BaseChatModel):
     def bind_tools(self, tools: Any, **kwargs: Any) -> ScriptedChatModel:
         return self
 
-    def _generate(self, messages: list[BaseMessage], stop: Any = None, run_manager: Any = None, **kwargs: Any) -> ChatResult:
+    def _generate(
+        self, messages: list[BaseMessage], stop: Any = None, run_manager: Any = None, **kwargs: Any
+    ) -> ChatResult:
         self.calls.append(list(messages))
         if not self.responses:
             raise AssertionError("model called more times than scripted")
@@ -166,7 +168,9 @@ QA_PAL_TESTS = (
 )
 
 
-def qa_suite_response(content: str = QA_PAL_TESTS, tests: tuple[tuple[str, int], ...] = (("test_pal_qa", 1),)) -> AIMessage:
+def qa_suite_response(
+    content: str = QA_PAL_TESTS, tests: tuple[tuple[str, int], ...] = (("test_pal_qa", 1),)
+) -> AIMessage:
     return structured("QATestSuite", {"content": content, "tests": [{"name": n, "criterion": c} for n, c in tests]})
 
 

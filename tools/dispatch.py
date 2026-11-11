@@ -17,6 +17,8 @@ from tools.workspace import ToolError, Workspace, sha256_file
 
 @dataclass
 class ToolContext:
+    """What the tools need to run: the workspace, the exec timeout ceiling and where execution records go."""
+
     workspace: Workspace
     exec_timeout_s: float
     record_dir: Path
@@ -24,6 +26,8 @@ class ToolContext:
 
 @dataclass
 class ActionOutcome:
+    """Result of one tool call: observation text, plus the write or execution outcome and any .py files it changed."""
+
     observation: str
     write: WriteOutcome | None = None
     execution: ExecOutcome | None = None
@@ -31,6 +35,7 @@ class ActionOutcome:
 
 
 def run_action(ctx: ToolContext, name: str, args: dict) -> ActionOutcome:
+    """Validate args and run the named action tool under its breaker; any failure becomes a ToolError."""
     if name not in ACTION_TOOLS:
         raise ToolError(f"unknown tool: {name}")
     try:

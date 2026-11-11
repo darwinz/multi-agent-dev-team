@@ -1,10 +1,13 @@
-.PHONY: setup test verify demo web requirements team-demo team-large team-linked-list team-bst
+.PHONY: setup test lint verify demo web requirements team-demo team-large team-linked-list team-bst
 
 setup:
 	uv sync
 
 test:
 	uv run pytest
+
+lint:
+	uvx ruff@0.17.4 check .
 
 verify:
 	REQUIRE_LIVE=1 uv run pytest -m live -rs

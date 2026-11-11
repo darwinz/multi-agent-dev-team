@@ -70,7 +70,11 @@ def extra() -> tuple[list, list]:
     coder = [
         ai("1. write extra\n2. run",
            tool_call("write_file", path="extra.py", content="X = 1\n"),
-           tool_call("write_file", path="test_extra.py", content="from extra import X\n\ndef test_x():\n    assert X == 1\n"),
+           tool_call(
+               "write_file",
+               path="test_extra.py",
+               content="from extra import X\n\ndef test_x():\n    assert X == 1\n",
+           ),
            tool_call("exec_python", path="test_extra.py")),
         ai("done", tool_call("finish", explanation="Adds extra", plan=["write", "run"], entry_point="test_extra.py")),
         critique_response(),

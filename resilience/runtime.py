@@ -19,6 +19,8 @@ T = TypeVar("T")
 
 @dataclass
 class Resilience:
+    """The process-wide retry policy, breaker registry and sleep function."""
+
     policy: RetryPolicy = field(default_factory=RetryPolicy)
     breakers: BreakerRegistry = field(default_factory=BreakerRegistry)
     sleep: Callable[[float], None] = time.sleep
@@ -28,10 +30,12 @@ _runtime = Resilience()
 
 
 def runtime() -> Resilience:
+    """The current process-wide Resilience."""
     return _runtime
 
 
 def configure(settings: Settings) -> None:
+    """Apply the retry and breaker settings to the process-wide runtime."""
     _runtime.policy = RetryPolicy.from_settings(settings)
     _runtime.breakers.configure(failure_threshold=settings.breaker_failure_threshold,
                                 cooldown_s=settings.breaker_cooldown_s)
@@ -46,6 +50,7 @@ def reset() -> None:
 
 def resilient_call(fn: Callable[[], T], *, breaker: str,
                    classify: Callable[[BaseException], ErrorKind], name: str) -> tuple[T, int]:
+    """Run fn with retry inside the named breaker; returns (result, attempts)."""
     rt = runtime()
     return rt.breakers.get(breaker).call(
         lambda: call_with_retry(fn, policy=rt.policy, classify=classify, name=name, sleep=rt.sleep))

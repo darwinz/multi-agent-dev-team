@@ -22,7 +22,10 @@ logging.getLogger(LOGGER_NAME).setLevel(logging.INFO)
 
 
 class JsonFormatter(logging.Formatter):
+    """Formats log records as one JSON line with timestamp, level, run id, agent and event, with secrets redacted."""
+
     def format(self, record: logging.LogRecord) -> str:
+        """Render the record's fields plus ts, level, run_id, agent and event as redacted JSON."""
         run = current_run()
         out = dict(getattr(record, "fields", {}))
         out.update(
@@ -48,6 +51,7 @@ class _StderrHandler(logging.StreamHandler):
 
 
 def redact(text: str) -> str:
+    """Replace the value of any *_API_KEY, *_TOKEN or *_SECRET environment variable (8+ chars) with [redacted]."""
     secrets = [v for k, v in os.environ.items() if _SECRET_NAME.search(k) and len(v) >= 8]
     for v in sorted(secrets, key=len, reverse=True):
         text = text.replace(v, "[redacted]")
@@ -55,6 +59,7 @@ def redact(text: str) -> str:
 
 
 def configure_logging(level: str = "INFO") -> None:
+    """Set the `mad` logger's level and attach one stderr JSON handler (idempotent)."""
     logger = logging.getLogger(LOGGER_NAME)
     logger.setLevel(level.upper())
     logger.propagate = True  # so caplog sees records
@@ -71,6 +76,7 @@ def error_class(e: BaseException) -> str:
 
 
 def log_event(event: str, *, level: int = logging.INFO, **fields) -> None:
+    """Log a named event with structured fields (string values redacted) tagged with the current run and agent."""
     run = current_run()
     clean = {k: redact(v) if isinstance(v, str) else v for k, v in fields.items()}
     logging.getLogger(LOGGER_NAME).log(
@@ -80,6 +86,7 @@ def log_event(event: str, *, level: int = logging.INFO, **fields) -> None:
 
 @contextmanager
 def run_log_file(path: Path) -> Iterator[None]:
+    """Write this run's log records (as JSON lines) to path for the duration of the with-block."""
     path.parent.mkdir(parents=True, exist_ok=True)
     handler = logging.FileHandler(path, encoding="utf-8")
     handler.setFormatter(JsonFormatter())

@@ -1,6 +1,6 @@
-from memory.context import format_memory_context
 import pytest
 
+from memory.context import format_memory_context
 from memory.semantic import MemoryHit, MemoryUnavailableError, SemanticMemory, memory_id
 from memory.window import SlidingWindow, Turn
 from tests.fakes import FakeEmbedding

@@ -21,7 +21,10 @@ class PMError(Exception):
 
 
 class PMAgent:
+    """The product-manager agent: drafts a validated Spec from a requirement and consolidates its tasks."""
+
     def __init__(self, settings: Settings | None = None, *, model: BaseChatModel | None = None) -> None:
+        """Keep the settings (default: from env); wrap an injected model, else build one on first use."""
         self.settings = settings or Settings.from_env()
         self.model = resilient(model, self.settings, "pm") if model is not None else None
 
@@ -62,6 +65,6 @@ class PMAgent:
             plan = out.get("parsed")
             if out.get("parsing_error") is None and plan is not None and not validate_merge(spec, plan, max_tasks):
                 return build_merged(spec, plan.groups, "llm")
-        except Exception as e:  # the deterministic merge is the safe answer, but say so
+        except Exception as e:  # noqa: BLE001 - the deterministic merge is the safe answer, but say so
             log_event("pm_consolidation_fallback", level=logging.WARNING, error_class=error_class(e), message=str(e))
         return deterministic_merge(spec, max_tasks)

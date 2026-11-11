@@ -7,8 +7,8 @@ OK = ExecutionResult(executed=True, target="t.py", exit_code=0)
 
 
 def make(**kw):
-    base = dict(code="x", explanation="e", plan=["p"], result=OK, status="success", iterations=3,
-                files={"t.py": "x"}, memories_used=[], run_id="r", verified=True)
+    base = {"code": "x", "explanation": "e", "plan": ["p"], "result": OK, "status": "success", "iterations": 3,
+                "files": {"t.py": "x"}, "memories_used": [], "run_id": "r", "verified": True}
     return CoderResult(**(base | kw))
 
 

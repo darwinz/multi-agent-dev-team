@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -17,7 +18,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import AIMessage, BaseMessage, SystemMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.runnables import RunnableBinding
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
 from agents.config import Role, Settings
 from observability.context import current_agent, record_call
@@ -84,7 +85,7 @@ class ResilientChatModel(BaseChatModel):
     model_id: str
     # Not `cache`: that is BaseChatModel's LangChain-cache field, left at None (no global cache is set)
     response_cache: ResponseCache | None = None
-    bound: dict = {}
+    bound: dict = Field(default_factory=dict)
     cacheable: bool = False
 
     @property
@@ -95,10 +96,8 @@ class ResilientChatModel(BaseChatModel):
         """The inner model's trace params, so LangSmith LLM spans name the real provider and model."""
         inner_params = getattr(self.inner, "_get_ls_params", None)
         if callable(inner_params):
-            try:
+            with contextlib.suppress(Exception):  # tracing metadata never fails a call
                 return inner_params(stop=stop, **kwargs)
-            except Exception:  # tracing metadata never fails a call
-                pass
         return super()._get_ls_params(stop=stop, **kwargs)
 
     def bind_tools(self, tools: Sequence[Any], **kwargs: Any) -> ResilientChatModel:
@@ -175,7 +174,7 @@ class ResilientChatModel(BaseChatModel):
             assert self.response_cache is not None
             try:
                 self.response_cache.put(key, msg)
-            except Exception as e:  # a cache write never fails the call
+            except Exception as e:  # noqa: BLE001 - a cache write never fails the call
                 log_event("cache_write_failed", level=logging.WARNING, role=self.role,
                           error=f"{type(e).__name__}: {e}")
         return result
@@ -197,6 +196,7 @@ def cut_off(msg: Any) -> bool:
 
 
 def make_model(settings: Settings, role: Role = "coder") -> ResilientChatModel:
+    """Build the role's chat model (per-role token cap, SDK retries off) inside the resilient wrapper."""
     model = settings.model_for(role)
     provider = model.partition(":")[0]
     # Our wrapper is the only retry layer, so its attempt counts are honest

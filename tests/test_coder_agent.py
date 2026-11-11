@@ -35,16 +35,14 @@ def test_second_task_sees_first_in_memory(settings):
 
 
 def test_busy_workspace_raises_before_any_event(settings):
-    with RunLock(settings.state_dir):
-        # a fresh FileLock instance on the same path is a separate open file description, so it conflicts
-        with pytest.raises(WorkspaceBusyError):
-            next(agent(settings).stream("x"))
+    # a fresh FileLock instance on the same path is a separate open file description, so it conflicts
+    with RunLock(settings.state_dir), pytest.raises(WorkspaceBusyError):
+        next(agent(settings).stream("x"))
 
 
 def test_reset_refused_while_run_holds_lock(settings):
-    with RunLock(settings.state_dir):
-        with pytest.raises(WorkspaceBusyError):
-            agent(settings).reset_memory()
+    with RunLock(settings.state_dir), pytest.raises(WorkspaceBusyError):
+        agent(settings).reset_memory()
 
 
 def test_model_error_becomes_error_result_and_releases_lock(settings):  # Review Focus 5
@@ -74,7 +72,7 @@ def test_memory_write_back_failure_keeps_result(settings):  # review M1 (re-grad
     a.semantic.add = boom
     events = list(a.stream("Write a palindrome checker with tests"))
     assert events[-1].kind == "error" and "memory" in events[-1].data["message"]
-    assert [e for e in events if e.kind == "result"][0].data["result"]["status"] == "success"
+    assert next(e for e in events if e.kind == "result").data["result"]["status"] == "success"
 
 
 def test_error_result_keeps_files_already_written(settings):  # review M2
@@ -96,6 +94,5 @@ def test_stream_under_caller_lock(settings):
 
 
 def test_default_still_raises_when_busy(settings):
-    with RunLock(settings.state_dir):
-        with pytest.raises(WorkspaceBusyError):
-            agent(settings).run("t")
+    with RunLock(settings.state_dir), pytest.raises(WorkspaceBusyError):
+        agent(settings).run("t")

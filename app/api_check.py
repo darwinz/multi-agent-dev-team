@@ -25,6 +25,8 @@ _LOG_TAIL_LINES = 20
 
 
 class CheckResult(BaseModel):
+    """Outcome of one Postman request: its name, whether it passed and a failure detail."""
+
     name: str
     passed: bool
     detail: str = ""
@@ -166,6 +168,7 @@ def check_api(
 
 
 def main(argv: list[str] | None = None) -> int:
+    """CLI entry: find or take the app, run the collection, print PASS/FAIL lines; returns the exit code."""
     parser = argparse.ArgumentParser(description="Run the Postman fixture against a FastAPI app.")
     parser.add_argument("--app", help="module:attr of the app (default: auto-detected in --app-dir)")
     parser.add_argument("--app-dir", type=Path, default=Path("workspace"))

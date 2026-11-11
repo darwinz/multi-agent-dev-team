@@ -14,7 +14,12 @@ from orchestration.a2a import ReviewRequest
 from orchestration.project_state import Task, TaskHandoff
 from orchestration.review import QAReport, QATestSuite, TestCorrection
 from tests.fakes import (
-    ScriptedChatModel, audit_response, fix_plan_response, qa_agent, qa_suite_response, structured,
+    ScriptedChatModel,
+    audit_response,
+    fix_plan_response,
+    qa_agent,
+    qa_suite_response,
+    structured,
 )
 from tests.scenarios import STACK_TESTS
 from tools.workspace import ToolError, sha256_file

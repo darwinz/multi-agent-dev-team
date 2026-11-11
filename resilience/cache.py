@@ -43,17 +43,22 @@ def _strip_volatile(d: dict) -> dict:
 
 
 class ResponseCache:
+    """On-disk cache of model replies, keyed by a hash of the request; entries older than ttl_s count as expired."""
+
     def __init__(self, root: Path, ttl_s: float, clock: Callable[[], float] = time.time):
+        """Cache under root with a TTL in seconds (0 disables it) and an injectable clock."""
         self.root = Path(root)
         self.ttl_s = ttl_s
         self.clock = clock
 
     @property
     def enabled(self) -> bool:
+        """True when the TTL is positive."""
         return self.ttl_s > 0
 
     def key(self, model_id: str, messages: list[BaseMessage], bound: dict,
             stop: list[str] | None) -> str:
+        """Sha256 of the model id, messages (volatile ids stripped), bound tools and stop sequences."""
         payload = {"model": model_id, "messages": [_strip_volatile(m) for m in messages_to_dict(messages)],
                    "bound": bound, "stop": stop}
         blob = json.dumps(payload, sort_keys=True, default=_stable_default)
@@ -63,6 +68,7 @@ class ResponseCache:
         return self.root / key[:2] / f"{key}.json"
 
     def get(self, key: str) -> tuple[Literal["hit", "miss", "expired"], AIMessage | None]:
+        """Look up a key: ('hit', msg), ('expired', None) or ('miss', None); disabled or unreadable entries miss."""
         if not self.enabled:
             return "miss", None
         try:
@@ -78,6 +84,7 @@ class ResponseCache:
         return "hit", msg
 
     def put(self, key: str, message: AIMessage) -> None:
+        """Store a reply atomically (temp file then replace); no-op when disabled."""
         if not self.enabled:
             return
         path = self._path(key)

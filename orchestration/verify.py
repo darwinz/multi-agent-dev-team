@@ -10,6 +10,8 @@ from tools.workspace import Workspace, WorkspaceError, sha256_file
 
 @dataclass
 class Verification:
+    """Whether the delivery is verified, with notes explaining each failure."""
+
     verified: bool
     notes: list[str]
 
@@ -20,6 +22,7 @@ def verify_delivery(
     workspace: Workspace,
     entry_point: str | None = None,
 ) -> Verification:
+    """Check each delivered .py file (and entry point) ran successfully after its last change; notes list failures."""
     ok_runs = [e for e in executions if e["ok"]]
     delivered = sorted(p for p in writes if p.endswith(".py"))
     if not delivered and entry_point is None:

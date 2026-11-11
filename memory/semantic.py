@@ -22,10 +22,13 @@ class MemoryUnavailableError(TransientError):
     """The Chroma server could not be reached (after retries, or with the chroma breaker open)."""
 
     def __str__(self) -> str:
+        """Show the message as given, without the wrapped-error prefix AgentError adds."""
         return str(self.args[0]) if self.args else super().__str__()
 
 
 class MemoryHit(BaseModel):
+    """One semantic-memory search result: entry id, stored text and cosine distance (lower is closer)."""
+
     id: str
     text: str
     distance: float
@@ -47,8 +50,11 @@ def _chroma(fn: Callable[[], T], name: str) -> T:
 
 
 class SemanticMemory:
+    """Chroma collection of past runs searched by cosine distance; calls go through retry and the chroma breaker."""
+
     def __init__(self, chroma_dir: Path, embedding_function: Any = None, collection: str = "coder_runs", *,
                  host: str | None = None, port: int = 8000) -> None:
+        """Open the collection locally, or on a Chroma server if host is set (MemoryUnavailableError if down)."""
         self._name = collection
         self._embedding_function = embedding_function
         if host is None:
@@ -74,11 +80,13 @@ class SemanticMemory:
 
     def add(self, text: str, metadata: dict[str, str | int | float | bool], *, doc_id: str | None = None) -> str:
         # The id is fixed before the retry: every attempt upserts the same entry, so a replay is a no-op
+        """Upsert a text with metadata under a deterministic id (or the given one) and return that id."""
         doc_id = doc_id or memory_id(text, metadata)
         _chroma(lambda: self._collection.upsert(ids=[doc_id], documents=[text], metadatas=[metadata]), "add")
         return doc_id
 
     def search(self, query: str, k: int, max_distance: float) -> list[MemoryHit]:
+        """Up to k nearest entries within max_distance, closest first; empty when the collection is empty."""
         n = self.count()
         if n == 0:
             return []
@@ -91,6 +99,7 @@ class SemanticMemory:
         return sorted(hits, key=lambda h: h.distance)
 
     def count(self) -> int:
+        """Number of entries in the collection."""
         return _chroma(lambda: self._collection.count(), "count")
 
     def reopen(self) -> None:
@@ -98,6 +107,7 @@ class SemanticMemory:
         self._collection = self._open()
 
     def clear(self) -> None:
+        """Delete the collection and recreate it empty."""
         def delete() -> None:
             try:
                 self._client.delete_collection(self._name)

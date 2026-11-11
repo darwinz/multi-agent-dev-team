@@ -74,9 +74,10 @@ def test_status_never_takes_the_run_lock(settings, monkeypatch):  # review M3
 
 
 def test_disconnect_mid_stream_closes_the_run(settings):  # review M4
-    import anyio
     import threading
     import time
+
+    import anyio
 
     from agents.events import StepEvent
     from app.web import _sse_body

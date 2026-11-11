@@ -213,9 +213,8 @@ def test_event_order(settings):
 
 def test_busy_lock_no_run_dir(settings):
     runner = happy_runner(settings)
-    with RunLock(settings.state_dir):
-        with pytest.raises(WorkspaceBusyError):
-            list(runner.stream("r"))
+    with RunLock(settings.state_dir), pytest.raises(WorkspaceBusyError):
+        list(runner.stream("r"))
     runs = settings.state_dir / "runs"
     assert not runs.exists() or not any(runs.iterdir())
     assert runner.run_dir is None
@@ -345,7 +344,11 @@ def test_cost_report_on_abort(settings, where, monkeypatch):
     elif where == "stream":
         monkeypatch.setattr(TeamEvent, "model_validate",
                             classmethod(lambda cls, d: (_ for _ in ()).throw(RuntimeError("bad event"))))
-    kw = {"demo_check": lambda ws, st: (_ for _ in ()).throw(RuntimeError("check crashed"))} if where == "post_check" else {}
+    kw = (
+        {"demo_check": lambda ws, st: (_ for _ in ()).throw(RuntimeError("check crashed"))}
+        if where == "post_check"
+        else {}
+    )
     expected = KeyboardInterrupt if where == "node" else RuntimeError
     with pytest.raises(expected):
         for _ in runner.stream(REQ, **kw):

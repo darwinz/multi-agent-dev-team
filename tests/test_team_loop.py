@@ -288,7 +288,7 @@ def test_recursion_limit_formula():
 
 def test_critique_failure_blocks_done(settings):
     coder = [*happy(), bad_critique(), bad_critique(), bad_critique(), bad_critique()]
-    chunks, deps = run(settings, one_task(), coder, [qa_suite_response()])
+    chunks, _deps = run(settings, one_task(), coder, [qa_suite_response()])
     end = final(chunks)
     (reflection,) = end["reflections"]
     assert reflection.error and reflection.critique is None
