@@ -84,10 +84,10 @@ orchestration/  graph, routing, state, verify, finalize (v1 inner graph)
 app/            cli.py (coder), web.py (coder-web), team_cli.py (team), api_check.py, render.py
 web/            static mini-IDE (HTML/JS/CSS, no build step)
 tests/          unit tests (scripted fake model) + tests/live (real model)
-docs/           architecture.md, usage.md, evidence/
+docs/           ARCHITECTURE.md, usage.md, api/ (pdoc), evidence/
 ```
 
-Details are in [docs/architecture.md](docs/architecture.md).
+Details are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## Implementation decisions
 
@@ -230,7 +230,7 @@ Each run writes its evidence to `.coder/runs/<id>/`: `requirement.txt`, `state-a
 | **C2.3** Handoff | `orchestration/team_graph.py`, `render_task` in `orchestration/handoff.py` | `handoff-T1.json` in [docs/evidence/v2/](docs/evidence/v2/); `render_task` tests in `tests/test_team_graph.py` |
 | **C2.4** Task tracking and consolidation | `task_status` and `work_in_progress` in `ProjectState`; `orchestration/consolidation.py` | The `state-after-<id>.json` sequence and the `work_in_progress` log; `consolidation.json` from `team --demo large`, all in [docs/evidence/v2/](docs/evidence/v2/) |
 | **C2.5** Working end to end | `tests/test_team_graph.py`, `scripts/check_api.py` | The `tests/test_team_graph.py` result, the demo run and the `check_api.py` output on the generated API, in [docs/evidence/v2/](docs/evidence/v2/) |
-| **C2.6** Documentation | This section, [docs/architecture.md](docs/architecture.md) | The diagram above is checked against the compiled graph by `tests/test_docs.py` |
+| **C2.6** Documentation | This section, [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | The diagram above is checked against the compiled graph by `tests/test_docs.py` |
 
 ### v3 rubric evidence
 

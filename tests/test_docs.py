@@ -79,7 +79,7 @@ def test_build_ids_avoid_shell_readonly_names():
     args = yaml.safe_load((ROOT / "docker-compose.yml").read_text())["x-app"]["build"]["args"]
     assert set(args) == {"APP_UID", "APP_GID"}
     command = "APP_UID=$(id -u) APP_GID=$(id -g) docker compose build"
-    for doc in ("README.md", "docker-compose.yml", "docs/usage.md", "docs/architecture.md"):
+    for doc in ("README.md", "docker-compose.yml", "docs/usage.md", "docs/ARCHITECTURE.md"):
         text = (ROOT / doc).read_text()
         assert not re.search(r"(?<![A-Z_])[UG]ID=\$\(id", text), f"{doc} still builds with UID/GID"
     assert command in README.read_text() and command in (ROOT / "docker-compose.yml").read_text()
@@ -132,3 +132,21 @@ def test_evidence_map_covers_c4():
 def test_readme_v4_diagram_block_is_separate():
     blocks = re.findall(r"```mermaid\n(.*?)```", README.read_text(), flags=re.DOTALL)
     assert any("breaker" in b.lower() and "cost" in b.lower() for b in blocks if "pm_node" not in b)
+
+
+ARCHITECTURE = ROOT / "docs" / "ARCHITECTURE.md"
+
+
+def test_architecture_doc_covers_module_5():
+    # Module 5: overview, a data-flow diagram, each agent's role and decision logic, and why LangGraph
+    assert ARCHITECTURE.name in {p.name for p in ARCHITECTURE.parent.iterdir()}, "docs/ARCHITECTURE.md (exact case)"
+    text = ARCHITECTURE.read_text()
+    for heading in ("## System overview", "## Data flow", "## The agents", "### PM agent", "### Coder agent",
+                    "### QA agent", "## Orchestration framework: LangGraph"):
+        found = re.search(rf"^{re.escape(heading)}\b", text, flags=re.MULTILINE)
+        assert found, f"ARCHITECTURE.md is missing {heading!r}"
+    data_flow = text.split("## Data flow", 1)[1].split("\n## ", 1)[0]
+    assert "```mermaid" in data_flow, "the data-flow section needs a Mermaid diagram"
+    for link in re.findall(r"\]\(([^)#\s]+)(?:#[^)]*)?\)", text):
+        if "://" not in link:
+            assert (ARCHITECTURE.parent / link).exists(), f"ARCHITECTURE.md link does not resolve: {link}"
