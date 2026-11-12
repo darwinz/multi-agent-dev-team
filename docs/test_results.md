@@ -29,7 +29,7 @@ Each row is a live test in [`tests/live/test_team_demo.py`](../tests/live/test_t
 | Mocked suite (`make test`) | 523 passed, 0 failed (100%), 7 min | [`mocked-suite.txt`](evidence/v5/mocked-suite.txt) |
 | Live suite (`make verify`): 2 smoke tests + the 4 demos | 5 passed, 1 failed (the API demo, below); the API demo then passed on its own after the fix | [`make-verify.log`](evidence/v5/make-verify.log), [`api-demo-rerun.log`](evidence/v5/api-demo-rerun.log) |
 | Lint (`make lint`) | ruff: all checks passed | [`ruff.txt`](evidence/v5/ruff.txt) |
-| Secret scan (`make secrets`) | gitleaks: 107 commits on every branch and the working tree, no leaks | [`secrets-scan.txt`](evidence/v5/secrets-scan.txt) |
+| Secret scan (`make secrets`) | gitleaks: 108 commits on every branch and the working tree, no leaks. [`.gitleaks.toml`](../.gitleaks.toml) allows one pattern only: the SHA-256 file hashes in QA reports, which the generic-api-key rule matched because a hashed file was named `test_api.py` | [`secrets-scan.txt`](evidence/v5/secrets-scan.txt) |
 
 ## Failure found in Module 5, and the fix
 

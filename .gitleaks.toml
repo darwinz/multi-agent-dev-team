@@ -1,0 +1,12 @@
+# gitleaks configuration: the default rules plus one narrow allowlist.
+# QA reports and run states record a SHA-256 of every file QA tested, keyed by file name. A file named
+# test_api.py makes the generic-api-key rule read that hash as a key. Only a .py file name mapped to a
+# bare 64-character hex digest is allowed; every other match still fails the scan.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "SHA-256 digests of tested files in QA reports and run states"
+regexTarget = "match"
+regexes = ['''^[\w./-]*\.py": "[0-9a-f]{64}"$''']
