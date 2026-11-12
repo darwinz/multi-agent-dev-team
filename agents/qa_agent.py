@@ -234,9 +234,16 @@ _TEST_CRITERION_HINT = (
     "\"no:cacheprovider\", <file>], cwd=<the test's own directory>, timeout=5) and asserts the return code is 0")
 
 
+_ONE_CRITERION_HINT = (
+    "Each test maps to exactly one criterion: list each test name once in `tests`, and write a separate "
+    "test for any other criterion it would also check")
+
+
 def _explain_uncovered(problems: list[str], criteria: Sequence[str]) -> list[str]:
-    """Quote each uncovered criterion in the retry ask: a bare number gave the model nothing to act on
-    (live BST runs: a "tests pass with pytest" criterion stayed unmapped on both attempts)."""
+    """Explain coverage problems in the retry ask. Quote each uncovered criterion: a bare number gave
+    the model nothing to act on (live BST runs: a "tests pass with pytest" criterion stayed unmapped on
+    both attempts). A test listed under two criteria gets the same hint: answering only "duplicate test
+    name" led the model to drop the second criterion (live API demo f92f9ac42b5e)."""
     out = list(problems)
     uncovered = False
     for n, text in enumerate(criteria, 1):
@@ -244,7 +251,9 @@ def _explain_uncovered(problems: list[str], criteria: Sequence[str]) -> list[str
         if bare in out:
             out[out.index(bare)] = f"criterion {n} ({' '.join(text.split())!r}) has no test"
             uncovered = True
-    return [*out, _TEST_CRITERION_HINT] if uncovered else out
+    duplicated = any(p.startswith("duplicate test name") for p in out)
+    hints = [_ONE_CRITERION_HINT] if duplicated else []
+    return [*out, *hints, _TEST_CRITERION_HINT] if uncovered or duplicated else out
 
 
 class QAAgent:

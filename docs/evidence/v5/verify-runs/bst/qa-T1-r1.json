@@ -1,0 +1,64 @@
+{
+  "task_id": "T1",
+  "round": 1,
+  "test_file": "test_qa_t1.py",
+  "suite_sha": "9542e4d2fb703647abfc70044888cf3fda4280f043d0aba844ae45b0afa6d448",
+  "suites_run": {
+    "T1": "9542e4d2fb703647abfc70044888cf3fda4280f043d0aba844ae45b0afa6d448"
+  },
+  "tested_files": {
+    "bst.py": "c4b9aa208952bb7ca733e79a20101b608c97aff09a6787ec2392469378e83bd0",
+    "test_bst.py": "bea57e07ed098cad07ac3952488f7914f7f0d799ceb7cd410a77be52550e1ab6"
+  },
+  "tests_run": 7,
+  "passed": 7,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [],
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_s": 3.145,
+  "results": [
+    {
+      "name": "test_qa_t1::test_constructor_takes_no_args",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_empty_tree_search_returns_false",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_insert_returns_none_and_values_found",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_non_inserted_values_return_false_as_bool",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_duplicate_insert_does_not_raise",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_duplicate_insert_keeps_single_copy",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_coder_test_file_passes",
+      "outcome": "passed",
+      "message": ""
+    }
+  ],
+  "issues": [],
+  "tampered": false,
+  "qa_error": null,
+  "test_corrections": [],
+  "approved": true
+}

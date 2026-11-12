@@ -1,0 +1,744 @@
+{
+  "task_id": "M5",
+  "round": 1,
+  "test_file": "test_qa_m5.py",
+  "suite_sha": "f6f40f552b82b9588bf658e9b7f6493370d585daf18405e468805c96b908c247",
+  "suites_run": {
+    "M1": "eb582b511436c8154dcb9a998c411b077a4d013d232c862f6ee04cb13eadf992",
+    "M2": "bec83f0a31a01ece5d41c8d12a55609ea2f72bd16bf0c4cb2ab4b8becd3ea89b",
+    "M3": "329937c1ff4dc7ff222509b2fb388ef556f936721bf2b7f9f6539f3dde6ecd34",
+    "M4": "6450a9e9b9cf0900e3c911d78a31636f2ebd828dc7e6c55ae04acf6f477aef4d",
+    "M5": "f6f40f552b82b9588bf658e9b7f6493370d585daf18405e468805c96b908c247"
+  },
+  "tested_files": {
+    "tests/test_export.py": "e274d293a653ae391e5525405f3770d4d5b87a1519d75d28862f2fc95eaaf042",
+    "tests/test_import.py": "d27eb604d2a0a0ecac9012351535b44206a4e41ed717dcfe3c9608aac7c1763f",
+    "todo.py": "852aa01bf32fcc9bac33f559370493248a803c8c8cf9ae1f90e83913361e645f"
+  },
+  "tests_run": 142,
+  "passed": 142,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [],
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_s": 0.612,
+  "results": [
+    {
+      "name": "test_qa_m1::test_add_returns_item_with_required_defaults",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m1::test_second_add_gets_id_2",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m1::test_empty_or_whitespace_text_raises_validation_error[]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m1::test_empty_or_whitespace_text_raises_validation_error[   ]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m1::test_empty_or_whitespace_text_raises_validation_error[\\t\\n]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m1::test_non_str_text_raises_validation_error[None]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m1::test_non_str_text_raises_validation_error[5]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m1::test_non_str_text_raises_validation_error[1.5]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m1::test_non_str_text_raises_validation_error[bytes]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m1::test_non_str_text_raises_validation_error[bad4]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m1::test_exception_hierarchy",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m1::test_new_todolist_is_empty",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m1::test_list_items_ordered_by_id",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m1::test_mutating_returned_list_does_not_change_todolist",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m1::test_mutating_returned_item_does_not_change_todolist",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_complete_marks_item_complete_and_returns_it",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_complete_twice_is_fine",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_complete_unknown_id_raises_not_found_with_id_in_message",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_complete_on_empty_list_raises_not_found",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_complete_non_int_id_raises_validation_error[True]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_complete_non_int_id_raises_validation_error[False]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_complete_non_int_id_raises_validation_error[1]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_complete_non_int_id_raises_validation_error[1.0]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_complete_non_int_id_raises_validation_error[None]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_delete_removes_item_from_list_and_returns_it",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_delete_twice_raises_not_found",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_delete_unknown_id_raises_not_found_with_id_in_message",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_delete_non_int_id_raises_validation_error[True]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_delete_non_int_id_raises_validation_error[False]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_delete_non_int_id_raises_validation_error[1]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_delete_non_int_id_raises_validation_error[1.0]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_delete_non_int_id_raises_validation_error[None]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_ids_not_reused_after_delete_then_add",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_ids_not_reused_after_deleting_all_items",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_ids_keep_increasing_across_delete_add_cycles",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m2::test_deleted_item_cannot_be_completed",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_rename_updates_and_strips_text",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_rename_invalid_text_raises_validation_error_and_keeps_text[]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_rename_invalid_text_raises_validation_error_and_keeps_text[   ]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_rename_invalid_text_raises_validation_error_and_keeps_text[\\t\\n]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_rename_invalid_text_raises_validation_error_and_keeps_text[None]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_rename_invalid_text_raises_validation_error_and_keeps_text[5]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_rename_invalid_text_raises_validation_error_and_keeps_text[bytes]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_rename_invalid_text_raises_validation_error_and_keeps_text[bad6]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_rename_unknown_id_raises_not_found",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_rename_on_empty_list_raises_not_found",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_set_due_date_stores_date_object",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_set_due_date_iso_string_stored_as_date",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_set_due_date_none_clears_date",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_set_due_date_invalid_raises_validation_error_and_keeps_date[2025-13-01]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_set_due_date_invalid_raises_validation_error_and_keeps_date[abc]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_set_due_date_invalid_raises_validation_error_and_keeps_date[5]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_set_due_date_unknown_id_raises_not_found",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_set_priority_accepts_valid_values[high]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_set_priority_accepts_valid_values[medium]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_set_priority_accepts_valid_values[low]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_set_priority_invalid_raises_validation_error_and_keeps_priority[urgent]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_set_priority_invalid_raises_validation_error_and_keeps_priority[HIGH]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_set_priority_invalid_raises_validation_error_and_keeps_priority[None]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m3::test_set_priority_unknown_id_raises_not_found",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_open_returns_only_incomplete_items",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_complete_returns_only_completed_items",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_filter_results_ordered_by_id",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_filter_after_delete_skips_gaps_and_stays_ordered",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_empty_list_filters_return_empty",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_no_matches_returns_empty_list",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_invalid_status_raises_validation_error[]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_invalid_status_raises_validation_error[OPEN]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_invalid_status_raises_validation_error[Complete]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_invalid_status_raises_validation_error[done]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_invalid_status_raises_validation_error[ open]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_invalid_status_raises_validation_error[None]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_invalid_status_raises_validation_error[1]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_invalid_status_raises_validation_error[True]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_invalid_status_raises_validation_error[bad8]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_search_case_insensitive_substring_match",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_search_results_are_todoitems_ordered_by_id",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_search_no_match_returns_empty_list",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_search_after_delete_skips_gaps_and_stays_ordered",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_invalid_query_raises_validation_error[]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_invalid_query_raises_validation_error[   ]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_invalid_query_raises_validation_error[\\t\\n]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_invalid_query_raises_validation_error[None]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_invalid_query_raises_validation_error[5]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_invalid_query_raises_validation_error[milk]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m4::test_invalid_query_raises_validation_error[bad6]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_empty_list_exports_as_empty_array",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_export_parses_to_list_of_dicts_with_expected_keys",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_export_due_date_is_iso_string_or_null",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_export_values_match_items",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_export_ordered_by_id_after_delete",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_export_does_not_change_state",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_valid_import_returns_count_and_preserves_ids_and_fields",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_import_replaces_existing_items",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_import_empty_array_clears_list_and_returns_zero",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_next_add_id_greater_than_max_imported_id",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_next_add_id_after_import_into_fresh_list_is_max_plus_one",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_ids_not_reused_after_import_replaces_higher_ids",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_round_trip_into_fresh_list_gives_equal_items",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_round_trip_export_import_export_is_stable",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_round_trip_with_newlines_unicode_and_inner_tabs",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_import_text_is_stripped",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_invalid_json_or_structure_raises[not json]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_invalid_json_or_structure_raises[]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_invalid_json_or_structure_raises[[1, 2]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_invalid_json_or_structure_raises[{\"id\": 1}]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_invalid_json_or_structure_raises[\"just a string\"]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_invalid_json_or_structure_raises[42]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_invalid_json_or_structure_raises[null]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_invalid_json_or_structure_raises[[1, 2]]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_invalid_json_or_structure_raises[[\"text\"]]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_invalid_json_or_structure_raises[[null]]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad0]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad1]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad2]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad3]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad4]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad5]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad6]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad7]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad8]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad9]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad10]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad11]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad12]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad13]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad14]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad15]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad16]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad17]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad18]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad19]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_bad_field_values_raise[bad20]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_missing_field_raises[id]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_missing_field_raises[text]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_missing_field_raises[complete]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_missing_field_raises[due_date]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_missing_field_raises[priority]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_duplicate_ids_raise",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_error_message_names_the_record",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_failed_import_leaves_existing_items_unchanged",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_m5::test_failed_import_does_not_advance_next_id",
+      "outcome": "passed",
+      "message": ""
+    }
+  ],
+  "issues": [],
+  "tampered": false,
+  "qa_error": null,
+  "test_corrections": [],
+  "approved": true
+}

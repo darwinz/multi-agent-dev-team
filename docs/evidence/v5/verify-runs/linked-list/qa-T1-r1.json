@@ -1,0 +1,64 @@
+{
+  "task_id": "T1",
+  "round": 1,
+  "test_file": "test_qa_t1.py",
+  "suite_sha": "c6ea41c6ae48053999fa893cc62bf21c52d893c0865a61c6c0fb2cc6e4d071e1",
+  "suites_run": {
+    "T1": "c6ea41c6ae48053999fa893cc62bf21c52d893c0865a61c6c0fb2cc6e4d071e1"
+  },
+  "tested_files": {
+    "linked_list.py": "c798f38a1bcde1936f9dc3f43457592eae5287c104c71a1f1c132d08925335f1",
+    "test_linked_list.py": "85047ebfeee721434fe28d0975704f2013cba56e0763f2fd5f43242254118304"
+  },
+  "tests_run": 7,
+  "passed": 7,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [],
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_s": 1.978,
+  "results": [
+    {
+      "name": "test_qa_t1::test_new_list_is_empty",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_insert_appends_in_order",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_duplicates_allowed",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_none_allowed",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_iter_is_repeatable_and_empty_safe",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_delivered_test_file_passes_under_pytest",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_node_defaults",
+      "outcome": "passed",
+      "message": ""
+    }
+  ],
+  "issues": [],
+  "tampered": false,
+  "qa_error": null,
+  "test_corrections": [],
+  "approved": true
+}

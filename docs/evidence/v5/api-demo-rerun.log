@@ -1,0 +1,11 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.7.0
+rootdir: /Volumes/Tukar/Code/ai-certifications/SarasAI-Masters-AI-Eng/multi-agent-dev-team-v4
+configfile: pyproject.toml
+plugins: anyio-4.15.1, langsmith-0.14.12, cov-7.1.0
+collected 1 item
+
+tests/live/test_team_demo.py .                                           [100%]
+
+======================== 1 passed in 150.22s (0:02:30) =========================
+exit 0

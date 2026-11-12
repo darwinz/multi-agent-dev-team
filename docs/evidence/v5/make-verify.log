@@ -1,0 +1,152 @@
+REQUIRE_LIVE=1 uv run pytest -m live -rs
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-9.1.1, pluggy-1.7.0
+rootdir: /Volumes/Tukar/Code/ai-certifications/SarasAI-Masters-AI-Eng/multi-agent-dev-team-v4
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.15.1, langsmith-0.14.12, cov-7.1.0
+collected 527 items / 521 deselected / 6 selected
+
+tests/live/test_smoke.py ..                                              [ 33%]
+tests/live/test_team_demo.py F...                                        [100%]
+
+=================================== FAILURES ===================================
+___________________________ test_demo_api_end_to_end ___________________________
+
+live_settings = Settings(project_dir=PosixPath('/private/var/folders/2d/qs91drk96zd5zkn3lchz8myr0000gn/T/pytest-of-brandonjohnson/pyte...failure_threshold=3, breaker_cooldown_s=30.0, cache_ttl_s=3600.0, chroma_host=None, chroma_port=8000, log_level='INFO')
+
+    def test_demo_api_end_to_end(live_settings):
+        runner = TeamRunner(live_settings)
+        runner.reset_memory()
+        state = runner.run(DEMO_API)
+        assert len(state["spec"]["tasks"]) >= 2
+>       assert state["status"] == "completed", state.get("error") or state["task_status"]
+E       AssertionError: {'T1': {'task_id': 'T1', 'status': 'done', 'coder_status': 'success', 'run_id': 'f5156c55c865', ...}, 'T2': {'task_id'...78a2a4734e', ...}, 'T3': {'task_id': 'T3', 'status': 'done', 'coder_status': 'success', 'run_id': 'd5f6cb661902', ...}}
+E       assert 'partial' == 'completed'
+E         
+E         - completed
+E         + partial
+
+tests/live/test_team_demo.py:25: AssertionError
+------------------------------ Captured log call -------------------------------
+INFO     mad:logs.py:82 run_start
+INFO     mad:logs.py:82 cache_miss
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 agent_end
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 agent_end
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 agent_end
+INFO     mad:logs.py:82 cache_miss
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 cache_miss
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 agent_end
+INFO     mad:logs.py:82 agent_end
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 agent_end
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 agent_end
+INFO     mad:logs.py:82 cache_miss
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 cache_miss
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 agent_end
+INFO     mad:logs.py:82 agent_end
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 agent_end
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 agent_end
+INFO     mad:logs.py:82 cache_miss
+INFO     mad:logs.py:82 llm_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 agent_end
+INFO     mad:logs.py:82 agent_end
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 tool_call
+INFO     mad:logs.py:82 run_end
+=========== 1 failed, 5 passed, 521 deselected in 1117.67s (0:18:37) ===========
+make: *** [verify] Error 1
+exit 2

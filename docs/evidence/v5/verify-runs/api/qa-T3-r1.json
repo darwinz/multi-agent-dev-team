@@ -1,0 +1,140 @@
+{
+  "task_id": "T3",
+  "round": 1,
+  "test_file": "test_qa_t3.py",
+  "suite_sha": "3d16b9dbf01198a9222bcb23cddd607ec69ec9be7ed90681dbaee216e5b441e2",
+  "suites_run": {
+    "T1": "4413a7207d06ed0c1859af11e278e03ba4f4a78491a1c73e6fa2ddd64ec8de5b",
+    "T3": "3d16b9dbf01198a9222bcb23cddd607ec69ec9be7ed90681dbaee216e5b441e2"
+  },
+  "tested_files": {
+    "main.py": "d4965de0f5a924dc5de831537d2624b0d91cb6eb3bca7af4d4b4e6626c50eb0d",
+    "test_echo.py": "72d86880b6aed189c9dc656e50e4e537ff807b798a71e6adadcba81c5a24fcbe"
+  },
+  "tests_run": 22,
+  "passed": 22,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [],
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_s": 1.156,
+  "results": [
+    {
+      "name": "test_qa_t1::test_app_is_fastapi_instance",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_get_health_returns_200_and_exact_body",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_health_post_returns_405",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_delivered_test_file_passes",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_malformed_json_returns_422_with_detail[truncated_brace]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_malformed_json_returns_422_with_detail[unclosed_object]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_malformed_json_returns_422_with_detail[single_quotes]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_malformed_json_returns_422_with_detail[bare_words]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_non_object_json_returns_422_with_detail[list]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_non_object_json_returns_422_with_detail[string]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_non_object_json_returns_422_with_detail[number]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_non_object_json_returns_422_with_detail[boolean]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_non_object_json_returns_422_with_detail[null]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_missing_body_returns_422_with_detail",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_empty_body_returns_422_with_detail",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_whitespace_only_body_returns_422_with_detail",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_valid_object_bodies_echo_200[empty]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_valid_object_bodies_echo_200[nested]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_valid_object_bodies_echo_200[deep_nested]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_valid_object_bodies_echo_200[unicode_float]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_valid_object_raw_bytes_echo_200",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t3::test_suite_sanity_health_endpoint_ok",
+      "outcome": "passed",
+      "message": ""
+    }
+  ],
+  "issues": [],
+  "tampered": false,
+  "qa_error": null,
+  "test_corrections": [],
+  "approved": true
+}

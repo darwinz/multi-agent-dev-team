@@ -67,7 +67,10 @@ Rules:
 - Write plain pytest functions (def test_...) at the top level of the module, importing the \
 delivered modules by name. No test classes.
 - Write at least one test per numbered criterion, and map every test in `tests`. Every criterion \
-number must appear at least once.
+number must appear at least once, and each test maps to exactly one criterion.
+- If a criterion is about the tests themselves (for example "tests pass with pytest"), give it its \
+own test that runs the Coder's delivered test file (never your own test_qa_*.py) with pytest in a \
+subprocess and asserts the return code is 0.
 - Make assertions behavioural: call the code and check return values, state changes and raised \
 exceptions (use pytest.raises).
 - Cover the edge cases the criteria imply: empty input, boundaries, invalid values.

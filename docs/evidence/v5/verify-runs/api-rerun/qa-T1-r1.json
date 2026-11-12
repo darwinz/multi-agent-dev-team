@@ -1,0 +1,51 @@
+{
+  "task_id": "T1",
+  "round": 1,
+  "test_file": "test_qa_t1.py",
+  "suite_sha": "31102969866c4a04628af606c331fdf94c7a11c53392bc902843457544bb5530",
+  "suites_run": {
+    "T1": "31102969866c4a04628af606c331fdf94c7a11c53392bc902843457544bb5530"
+  },
+  "tested_files": {
+    "conftest.py": "bb28f87a5611829919b6b530f612a12f91bce3e0440891227b21d0ece387afec",
+    "main.py": "8e1c9c4ef9b3d65e3b32253576b3012a053759a8fe1e8c001e9c8b718f02541b",
+    "pytest.ini": "79be44eda1582f4ad057b8edb0ef29455dd3d3dc353d5cdfc14b67b8144edbe2",
+    "test_main.py": "2b03bac9bc8404cd0ba69fc6c6ef86b2d6e983f11283d27ddbef2aa749c2c6c2"
+  },
+  "tests_run": 4,
+  "passed": 4,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [],
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_s": 3.593,
+  "results": [
+    {
+      "name": "test_qa_t1::test_app_is_fastapi_instance",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_get_health_returns_200_and_status_ok",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_post_health_returns_405",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_delivered_tests_pass_with_pytest",
+      "outcome": "passed",
+      "message": ""
+    }
+  ],
+  "issues": [],
+  "tampered": false,
+  "qa_error": null,
+  "test_corrections": [],
+  "approved": true
+}

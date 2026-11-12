@@ -143,51 +143,54 @@
 </span><span id="L-67"><a href="#L-67"><span class="linenos"> 67</span></a><span class="s2">- Write plain pytest functions (def test_...) at the top level of the module, importing the </span><span class="se">\</span>
 </span><span id="L-68"><a href="#L-68"><span class="linenos"> 68</span></a><span class="s2">delivered modules by name. No test classes.</span>
 </span><span id="L-69"><a href="#L-69"><span class="linenos"> 69</span></a><span class="s2">- Write at least one test per numbered criterion, and map every test in `tests`. Every criterion </span><span class="se">\</span>
-</span><span id="L-70"><a href="#L-70"><span class="linenos"> 70</span></a><span class="s2">number must appear at least once.</span>
-</span><span id="L-71"><a href="#L-71"><span class="linenos"> 71</span></a><span class="s2">- Make assertions behavioural: call the code and check return values, state changes and raised </span><span class="se">\</span>
-</span><span id="L-72"><a href="#L-72"><span class="linenos"> 72</span></a><span class="s2">exceptions (use pytest.raises).</span>
-</span><span id="L-73"><a href="#L-73"><span class="linenos"> 73</span></a><span class="s2">- Cover the edge cases the criteria imply: empty input, boundaries, invalid values.</span>
-</span><span id="L-74"><a href="#L-74"><span class="linenos"> 74</span></a><span class="s2">- Write the tests from the criteria. Use the code only for module, function and class names and </span><span class="se">\</span>
-</span><span id="L-75"><a href="#L-75"><span class="linenos"> 75</span></a><span class="s2">signatures; never copy its logic into an expected value.</span>
-</span><span id="L-76"><a href="#L-76"><span class="linenos"> 76</span></a><span class="s2">- Test only what this task's criteria require. These tests are rerun after every later task, so </span><span class="se">\</span>
-</span><span id="L-77"><a href="#L-77"><span class="linenos"> 77</span></a><span class="s2">never test behaviour a later task defines or changes, and never assert that a feature is missing, </span><span class="se">\</span>
-</span><span id="L-78"><a href="#L-78"><span class="linenos"> 78</span></a><span class="s2">unsupported or raises NotImplementedError.</span>
-</span><span id="L-79"><a href="#L-79"><span class="linenos"> 79</span></a><span class="s2">- Use only the Python standard library, pytest and the delivered modules: no other packages or </span><span class="se">\</span>
-</span><span id="L-80"><a href="#L-80"><span class="linenos"> 80</span></a><span class="s2">pytest plugins, and no coverage measurement.</span>
-</span><span id="L-81"><a href="#L-81"><span class="linenos"> 81</span></a><span class="s2">- No network access. Write files only under pytest's tmp_path fixture.</span>
-</span><span id="L-82"><a href="#L-82"><span class="linenos"> 82</span></a><span class="s2">"""</span>
-</span><span id="L-83"><a href="#L-83"><span class="linenos"> 83</span></a>
-</span><span id="L-84"><a href="#L-84"><span class="linenos"> 84</span></a><span class="n">QA_CHECK_PROMPT</span> <span class="o">=</span> <span class="s2">"""</span><span class="se">\</span>
-</span><span id="L-85"><a href="#L-85"><span class="linenos"> 85</span></a><span class="s2">You are the QA &amp; Debugger agent of an autonomous software team. Some of the QA tests you just wrote </span><span class="se">\</span>
-</span><span id="L-86"><a href="#L-86"><span class="linenos"> 86</span></a><span class="s2">failed against the Coder's code. Before blaming the code, check each failing test against the task's </span><span class="se">\</span>
-</span><span id="L-87"><a href="#L-87"><span class="linenos"> 87</span></a><span class="s2">acceptance criteria. You receive the criteria, each failing test's source and failure, and the code.</span>
-</span><span id="L-88"><a href="#L-88"><span class="linenos"> 88</span></a>
-</span><span id="L-89"><a href="#L-89"><span class="linenos"> 89</span></a><span class="s2">For every failing test give `test`, `test_is_wrong`, `reason` and, for a wrong test, `corrected`.</span>
-</span><span id="L-90"><a href="#L-90"><span class="linenos"> 90</span></a><span class="s2">- A test is wrong only if its expectation contradicts the criteria: a miscomputed expected value, </span><span class="se">\</span>
-</span><span id="L-91"><a href="#L-91"><span class="linenos"> 91</span></a><span class="s2">behaviour the criteria do not require, or a dependency the criteria do not allow. Work the expected </span><span class="se">\</span>
-</span><span id="L-92"><a href="#L-92"><span class="linenos"> 92</span></a><span class="s2">value out step by step from the criteria, not from the code.</span>
-</span><span id="L-93"><a href="#L-93"><span class="linenos"> 93</span></a><span class="s2">- If the test matches the criteria and the code fails it, the test is right: test_is_wrong is false </span><span class="se">\</span>
-</span><span id="L-94"><a href="#L-94"><span class="linenos"> 94</span></a><span class="s2">and corrected is empty.</span>
-</span><span id="L-95"><a href="#L-95"><span class="linenos"> 95</span></a><span class="s2">- `corrected` is the full source of the replacement test function, with the same name, still </span><span class="se">\</span>
-</span><span id="L-96"><a href="#L-96"><span class="linenos"> 96</span></a><span class="s2">checking the same criterion. Never weaken a correct check or drop assertions to make the code pass. </span><span class="se">\</span>
-</span><span id="L-97"><a href="#L-97"><span class="linenos"> 97</span></a><span class="s2">Use only names the test module already imports.</span>
-</span><span id="L-98"><a href="#L-98"><span class="linenos"> 98</span></a><span class="s2">"""</span>
-</span><span id="L-99"><a href="#L-99"><span class="linenos"> 99</span></a>
-</span><span id="L-100"><a href="#L-100"><span class="linenos">100</span></a><span class="n">QA_FIX_PROMPT</span> <span class="o">=</span> <span class="s2">"""</span><span class="se">\</span>
-</span><span id="L-101"><a href="#L-101"><span class="linenos">101</span></a><span class="s2">You are the QA &amp; Debugger agent of an autonomous software team. Some QA tests failed against the </span><span class="se">\</span>
-</span><span id="L-102"><a href="#L-102"><span class="linenos">102</span></a><span class="s2">Coder's code. You receive the code and the failures. For each failing test, give the test name as </span><span class="se">\</span>
-</span><span id="L-103"><a href="#L-103"><span class="linenos">103</span></a><span class="s2">`test`, the root cause in the code as `root_cause`, and the minimal code change that makes it pass </span><span class="se">\</span>
-</span><span id="L-104"><a href="#L-104"><span class="linenos">104</span></a><span class="s2">as `fix` (name the file and function). Do not suggest changing the tests.</span>
-</span><span id="L-105"><a href="#L-105"><span class="linenos">105</span></a><span class="s2">"""</span>
-</span><span id="L-106"><a href="#L-106"><span class="linenos">106</span></a>
-</span><span id="L-107"><a href="#L-107"><span class="linenos">107</span></a><span class="n">CRITIQUE_PROMPT</span> <span class="o">=</span> <span class="s2">"""</span><span class="se">\</span>
-</span><span id="L-108"><a href="#L-108"><span class="linenos">108</span></a><span class="s2">You are the Coder of an autonomous software team, reviewing your own work before QA sees it. You </span><span class="se">\</span>
-</span><span id="L-109"><a href="#L-109"><span class="linenos">109</span></a><span class="s2">receive the task and the files you wrote. List the likely bugs and the unhandled edge cases (empty </span><span class="se">\</span>
-</span><span id="L-110"><a href="#L-110"><span class="linenos">110</span></a><span class="s2">input, boundaries, invalid values, state that persists between calls). For each item give its </span><span class="se">\</span>
-</span><span id="L-111"><a href="#L-111"><span class="linenos">111</span></a><span class="s2">`kind` ("bug" or "edge_case"), the `location` (file.py:line or function), the `concern`, and a </span><span class="se">\</span>
-</span><span id="L-112"><a href="#L-112"><span class="linenos">112</span></a><span class="s2">concrete `change` (a code edit or a new test). Report between 1 and 8 items, most important first. </span><span class="se">\</span>
-</span><span id="L-113"><a href="#L-113"><span class="linenos">113</span></a><span class="s2">Be specific to this code; do not pad the list with generic advice.</span>
-</span><span id="L-114"><a href="#L-114"><span class="linenos">114</span></a><span class="s2">"""</span>
+</span><span id="L-70"><a href="#L-70"><span class="linenos"> 70</span></a><span class="s2">number must appear at least once, and each test maps to exactly one criterion.</span>
+</span><span id="L-71"><a href="#L-71"><span class="linenos"> 71</span></a><span class="s2">- If a criterion is about the tests themselves (for example "tests pass with pytest"), give it its </span><span class="se">\</span>
+</span><span id="L-72"><a href="#L-72"><span class="linenos"> 72</span></a><span class="s2">own test that runs the Coder's delivered test file (never your own test_qa_*.py) with pytest in a </span><span class="se">\</span>
+</span><span id="L-73"><a href="#L-73"><span class="linenos"> 73</span></a><span class="s2">subprocess and asserts the return code is 0.</span>
+</span><span id="L-74"><a href="#L-74"><span class="linenos"> 74</span></a><span class="s2">- Make assertions behavioural: call the code and check return values, state changes and raised </span><span class="se">\</span>
+</span><span id="L-75"><a href="#L-75"><span class="linenos"> 75</span></a><span class="s2">exceptions (use pytest.raises).</span>
+</span><span id="L-76"><a href="#L-76"><span class="linenos"> 76</span></a><span class="s2">- Cover the edge cases the criteria imply: empty input, boundaries, invalid values.</span>
+</span><span id="L-77"><a href="#L-77"><span class="linenos"> 77</span></a><span class="s2">- Write the tests from the criteria. Use the code only for module, function and class names and </span><span class="se">\</span>
+</span><span id="L-78"><a href="#L-78"><span class="linenos"> 78</span></a><span class="s2">signatures; never copy its logic into an expected value.</span>
+</span><span id="L-79"><a href="#L-79"><span class="linenos"> 79</span></a><span class="s2">- Test only what this task's criteria require. These tests are rerun after every later task, so </span><span class="se">\</span>
+</span><span id="L-80"><a href="#L-80"><span class="linenos"> 80</span></a><span class="s2">never test behaviour a later task defines or changes, and never assert that a feature is missing, </span><span class="se">\</span>
+</span><span id="L-81"><a href="#L-81"><span class="linenos"> 81</span></a><span class="s2">unsupported or raises NotImplementedError.</span>
+</span><span id="L-82"><a href="#L-82"><span class="linenos"> 82</span></a><span class="s2">- Use only the Python standard library, pytest and the delivered modules: no other packages or </span><span class="se">\</span>
+</span><span id="L-83"><a href="#L-83"><span class="linenos"> 83</span></a><span class="s2">pytest plugins, and no coverage measurement.</span>
+</span><span id="L-84"><a href="#L-84"><span class="linenos"> 84</span></a><span class="s2">- No network access. Write files only under pytest's tmp_path fixture.</span>
+</span><span id="L-85"><a href="#L-85"><span class="linenos"> 85</span></a><span class="s2">"""</span>
+</span><span id="L-86"><a href="#L-86"><span class="linenos"> 86</span></a>
+</span><span id="L-87"><a href="#L-87"><span class="linenos"> 87</span></a><span class="n">QA_CHECK_PROMPT</span> <span class="o">=</span> <span class="s2">"""</span><span class="se">\</span>
+</span><span id="L-88"><a href="#L-88"><span class="linenos"> 88</span></a><span class="s2">You are the QA &amp; Debugger agent of an autonomous software team. Some of the QA tests you just wrote </span><span class="se">\</span>
+</span><span id="L-89"><a href="#L-89"><span class="linenos"> 89</span></a><span class="s2">failed against the Coder's code. Before blaming the code, check each failing test against the task's </span><span class="se">\</span>
+</span><span id="L-90"><a href="#L-90"><span class="linenos"> 90</span></a><span class="s2">acceptance criteria. You receive the criteria, each failing test's source and failure, and the code.</span>
+</span><span id="L-91"><a href="#L-91"><span class="linenos"> 91</span></a>
+</span><span id="L-92"><a href="#L-92"><span class="linenos"> 92</span></a><span class="s2">For every failing test give `test`, `test_is_wrong`, `reason` and, for a wrong test, `corrected`.</span>
+</span><span id="L-93"><a href="#L-93"><span class="linenos"> 93</span></a><span class="s2">- A test is wrong only if its expectation contradicts the criteria: a miscomputed expected value, </span><span class="se">\</span>
+</span><span id="L-94"><a href="#L-94"><span class="linenos"> 94</span></a><span class="s2">behaviour the criteria do not require, or a dependency the criteria do not allow. Work the expected </span><span class="se">\</span>
+</span><span id="L-95"><a href="#L-95"><span class="linenos"> 95</span></a><span class="s2">value out step by step from the criteria, not from the code.</span>
+</span><span id="L-96"><a href="#L-96"><span class="linenos"> 96</span></a><span class="s2">- If the test matches the criteria and the code fails it, the test is right: test_is_wrong is false </span><span class="se">\</span>
+</span><span id="L-97"><a href="#L-97"><span class="linenos"> 97</span></a><span class="s2">and corrected is empty.</span>
+</span><span id="L-98"><a href="#L-98"><span class="linenos"> 98</span></a><span class="s2">- `corrected` is the full source of the replacement test function, with the same name, still </span><span class="se">\</span>
+</span><span id="L-99"><a href="#L-99"><span class="linenos"> 99</span></a><span class="s2">checking the same criterion. Never weaken a correct check or drop assertions to make the code pass. </span><span class="se">\</span>
+</span><span id="L-100"><a href="#L-100"><span class="linenos">100</span></a><span class="s2">Use only names the test module already imports.</span>
+</span><span id="L-101"><a href="#L-101"><span class="linenos">101</span></a><span class="s2">"""</span>
+</span><span id="L-102"><a href="#L-102"><span class="linenos">102</span></a>
+</span><span id="L-103"><a href="#L-103"><span class="linenos">103</span></a><span class="n">QA_FIX_PROMPT</span> <span class="o">=</span> <span class="s2">"""</span><span class="se">\</span>
+</span><span id="L-104"><a href="#L-104"><span class="linenos">104</span></a><span class="s2">You are the QA &amp; Debugger agent of an autonomous software team. Some QA tests failed against the </span><span class="se">\</span>
+</span><span id="L-105"><a href="#L-105"><span class="linenos">105</span></a><span class="s2">Coder's code. You receive the code and the failures. For each failing test, give the test name as </span><span class="se">\</span>
+</span><span id="L-106"><a href="#L-106"><span class="linenos">106</span></a><span class="s2">`test`, the root cause in the code as `root_cause`, and the minimal code change that makes it pass </span><span class="se">\</span>
+</span><span id="L-107"><a href="#L-107"><span class="linenos">107</span></a><span class="s2">as `fix` (name the file and function). Do not suggest changing the tests.</span>
+</span><span id="L-108"><a href="#L-108"><span class="linenos">108</span></a><span class="s2">"""</span>
+</span><span id="L-109"><a href="#L-109"><span class="linenos">109</span></a>
+</span><span id="L-110"><a href="#L-110"><span class="linenos">110</span></a><span class="n">CRITIQUE_PROMPT</span> <span class="o">=</span> <span class="s2">"""</span><span class="se">\</span>
+</span><span id="L-111"><a href="#L-111"><span class="linenos">111</span></a><span class="s2">You are the Coder of an autonomous software team, reviewing your own work before QA sees it. You </span><span class="se">\</span>
+</span><span id="L-112"><a href="#L-112"><span class="linenos">112</span></a><span class="s2">receive the task and the files you wrote. List the likely bugs and the unhandled edge cases (empty </span><span class="se">\</span>
+</span><span id="L-113"><a href="#L-113"><span class="linenos">113</span></a><span class="s2">input, boundaries, invalid values, state that persists between calls). For each item give its </span><span class="se">\</span>
+</span><span id="L-114"><a href="#L-114"><span class="linenos">114</span></a><span class="s2">`kind` ("bug" or "edge_case"), the `location` (file.py:line or function), the `concern`, and a </span><span class="se">\</span>
+</span><span id="L-115"><a href="#L-115"><span class="linenos">115</span></a><span class="s2">concrete `change` (a code edit or a new test). Report between 1 and 8 items, most important first. </span><span class="se">\</span>
+</span><span id="L-116"><a href="#L-116"><span class="linenos">116</span></a><span class="s2">Be specific to this code; do not pad the list with generic advice.</span>
+</span><span id="L-117"><a href="#L-117"><span class="linenos">117</span></a><span class="s2">"""</span>
 </span></pre></div>
 
 
@@ -235,7 +238,7 @@
                     <div class="attr variable">
             <span class="name">QA_TESTS_PROMPT</span>        =
 <input id="QA_TESTS_PROMPT-view-value" class="view-value-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
-            <label class="view-value-button pdoc-button" for="QA_TESTS_PROMPT-view-value"></label><span class="default_value">&#34;You are the QA &amp; Debugger agent of an autonomous software team. You write a pytest test module that checks one task&#39;s numbered acceptance criteria against the code the Coder delivered. You receive the task and the delivered files. Return the module source as `content` and, in `tests`, every test function with the number of the criterion it checks.\n\nRules:\n- Write plain pytest functions (def test_...) at the top level of the module, importing the delivered modules by name. No test classes.\n- Write at least one test per numbered criterion, and map every test in `tests`. Every criterion number must appear at least once.\n- Make assertions behavioural: call the code and check return values, state changes and raised exceptions (use pytest.raises).\n- Cover the edge cases the criteria imply: empty input, boundaries, invalid values.\n- Write the tests from the criteria. Use the code only for module, function and class names and signatures; never copy its logic into an expected value.\n- Test only what this task&#39;s criteria require. These tests are rerun after every later task, so never test behaviour a later task defines or changes, and never assert that a feature is missing, unsupported or raises NotImplementedError.\n- Use only the Python standard library, pytest and the delivered modules: no other packages or pytest plugins, and no coverage measurement.\n- No network access. Write files only under pytest&#39;s tmp_path fixture.\n&#34;</span>
+            <label class="view-value-button pdoc-button" for="QA_TESTS_PROMPT-view-value"></label><span class="default_value">&#39;You are the QA &amp; Debugger agent of an autonomous software team. You write a pytest test module that checks one task\&#39;s numbered acceptance criteria against the code the Coder delivered. You receive the task and the delivered files. Return the module source as `content` and, in `tests`, every test function with the number of the criterion it checks.\n\nRules:\n- Write plain pytest functions (def test_...) at the top level of the module, importing the delivered modules by name. No test classes.\n- Write at least one test per numbered criterion, and map every test in `tests`. Every criterion number must appear at least once, and each test maps to exactly one criterion.\n- If a criterion is about the tests themselves (for example &#34;tests pass with pytest&#34;), give it its own test that runs the Coder\&#39;s delivered test file (never your own test_qa_*.py) with pytest in a subprocess and asserts the return code is 0.\n- Make assertions behavioural: call the code and check return values, state changes and raised exceptions (use pytest.raises).\n- Cover the edge cases the criteria imply: empty input, boundaries, invalid values.\n- Write the tests from the criteria. Use the code only for module, function and class names and signatures; never copy its logic into an expected value.\n- Test only what this task\&#39;s criteria require. These tests are rerun after every later task, so never test behaviour a later task defines or changes, and never assert that a feature is missing, unsupported or raises NotImplementedError.\n- Use only the Python standard library, pytest and the delivered modules: no other packages or pytest plugins, and no coverage measurement.\n- No network access. Write files only under pytest\&#39;s tmp_path fixture.\n&#39;</span>
 
         
     </div>

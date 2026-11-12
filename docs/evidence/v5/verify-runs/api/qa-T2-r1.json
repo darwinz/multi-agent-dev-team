@@ -1,0 +1,26 @@
+{
+  "task_id": "T2",
+  "round": 1,
+  "test_file": "test_qa_t2.py",
+  "suite_sha": "",
+  "suites_run": {},
+  "tested_files": {
+    "main.py": "94fb8e0e45d6e0ff700c30f98073e3df907c0eaacc0914e7c7e4662d7d6e13fb",
+    "test_echo.py": "4415697b6f5abd9077680c5786f528faaecd92a4280a4d930d0270369d2769e9"
+  },
+  "tests_run": 0,
+  "passed": 0,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [],
+  "exit_code": null,
+  "timed_out": false,
+  "duration_s": 0.0,
+  "results": [],
+  "issues": [],
+  "tampered": false,
+  "qa_error": "QA produced an invalid test suite twice: criterion 4 ('Tests pass with pytest') has no test; If a criterion is about the tests themselves (for example \"tests pass with pytest\"), cover it with one short test that runs the Coder's delivered test file by its exact name (never your own test_qa_*.py or __file__) with subprocess.run([sys.executable, \"-m\", \"pytest\", \"-q\", \"-p\", \"no:cacheprovider\", <file>], cwd=<the test's own directory>, timeout=5) and asserts the return code is 0",
+  "test_corrections": [],
+  "approved": false
+}

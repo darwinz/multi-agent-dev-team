@@ -1,0 +1,170 @@
+{
+  "task_id": "T2",
+  "round": 1,
+  "test_file": "test_qa_t2.py",
+  "suite_sha": "905c43da91d13ec3e4c7d7586d7ba30a0176184c7a046d998a34aded5d568c56",
+  "suites_run": {
+    "T1": "c6ea41c6ae48053999fa893cc62bf21c52d893c0865a61c6c0fb2cc6e4d071e1",
+    "T2": "905c43da91d13ec3e4c7d7586d7ba30a0176184c7a046d998a34aded5d568c56"
+  },
+  "tested_files": {
+    "linked_list.py": "d798339f80fe72061ab9ef8f968a3cc1217e26faa9fb361980214b1c27630f9d",
+    "test_linked_list.py": "705357eb050407d29fea4346736b84373b87ea29b739a3ae9931437bc95cb654"
+  },
+  "tests_run": 28,
+  "passed": 28,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "missing": [],
+  "exit_code": 0,
+  "timed_out": false,
+  "duration_s": 0.949,
+  "results": [
+    {
+      "name": "test_qa_t1::test_new_list_is_empty",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_insert_appends_in_order",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_duplicates_allowed",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_none_allowed",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_iter_is_repeatable_and_empty_safe",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_delivered_test_file_passes_under_pytest",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t1::test_node_defaults",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_insert_at_zero_puts_value_at_head",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_insert_at_zero_into_empty_list",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_insert_at_len_puts_value_at_tail",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_insert_at_len_of_empty_list_is_tail",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_middle_insert_shifts_elements",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_middle_insert_at_last_inner_position",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_insert_at_index_then_append_still_works",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_negative_index_raises_index_error_and_leaves_list_unchanged[-1]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_negative_index_raises_index_error_and_leaves_list_unchanged[-2]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_negative_index_raises_index_error_and_leaves_list_unchanged[-10]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_index_greater_than_len_raises_index_error_and_leaves_list_unchanged",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_index_out_of_range_on_empty_list_raises_and_unchanged",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_non_int_index_raises_type_error_and_leaves_list_unchanged[0]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_non_int_index_raises_type_error_and_leaves_list_unchanged[1]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_non_int_index_raises_type_error_and_leaves_list_unchanged[bad2]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_non_int_index_raises_type_error_and_leaves_list_unchanged[1.0]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_non_int_index_raises_type_error_and_leaves_list_unchanged[0.0]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_non_int_index_raises_type_error_and_leaves_list_unchanged[NoneType]",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_bool_index_raises_type_error_and_leaves_list_unchanged",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_non_int_index_on_empty_list_leaves_list_unchanged",
+      "outcome": "passed",
+      "message": ""
+    },
+    {
+      "name": "test_qa_t2::test_criteria_four_tests_pass_marker",
+      "outcome": "passed",
+      "message": ""
+    }
+  ],
+  "issues": [],
+  "tampered": false,
+  "qa_error": null,
+  "test_corrections": [],
+  "approved": true
+}

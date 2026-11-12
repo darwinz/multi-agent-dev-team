@@ -168,6 +168,25 @@ def test_uncovered_criterion_retry_quotes_it_and_explains_test_criteria(settings
     assert suite is not None and report.approved is True
 
 
+def test_test_mapped_to_two_criteria_retry_explains_one_criterion_per_test(settings):
+    # Live API demo f92f9ac42b5e: QA listed its tests under "tests pass with pytest" as well as under
+    # their own criteria. The retry named only the duplicates, so the model dropped that criterion.
+    files = put(settings, **{"stack.py": FIXED_STACK})
+    bad = qa_suite_response(STACK_TESTS, (*STACK_MAP, ("test_push_then_pop", 2)))
+    agent = qa_agent(settings, bad, qa_suite_response(STACK_TESTS, STACK_MAP))
+    report, suite = agent.review(handoff(), request(files), 1, None, {})
+    retry = str(agent.model.inner.calls[1][-1].content)
+    assert "duplicate test name in the manifest: test_push_then_pop" in retry
+    assert "exactly one criterion" in retry and "separate test" in retry
+    assert "about the tests themselves" in retry and "never your own test_qa_*.py" in retry
+    assert suite is not None and report.approved is True
+
+
+def test_suite_prompt_maps_each_test_to_one_criterion():
+    assert "exactly one criterion" in QA_TESTS_PROMPT
+    assert "about the tests themselves" in QA_TESTS_PROMPT
+
+
 def test_suite_cut_off_at_max_tokens_retried_with_a_shorter_ask(settings):
     files = put(settings, **{"stack.py": FIXED_STACK})
     cut = structured("QATestSuite", {"content": STACK_TESTS})  # the manifest never arrived

@@ -1,4 +1,4 @@
-.PHONY: setup test lint docs verify demo web requirements team-demo team-large team-linked-list team-bst
+.PHONY: setup test lint secrets docs verify demo web requirements team-demo team-large team-linked-list team-bst
 
 setup:
 	uv sync
@@ -8,6 +8,11 @@ test:
 
 lint:
 	uvx ruff@0.17.4 check .
+
+# Needs gitleaks (brew install gitleaks). Scans every commit on every branch, then the working tree.
+secrets:
+	gitleaks git --log-opts="--all" --redact --no-banner .
+	gitleaks dir --redact --no-banner .
 
 docs:
 	PYTHONHASHSEED=0 uv run --with pdoc==16.0.0 python -m scripts.build_api_docs

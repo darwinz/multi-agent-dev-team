@@ -472,6 +472,7 @@ make test        # uv run pytest: the mocked suite, no network and no paid calls
 make verify      # REQUIRE_LIVE=1 uv run pytest -m live -rs: real-model tests, costs money; a skip counts as a failure
 uv run pytest tests/test_e2e_bst.py -v    # the deterministic full-pipeline E2E, mocked
 make lint        # ruff 0.17.4 over the whole repo (config in pyproject.toml)
+make secrets     # gitleaks over every commit on every branch and the working tree (needs gitleaks)
 make docs        # rebuild the pdoc API reference in docs/api/ (reproducible: same source, same bytes)
 ```
 
@@ -524,7 +525,7 @@ A demo can fail its check while the run itself is `completed`, so read the "BST 
 | 2 | Product Manager agent: request → spec → Coder (`agents/pm_agent.py`) |
 | 3 (built, v3.0) | QA & Debugger agent: writes tests from the acceptance criteria, runs them, loops back with fix instructions over A2A (`agents/qa_agent.py`, `orchestration/a2a.py`) |
 | 4 (built, v4) | Production hardening: [retries, circuit breakers, response cache, cost reports, LangSmith tracing, structured logs, Docker clean start](#production-v4) (A2A is used between Coder and QA) |
-| 5 (in progress) | Delivery: ruff-clean code with docstrings and no function over 50 lines (`make lint`, `tests/test_code_quality.py`), [ARCHITECTURE.md](docs/ARCHITECTURE.md), the [pdoc API reference](docs/api/index.html) (`make docs`), this getting-started guide, and a [performance optimisation](docs/PERFORMANCE.md): the Coder's conversation history is prompt-cached (input cost −65% in a controlled A/B) |
+| 5 (in progress) | Delivery: ruff-clean code with docstrings and no function over 50 lines (`make lint`, `tests/test_code_quality.py`), [ARCHITECTURE.md](docs/ARCHITECTURE.md), the [pdoc API reference](docs/api/index.html) (`make docs`), this getting-started guide, and a [performance optimisation](docs/PERFORMANCE.md): the Coder's conversation history is prompt-cached (input cost −65% in a controlled A/B), and [end-to-end results](docs/test_results.md) for four live tasks on the Module 5 code |
 
 ## LangSmith (optional)
 
